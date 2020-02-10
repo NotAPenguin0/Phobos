@@ -1,0 +1,5 @@
+set(PHOBOS_SOURCES
+    ${PHOBOS_SOURCES}
+    "${CMAKE_CURRENT_SOURCE_DIR}/context.cpp"
+    PARENT_SCOPE
+)
