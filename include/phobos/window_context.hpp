@@ -20,7 +20,6 @@ struct WindowContext {
     void close();
 
     void poll_events();
-    void swap_buffers();
 };
 
 WindowContext create_window_context(std::string_view title, size_t width, size_t height, bool fullscreen = false);

@@ -6,8 +6,7 @@
 namespace ph {
 
 WindowContext::~WindowContext() {
-    glfwDestroyWindow(handle);
-    glfwTerminate();
+
 }
 
 WindowContext create_window_context(std::string_view title, size_t width, size_t height, bool fullscreen /* = false*/) {
@@ -49,8 +48,5 @@ void WindowContext::poll_events() {
     glfwPollEvents();
 }
 
-void WindowContext::swap_buffers() {
-    glfwSwapBuffers(handle);
-}
 
 }
