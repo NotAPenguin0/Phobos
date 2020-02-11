@@ -3,9 +3,10 @@
 
 #include <vulkan/vulkan.hpp>
 
-#include <phobos/window_context.hpp>
 #include <phobos/version.hpp>
+#include <phobos/window_context.hpp>
 #include <phobos/physical_device.hpp>
+#include <phobos/swapchain.hpp>
 
 namespace ph {
 
@@ -15,9 +16,12 @@ struct VulkanContext {
     // Only available if enable_validation_layers is set to true
     vk::DebugUtilsMessengerEXT debug_messenger;
 
-    vk::SurfaceKHR surface;
-
     PhysicalDeviceDetails physical_device;
+    vk::Device device;
+
+    vk::Queue graphics_queue;
+
+    SwapchainDetails swapchain;
 
     void destroy();
 };

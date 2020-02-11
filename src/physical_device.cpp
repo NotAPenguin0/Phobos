@@ -15,11 +15,6 @@ static QueueFamilyIndices get_queue_families(PhysicalDeviceDetails& physical_dev
         if (family.queueFlags & vk::QueueFlagBits::eGraphics) {
             indices.graphics_family = i;
         }
-
-        // Check if the queue family has present support
-        if (physical_device.handle.getSurfaceSupportKHR(i, surface)) {
-            indices.present_family = i;
-        }
     }
 
     return indices;
@@ -41,6 +36,19 @@ bool check_required_extensions(PhysicalDeviceDetails& details, PhysicalDeviceReq
             return false;
         }
     }
+
+    return true;
+}
+
+SurfaceDetails get_surface_details(vk::PhysicalDevice device, vk::SurfaceKHR surface) {
+    SurfaceDetails details;
+
+    details.capabilities = device.getSurfaceCapabilitiesKHR(surface);
+    details.formats = device.getSurfaceFormatsKHR(surface);
+    details.present_modes = device.getSurfacePresentModesKHR(surface);
+    details.handle = surface;
+
+    return details;
 }
 
 PhysicalDeviceDetails get_physical_device(vk::Instance instance, vk::SurfaceKHR surface, 
@@ -61,6 +69,7 @@ PhysicalDeviceDetails get_physical_device(vk::Instance instance, vk::SurfaceKHR 
     int best_device_index = -1;
     size_t max_device_score = 0;
     for (size_t i = 0; i < devices.size(); ++i) {
+
         auto& device = devices[i];
         bool discard_device = false;
         size_t device_score = 0;
@@ -74,10 +83,6 @@ PhysicalDeviceDetails get_physical_device(vk::Instance instance, vk::SurfaceKHR 
         if (requirements.graphics_required && !device.queue_families.graphics_family.has_value()) {
             discard_device = true;
         } 
-        
-        if (requirements.present_required && !device.queue_families.present_family.has_value()) {
-            discard_device = true;
-        }
 
         if (requirements.prefer_dedicated_gpu) {
             if (device.properties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
@@ -90,12 +95,24 @@ PhysicalDeviceDetails get_physical_device(vk::Instance instance, vk::SurfaceKHR 
         if (!check_required_extensions(device, requirements)) {
             discard_device = true;
         }
-         
+
+        device.surface_details = get_surface_details(device.handle, surface);
+        // We need at least one surface format and one present mode
+        if (device.surface_details.present_modes.empty() || device.surface_details.formats.empty()) {
+            discard_device = true;
+        }
+
+        // Check if the device supports presenting on this surface
+        if (!device.handle.getSurfaceSupportKHR(device.queue_families.graphics_family.value(), surface)) {
+            discard_device = true;
+        }
+
         // If the device wasn't discarded, check if it's better than the previous device
         if (!discard_device) {
             // Add one to all device scores (temp)
             if (device_score > max_device_score) {
                 best_device_index  = i;
+                max_device_score = device_score;
             }
         }
     }

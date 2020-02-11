@@ -1,7 +1,7 @@
 #include <phobos/vulkan_context.hpp>
+#include <phobos/device.hpp>
 
 #include <GLFW/glfw3.h>
-
 #include <vector>
 #include <iostream>
 
@@ -67,8 +67,15 @@ static vk::DebugUtilsMessengerEXT create_debug_messenger(vk::Instance instance, 
 }
 
 void VulkanContext::destroy() { 
+    for (auto const& img_view : swapchain.image_views) {
+        device.destroyImageView(img_view);
+    }
+
+    device.destroySwapchainKHR(swapchain.handle);
+    // Destroy the device
+    device.destroy();
     // Destroy the surface
-    instance.destroySurfaceKHR(surface);
+    instance.destroySurfaceKHR(physical_device.surface_details.handle);
     // Destroy the debug messenger
     instance.destroyDebugUtilsMessengerEXT(debug_messenger, nullptr, dynamic_dispatcher);
     // Finally, destroy the VkInstance
@@ -94,13 +101,25 @@ VulkanContext create_vulkan_context(WindowContext const& window_ctx, AppSettings
         context.debug_messenger = create_debug_messenger(context.instance, context.dynamic_dispatcher);    
     }
 
+    vk::SurfaceKHR surface;
+
     // Create surface
-    glfwCreateWindowSurface(context.instance, window_ctx.handle, nullptr, reinterpret_cast<VkSurfaceKHR*>(&context.surface));
+    glfwCreateWindowSurface(context.instance, window_ctx.handle, nullptr, reinterpret_cast<VkSurfaceKHR*>(&surface));
 
     PhysicalDeviceRequirements requirements;
     // Require swapchain extension
     requirements.required_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-    context.physical_device = get_physical_device(context.instance, context.surface, requirements);
+    context.physical_device = get_physical_device(context.instance, surface, requirements);
+
+    // Create logical device
+    DeviceRequirements device_requirements;
+    device_requirements.extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    context.device = create_device(context.physical_device, device_requirements);
+
+    // Finally, get the graphics queue
+    context.graphics_queue = context.device.getQueue(context.physical_device.queue_families.graphics_family.value(), 0);
+
+    context.swapchain = create_swapchain(context.device, window_ctx, context.physical_device);
 
     return context;
 }

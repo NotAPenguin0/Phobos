@@ -3,5 +3,8 @@ set(PHOBOS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/vulkan_context.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/window_context.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/physical_device.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/device.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/swapchain.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/util.cpp"
     PARENT_SCOPE
 )

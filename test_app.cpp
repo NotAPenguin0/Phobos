@@ -23,6 +23,9 @@ int main() {
     settings.version = ph::Version{0, 0, 1};
     ph::VulkanContext vulkan_context = ph::create_vulkan_context(window_context, settings);
 
+    std::cout << "Created Phobos Vulkan context with physical device " << vulkan_context.physical_device.properties.deviceName
+              << std::endl;
+
     while(window_context.is_open()) {
         window_context.poll_events();
     }
