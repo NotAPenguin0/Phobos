@@ -11,6 +11,8 @@ set(PHOBOS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/pipelines.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/pipeline_layout.cpp"
 
+    "${CMAKE_CURRENT_SOURCE_DIR}/present/present_manager.cpp"
+
     "${CMAKE_CURRENT_SOURCE_DIR}/util/image_util.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/shader_util.cpp"
     PARENT_SCOPE

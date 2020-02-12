@@ -1,5 +1,6 @@
 #include <phobos/core/swapchain.hpp>
 #include <phobos/util/image_util.hpp>
+#include <phobos/core/vulkan_context.hpp>
 
 #include <limits>
 #undef min
@@ -85,10 +86,25 @@ SwapchainDetails create_swapchain(vk::Device device, WindowContext const& window
     details.images = device.getSwapchainImagesKHR(details.handle);
     details.image_views.resize(details.images.size());
     for (size_t i = 0; i < details.images.size(); ++i) {
-        details.image_views[i] = create_image_view(device, details.images[i], details.format.format);
+        details.image_views[i] = create_image_view(device, details.images[i], details.format.format);    
     }
 
     return details;
+}
+
+void create_swapchain_framebuffers(VulkanContext& ctx, SwapchainDetails& swapchain) {
+    swapchain.framebuffers.resize(swapchain.images.size());
+    for (size_t i = 0; i < swapchain.images.size(); ++i) {
+        vk::FramebufferCreateInfo info;
+        info.renderPass = ctx.default_render_pass;
+        info.attachmentCount = 1;
+        info.pAttachments = &swapchain.image_views[i];
+        info.width = swapchain.extent.width;
+        info.height = swapchain.extent.height;
+        info.layers = 1;
+
+        swapchain.framebuffers[i] = ctx.device.createFramebuffer(info);
+    }
 }
 
 }

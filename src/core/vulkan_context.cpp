@@ -106,6 +106,10 @@ void VulkanContext::destroy() {
     pipeline_layouts.destroy_all(device);
     device.destroyRenderPass(default_render_pass);
 
+    for (auto const& framebuf : swapchain.framebuffers) {
+        device.destroyFramebuffer(framebuf);
+    }
+
     for (auto const& img_view : swapchain.image_views) {
         device.destroyImageView(img_view);
     }
@@ -162,6 +166,9 @@ VulkanContext create_vulkan_context(WindowContext const& window_ctx, AppSettings
 
     // We have to create the renderpass before creating the pipeline. 
     context.default_render_pass = create_default_render_pass(context);
+
+    // Only after the renderpass as been created, we can create the swapchain framebuffers
+    create_swapchain_framebuffers(context, context.swapchain);
 
     create_pipeline_layouts(context.device, context.pipeline_layouts);
     create_pipelines(context, context.pipelines);
