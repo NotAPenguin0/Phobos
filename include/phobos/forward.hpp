@@ -7,7 +7,21 @@ struct GLFWwindow;
 
 namespace ph {
 
+struct DeviceRequirements;
+
+struct QueueFamilyIndices;
+struct SurfaceDetails;
+struct PhysicalDeviceDetails;
+struct PhysicalDeviceRequirements;
+
+struct SwapchainDetails;
+
+struct Pipeline;
+
 struct WindowContext;
+
+struct VulkanContext;
+struct AppSettings;
 
 } // namespace ph
 

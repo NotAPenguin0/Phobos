@@ -1,4 +1,4 @@
-#include <phobos/util.hpp>
+#include <phobos/util/image_util.hpp>
 
 namespace ph {
 

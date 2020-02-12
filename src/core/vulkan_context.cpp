@@ -1,5 +1,5 @@
-#include <phobos/vulkan_context.hpp>
-#include <phobos/device.hpp>
+#include <phobos/core/vulkan_context.hpp>
+#include <phobos/core/device.hpp>
 
 #include <GLFW/glfw3.h>
 #include <vector>

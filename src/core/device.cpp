@@ -1,4 +1,4 @@
-#include <phobos/device.hpp>
+#include <phobos/core/device.hpp>
 
 namespace ph {
 

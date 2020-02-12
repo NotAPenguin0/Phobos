@@ -1,5 +1,5 @@
-#ifndef PHOBOS_UTIL_HPP_
-#define PHOBOS_UTIL_HPP_
+#ifndef PHOBOS_IMAGE_UTIL_HPP_
+#define PHOBOS_IMAGE_UTIL_HPP_
 
 #include <vulkan/vulkan.hpp>
 

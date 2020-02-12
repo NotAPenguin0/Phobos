@@ -1,9 +1,10 @@
-#include <phobos/swapchain.hpp>
-#include <phobos/util.hpp>
+#include <phobos/core/swapchain.hpp>
+#include <phobos/util/image_util.hpp>
 
 #include <limits>
 #undef min
 #undef max
+
 namespace ph {
 
 static vk::SurfaceFormatKHR choose_surface_format(SurfaceDetails const& surface_details) {

@@ -3,7 +3,7 @@
 
 #include <vulkan/vulkan.hpp>
 
-#include <phobos/physical_device.hpp>
+#include <phobos/core/physical_device.hpp>
 
 namespace ph {
 

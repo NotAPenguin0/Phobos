@@ -4,9 +4,9 @@
 #include <vulkan/vulkan.hpp>
 
 #include <phobos/version.hpp>
-#include <phobos/window_context.hpp>
-#include <phobos/physical_device.hpp>
-#include <phobos/swapchain.hpp>
+#include <phobos/core/window_context.hpp>
+#include <phobos/core/physical_device.hpp>
+#include <phobos/core/swapchain.hpp>
 
 namespace ph {
 

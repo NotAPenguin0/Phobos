@@ -1,5 +1,5 @@
-#include <phobos/window_context.hpp>
-#include <phobos/vulkan_context.hpp>
+#include <phobos/core/window_context.hpp>
+#include <phobos/core/vulkan_context.hpp>
 
 #include <GLFW/glfw3.h>
 
