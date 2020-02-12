@@ -5,6 +5,9 @@
 #include <vector>
 #include <iostream>
 
+#include <phobos/pipeline/pipelines.hpp>
+#include <phobos/pipeline/layouts.hpp>
+
 namespace ph {
 
 static std::vector<const char*> get_required_glfw_extensions() {
@@ -66,7 +69,43 @@ static vk::DebugUtilsMessengerEXT create_debug_messenger(vk::Instance instance, 
     return instance.createDebugUtilsMessengerEXT(info, nullptr, dispatcher);
 }
 
+static vk::RenderPass create_default_render_pass(VulkanContext& ctx) {
+    // Create attachment
+    vk::AttachmentDescription color_attachment;
+    color_attachment.format = ctx.swapchain.format.format;
+    color_attachment.samples = vk::SampleCountFlagBits::e1;
+    color_attachment.loadOp = vk::AttachmentLoadOp::eClear;
+    color_attachment.storeOp = vk::AttachmentStoreOp::eStore;
+    color_attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+    color_attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+    color_attachment.initialLayout = vk::ImageLayout::eUndefined;
+    color_attachment.finalLayout = vk::ImageLayout::ePresentSrcKHR;
+
+    vk::AttachmentReference color_attachment_ref;
+    color_attachment_ref.attachment = 0;
+    color_attachment_ref.layout = vk::ImageLayout::eColorAttachmentOptimal;
+
+
+    // Create subpass
+    vk::SubpassDescription subpass;
+    subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &color_attachment_ref;
+
+    vk::RenderPassCreateInfo info;
+    info.attachmentCount = 1;
+    info.pAttachments = &color_attachment;
+    info.subpassCount = 1;
+    info.pSubpasses = &subpass;
+
+    return ctx.device.createRenderPass(info);
+}
+
 void VulkanContext::destroy() { 
+    pipelines.destroy_all(device);
+    pipeline_layouts.destroy_all(device);
+    device.destroyRenderPass(default_render_pass);
+
     for (auto const& img_view : swapchain.image_views) {
         device.destroyImageView(img_view);
     }
@@ -120,6 +159,12 @@ VulkanContext create_vulkan_context(WindowContext const& window_ctx, AppSettings
     context.graphics_queue = context.device.getQueue(context.physical_device.queue_families.graphics_family.value(), 0);
 
     context.swapchain = create_swapchain(context.device, window_ctx, context.physical_device);
+
+    // We have to create the renderpass before creating the pipeline. 
+    context.default_render_pass = create_default_render_pass(context);
+
+    create_pipeline_layouts(context.device, context.pipeline_layouts);
+    create_pipelines(context, context.pipelines);
 
     return context;
 }

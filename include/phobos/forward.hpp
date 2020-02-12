@@ -17,6 +17,8 @@ struct PhysicalDeviceRequirements;
 struct SwapchainDetails;
 
 struct Pipeline;
+class PipelineLayouts;
+class PipelineManager;
 
 struct WindowContext;
 

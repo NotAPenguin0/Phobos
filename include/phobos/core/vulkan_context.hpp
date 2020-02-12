@@ -8,6 +8,9 @@
 #include <phobos/core/physical_device.hpp>
 #include <phobos/core/swapchain.hpp>
 
+#include <phobos/pipeline/pipeline_layout.hpp>
+#include <phobos/pipeline/pipeline.hpp>
+
 namespace ph {
 
 struct VulkanContext {
@@ -22,6 +25,11 @@ struct VulkanContext {
     vk::Queue graphics_queue;
 
     SwapchainDetails swapchain;
+
+    PipelineLayouts pipeline_layouts;
+    PipelineManager pipelines;
+
+    vk::RenderPass default_render_pass;
 
     void destroy();
 };

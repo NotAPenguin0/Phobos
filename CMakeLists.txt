@@ -22,10 +22,21 @@ set(PHOBOS_LINK_LIBRARIES ${PHOBOS_LINK_LIBRARIES}
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/src")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/external")
 
+
 add_library(Phobos STATIC ${PHOBOS_SOURCES})
 
 target_include_directories(Phobos PUBLIC ${PHOBOS_INCLUDE_DIRECTORIES})
 target_link_libraries(Phobos PUBLIC ${PHOBOS_LINK_LIBRARIES})
+
+file(GLOB PHOBOS_SHADERS "${CMAKE_CURRENT_SOURCE_DIR}/data/shaders/*")
+foreach(SHADER ${PHOBOS_SHADERS})
+    get_filename_component(SHADER_FNAME ${SHADER} NAME)
+    add_custom_command( 
+        TARGET Phobos
+        COMMAND echo Compiling shader ${SHADER_FNAME} && 
+                glslc ${SHADER} "-o${CMAKE_BINARY_DIR}/data/shaders/${SHADER_FNAME}.spv"
+    )
+endforeach()
 
 # Test Application
 
