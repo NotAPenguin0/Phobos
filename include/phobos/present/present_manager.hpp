@@ -24,8 +24,8 @@ class PresentManager {
 public:
     PresentManager(VulkanContext& ctx, size_t max_frames_in_flight = 2);
 
-    // Builds command buffers from rendergraph and returns them as a FrameInfo struct
-    FrameInfo& render_frame(/*RenderGraph*/);
+    // Gets data for the current frame, like the framebuffer to use, command buffers, etc
+    FrameInfo& get_frame_info();
 
     // Presents the frame 
     void present_frame(FrameInfo& frame);

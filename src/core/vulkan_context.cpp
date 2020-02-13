@@ -79,7 +79,7 @@ static vk::RenderPass create_default_render_pass(VulkanContext& ctx) {
     color_attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
     color_attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
     color_attachment.initialLayout = vk::ImageLayout::eUndefined;
-    color_attachment.finalLayout = vk::ImageLayout::ePresentSrcKHR;
+    color_attachment.finalLayout = vk::ImageLayout::eColorAttachmentOptimal;
 
     vk::AttachmentReference color_attachment_ref;
     color_attachment_ref.attachment = 0;
@@ -92,11 +92,21 @@ static vk::RenderPass create_default_render_pass(VulkanContext& ctx) {
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &color_attachment_ref;
 
+    // Setup subpass dependencies
+    vk::SubpassDependency dependency;
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+    dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+    dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite;
+
     vk::RenderPassCreateInfo info;
     info.attachmentCount = 1;
     info.pAttachments = &color_attachment;
     info.subpassCount = 1;
     info.pSubpasses = &subpass;
+    info.dependencyCount = 1;
+    info.pDependencies = &dependency;
 
     return ctx.device.createRenderPass(info);
 }
