@@ -6,17 +6,6 @@
 
 #include <vector>
 
-// Proposed API:
-/*
-ph::PresentManager present_mngr;
-while(app_loop) {
-  ph::RenderGraph render_graph = build_render_graph(scene);
-  ph::FrameInfo frame_info = present_mngr.render_frame(render_graph);
-  present_mng.present_frame(frame_info);
-  // Might return instantly if there is a next frame available already.
-  present_mngr.wait_until_next_frame();
-}
-*/
 
 namespace ph {
 

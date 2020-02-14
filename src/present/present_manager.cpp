@@ -43,6 +43,7 @@ FrameInfo& PresentManager::get_frame_info() {
     frame.image_index = image_index;
     frame.image = context.swapchain.images[image_index];
     frame.extra_command_buffers.clear();
+    frame.draw_calls = 0;
     return frame;
 }
 

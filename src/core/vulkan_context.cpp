@@ -123,6 +123,8 @@ void VulkanContext::destroy() {
     for (auto const& img_view : swapchain.image_views) {
         device.destroyImageView(img_view);
     }
+    
+    device.destroyCommandPool(command_pool);
 
     device.destroySwapchainKHR(swapchain.handle);
     // Destroy the device
@@ -182,6 +184,11 @@ VulkanContext create_vulkan_context(WindowContext const& window_ctx, AppSettings
 
     create_pipeline_layouts(context.device, context.pipeline_layouts);
     create_pipelines(context, context.pipelines);
+
+    vk::CommandPoolCreateInfo cmd_pool_info;
+    cmd_pool_info.flags = vk::CommandPoolCreateFlagBits::eTransient | vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
+    cmd_pool_info.queueFamilyIndex = context.physical_device.queue_families.graphics_family.value();
+    context.command_pool = context.device.createCommandPool(cmd_pool_info);
 
     return context;
 }

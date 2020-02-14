@@ -10,6 +10,8 @@ struct FrameInfo {
     size_t frame_index;
     size_t image_index;
 
+    size_t draw_calls;
+
     vk::CommandBuffer command_buffer;
     vk::Framebuffer framebuffer;
     vk::Image image;

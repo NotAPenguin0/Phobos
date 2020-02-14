@@ -23,6 +23,7 @@ struct PhysicalDeviceDetails {
     vk::PhysicalDevice handle;
 
     vk::PhysicalDeviceProperties properties;
+    vk::PhysicalDeviceMemoryProperties memory_properties;
     vk::PhysicalDeviceFeatures features;
 
     std::vector<vk::QueueFamilyProperties> queue_family_properties;

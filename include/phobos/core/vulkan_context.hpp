@@ -30,6 +30,9 @@ struct VulkanContext {
     PipelineManager pipelines;
 
     vk::RenderPass default_render_pass;
+    // A command pool that can be used to allocate various command buffers for various operations. 
+    // This command pool is marked with the eTransient flag
+    vk::CommandPool command_pool;
 
     void destroy();
 };
