@@ -8,6 +8,7 @@ namespace ph {
 
 enum class PipelineLayoutID : uint32_t {
     eEmpty = 0,
+    eMVPOnly = 1,
     eCount
 };
 

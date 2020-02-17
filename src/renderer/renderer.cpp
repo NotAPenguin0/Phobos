@@ -1,5 +1,7 @@
 #include <phobos/renderer/renderer.hpp>
 
+#include <glm/gtc/type_ptr.hpp>
+
 namespace ph {
 
 Renderer::Renderer(VulkanContext& context) : ctx(context) {
@@ -29,19 +31,45 @@ void Renderer::render_frame(FrameInfo& info, RenderGraph const& graph) {
     vk::Pipeline pipeline = ctx.pipelines.get_pipeline(PipelineID::eGeneric);
     cmd_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 
+    auto const& pipeline_layout = ctx.pipeline_layouts.get_layout(PipelineLayoutID::eMVPOnly);
+    cmd_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout.handle, 0, info.fixed_descriptor_set, nullptr);
+
+    update_pv_matrix(info, graph);
+
     for (auto& draw : graph.draw_commands) {
         Mesh* mesh = graph.meshes[draw.mesh_index];
 
+        update_model_matrix(info, glm::mat4(1.0f));
+
+        // Bind draw data
         vk::DeviceSize const offset = 0;
         cmd_buffer.bindVertexBuffers(0, mesh->get_vertices(), offset);
         cmd_buffer.bindIndexBuffer(mesh->get_indices(), 0, vk::IndexType::eUint32);
+        // Execute drawcall
         cmd_buffer.drawIndexed(mesh->get_index_count(), 1, 0, 0, 0);
+
         info.draw_calls++;
     }
     
     cmd_buffer.endRenderPass();
     cmd_buffer.end();
 
+}
+
+void Renderer::destroy() {
+
+}
+
+void Renderer::update_pv_matrix(FrameInfo& info, RenderGraph const& graph) {
+    glm::mat4 pv = graph.projection * graph.view;
+    float* data_ptr = reinterpret_cast<float*>(info.mvp_ubo.ptr);
+    std::memcpy(data_ptr, &pv[0][0], 16 * sizeof(float));
+}
+
+void Renderer::update_model_matrix(FrameInfo& info, glm::mat4 const& model) {
+    // The model matrix is the second matrix in the UBO, so we need to offset by 16 elements (= one mat4)
+    constexpr size_t model_offset = 16;
+    std::memcpy((float*)info.mvp_ubo.ptr + model_offset, &model[0][0], 16 * sizeof(float));
 }
 
 }

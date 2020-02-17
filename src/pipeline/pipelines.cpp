@@ -32,6 +32,7 @@ static vk::PipelineVertexInputStateCreateInfo vertex_input() {
     info.pVertexBindingDescriptions = &vertex_input_binding();
     info.vertexAttributeDescriptionCount = vertex_input_attributes().size();
     info.pVertexAttributeDescriptions = vertex_input_attributes().data();
+    
 
     return info;
 }
@@ -75,7 +76,7 @@ static vk::Rect2D scissor(VulkanContext& ctx) {
     vk::Rect2D s;
     s.offset = vk::Offset2D{0, 0};
     s.extent = ctx.swapchain.extent;
-    return s;
+    return s; 
 }
 
 static vk::PipelineRasterizationStateCreateInfo rasterizer() {
@@ -139,7 +140,7 @@ static void create_generic_pipeline(VulkanContext& ctx, PipelineManager& pipelin
 
     info.stageCount = shader_info.size();
     info.pStages = shader_info.data();
-    info.layout = ctx.pipeline_layouts.get_layout(PipelineLayoutID::eEmpty);
+    info.layout = ctx.pipeline_layouts.get_layout(PipelineLayoutID::eMVPOnly).handle;
     info.pVertexInputState = &vertex_input_info;
     info.pInputAssemblyState = &input_assembly;
     info.pViewportState = &viewport_info;

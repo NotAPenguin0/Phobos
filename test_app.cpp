@@ -7,6 +7,8 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <imgui/imgui.h>
 
 #include "imgui_style.hpp"
@@ -90,10 +92,10 @@ int main() {
     size_t draw_calls = 0;
 
     float vertices[] = {
-        -0.5f, 0.5f, 0.0f, 1.0f, 0.0f,
-        0.5f, 0.5f, 0.0f, 0.0f, 0.0f,
-        0.5f, -0.5f, 0.0f, 0.0f, 1.0f,
-        -0.5f, -0.5f, 0.0, 1.0f, 1.0f
+        -0.5f, -0.5f, 0.0f, 0.0f, 1.0f,
+        0.5f, -0.5f, 0.0f, 1.0f, 1.0f,
+        0.5f, 0.5f, 0.0f, 1.0f, 0.0f,
+        -0.5f, 0.5f, 0.0, 0.0f, 0.0f
     };
 
     uint32_t indices[] = {
@@ -108,6 +110,11 @@ int main() {
     triangle_info.indices = indices;
     triangle_info.index_count = 6;
     ph::Mesh triangle(triangle_info);
+
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)window_context.width / (float)window_context.height, 
+        0.1f, 100.0f);
+    projection[1][1] *= -1;
+    glm::mat4 view = glm::lookAt(glm::vec3(2, 2, 2), glm::vec3(0, 0, 0), glm::vec3(0, 0, 1));
 
     while(window_context.is_open()) {
         window_context.poll_events();
@@ -127,6 +134,9 @@ int main() {
         draw.mesh_index = 0;
         render_graph.draw_commands.push_back(draw);
 
+        render_graph.projection = projection;
+        render_graph.view = view;
+
         renderer.render_frame(frame_info, render_graph);
         imgui_renderer.render_frame(frame_info);
 
@@ -143,6 +153,7 @@ int main() {
     triangle.destroy();
 
     // Deallocate resources
+    renderer.destroy();
     imgui_renderer.destroy();
     present_manager.destroy();
     vulkan_context.destroy();

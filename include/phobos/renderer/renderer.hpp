@@ -14,8 +14,13 @@ public:
 
     void render_frame(FrameInfo& info, RenderGraph const& graph);
 
+    void destroy();
+
 private:
     VulkanContext& ctx;
+
+    void update_pv_matrix(FrameInfo& info, RenderGraph const& graph);
+    void update_model_matrix(FrameInfo& info, glm::mat4 const& model);
 };
 
 }

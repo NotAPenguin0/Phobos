@@ -35,6 +35,9 @@ private:
 
     vk::CommandPool command_pool;
     std::vector<vk::CommandBuffer> command_buffers;
+
+    // Pool for all "fixed" descriptors
+    vk::DescriptorPool fixed_descriptor_pool;
 };
 
 }
