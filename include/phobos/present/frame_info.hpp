@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <phobos/renderer/mapped_ubo.hpp>
+#include <phobos/renderer/instancing_buffer.hpp>
 
 namespace ph {
 
@@ -26,7 +27,8 @@ struct FrameInfo {
     vk::Semaphore render_finished;
 
     // Other resources
-    MappedUBO mvp_ubo;
+    MappedUBO vp_ubo;
+    InstancingBuffer instance_ssbo;
 
     vk::DescriptorSet fixed_descriptor_set;
 

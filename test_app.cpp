@@ -7,6 +7,7 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <imgui/imgui.h>
@@ -123,7 +124,7 @@ int main() {
         ///// FRAME START
         imgui_renderer.begin_frame();
 
-        ph::FrameInfo frame_info = present_manager.get_frame_info();
+        ph::FrameInfo& frame_info = present_manager.get_frame_info();
 
         // Imgui
         make_ui(draw_calls);
@@ -132,6 +133,10 @@ int main() {
         render_graph.meshes.push_back(&triangle);
         ph::RenderGraph::DrawCommand draw;
         draw.mesh_index = 0;
+        draw.instances = { 
+            { glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.0f, 0.0f)) }, 
+            { glm::rotate(glm::mat4(1.0f), glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f)) }
+        };
         render_graph.draw_commands.push_back(draw);
 
         render_graph.projection = projection;

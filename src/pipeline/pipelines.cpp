@@ -76,7 +76,7 @@ static vk::Rect2D scissor(VulkanContext& ctx) {
     vk::Rect2D s;
     s.offset = vk::Offset2D{0, 0};
     s.extent = ctx.swapchain.extent;
-    return s; 
+    return s;
 }
 
 static vk::PipelineRasterizationStateCreateInfo rasterizer() {

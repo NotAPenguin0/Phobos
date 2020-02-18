@@ -16,6 +16,7 @@ set(PHOBOS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/renderer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/imgui_renderer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/mesh.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/renderer/instancing_buffer.cpp"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/util/image_util.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/shader_util.cpp"

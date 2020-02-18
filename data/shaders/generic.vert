@@ -10,7 +10,11 @@ layout(set = 0, binding = 0) uniform Matrices {
     mat4 model;
 } matrices;
 
+layout(std430, set = 0, binding = 1) buffer readonly InstanceData {
+    mat4 models[];
+} instances;
+
 void main() {
     TexCoords = iTexCoords;
-    gl_Position = matrices.projection_view * matrices.model * vec4(iPos, 1.0);
+    gl_Position = matrices.projection_view * instances.models[gl_InstanceIndex] * vec4(iPos, 1.0);
 }

@@ -15,14 +15,22 @@ static void create_mvp_only_layout(vk::Device device, PipelineLayouts& layouts) 
 
     vk::DescriptorSetLayoutCreateInfo descriptor_set_layout_info;
 
-    vk::DescriptorSetLayoutBinding binding;
-    binding.binding = 0;
-    binding.descriptorType = vk::DescriptorType::eUniformBuffer;
-    binding.descriptorCount = 1;
-    binding.stageFlags = vk::ShaderStageFlagBits::eVertex;
+    constexpr size_t binding_cnt = 2;
+    constexpr size_t vp_index = 0;
+    constexpr size_t instance_index = 1;
+    vk::DescriptorSetLayoutBinding bindings[2];
+    bindings[vp_index].binding = 0;
+    bindings[vp_index].descriptorType = vk::DescriptorType::eUniformBuffer;
+    bindings[vp_index].descriptorCount = 1;
+    bindings[vp_index].stageFlags = vk::ShaderStageFlagBits::eVertex;
 
-    descriptor_set_layout_info.bindingCount = 1;
-    descriptor_set_layout_info.pBindings = &binding;
+    bindings[instance_index].binding = 1;
+    bindings[instance_index].descriptorType = vk::DescriptorType::eStorageBuffer;
+    bindings[instance_index].descriptorCount = 1;
+    bindings[instance_index].stageFlags = vk::ShaderStageFlagBits::eVertex;
+
+    descriptor_set_layout_info.bindingCount = binding_cnt;
+    descriptor_set_layout_info.pBindings = bindings;
 
     vk::DescriptorSetLayout set_layout = device.createDescriptorSetLayout(descriptor_set_layout_info);
     info.setLayoutCount = 1;

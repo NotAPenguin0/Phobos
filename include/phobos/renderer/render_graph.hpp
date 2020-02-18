@@ -19,8 +19,13 @@ struct RenderGraph {
     // TODO: Proper resource referencing instead of raw pointers?
     std::vector<Mesh*> meshes;
 
+    struct Instance {
+        glm::mat4 transform;
+    };
+
     struct DrawCommand {
         size_t mesh_index;
+        std::vector<Instance> instances;
     };
 
     std::vector<DrawCommand> draw_commands;

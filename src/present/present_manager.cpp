@@ -1,6 +1,8 @@
 #include <phobos/present/present_manager.hpp>
 
 #include <phobos/util/buffer_util.hpp>
+#include <phobos/renderer/instancing_buffer.hpp>
+#include <phobos/renderer/render_graph.hpp>
 
 #undef min
 #undef max
@@ -26,7 +28,8 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
     command_buffers = ctx.device.allocateCommandBuffers(alloc_info);
 
     vk::DescriptorPoolSize sizes[] = {
-        vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, swapchain_image_count)
+        vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, swapchain_image_count),
+        vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, swapchain_image_count)
     };
 
     vk::DescriptorPoolCreateInfo fixed_descriptor_pool_info;
@@ -48,36 +51,57 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         frame_info.image_available = ctx.device.createSemaphore(semaphore_info);
         frame_info.render_finished = ctx.device.createSemaphore(semaphore_info);
 
-        // Create MVP UBO for this frame
+        // Create VP UBO for this frame
         create_buffer(ctx, 2 * 16 * sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer, 
             vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, 
-            frame_info.mvp_ubo.buffer, frame_info.mvp_ubo.memory);
-        ctx.device.bindBufferMemory(frame_info.mvp_ubo.buffer, frame_info.mvp_ubo.memory, 0);
-        frame_info.mvp_ubo.size = 2 * 16 * sizeof(float);
-        frame_info.mvp_ubo.ptr = ctx.device.mapMemory(frame_info.mvp_ubo.memory, 0, 2 * 16 * sizeof(float));
+            frame_info.vp_ubo.buffer, frame_info.vp_ubo.memory);
+        ctx.device.bindBufferMemory(frame_info.vp_ubo.buffer, frame_info.vp_ubo.memory, 0);
+        frame_info.vp_ubo.size = 2 * 16 * sizeof(float);
+        frame_info.vp_ubo.ptr = ctx.device.mapMemory(frame_info.vp_ubo.memory, 0, 2 * 16 * sizeof(float));
+
+        // Create instance data UBO for this frame
+        frame_info.instance_ssbo = InstancingBuffer(ctx);
+        // Start with 32 instances (arbitrary number)
+        frame_info.instance_ssbo.create(32 * sizeof(RenderGraph::Instance));
 
         // Create descriptor sets for this frame
-        std::vector<vk::DescriptorSetLayout> layouts(swapchain_image_count, 
-            ctx.pipeline_layouts.get_layout(PipelineLayoutID::eMVPOnly).descriptor_set_layout);
+        PipelineLayout vp_layout = ctx.pipeline_layouts.get_layout(PipelineLayoutID::eMVPOnly);
         vk::DescriptorSetAllocateInfo descriptor_set_info;
         descriptor_set_info.descriptorPool = fixed_descriptor_pool;
         descriptor_set_info.descriptorSetCount = 1;
-        descriptor_set_info.pSetLayouts = layouts.data();
+        descriptor_set_info.pSetLayouts = &vp_layout.descriptor_set_layout;
         frame_info.fixed_descriptor_set = ctx.device.allocateDescriptorSets(descriptor_set_info)[0];
 
-        // Setup descriptor set to point to right UBO
-        vk::DescriptorBufferInfo buffer_info;
-        buffer_info.buffer = frame_info.mvp_ubo.buffer;
-        buffer_info.offset = 0;
-        buffer_info.range = frame_info.mvp_ubo.size;
-        vk::WriteDescriptorSet write_info;
-        write_info.descriptorCount = 1;
-        write_info.descriptorType = vk::DescriptorType::eUniformBuffer;
-        write_info.dstSet = frame_info.fixed_descriptor_set;
-        write_info.dstBinding = 0;
-        write_info.dstArrayElement = 0;
-        write_info.pBufferInfo = &buffer_info;
-        ctx.device.updateDescriptorSets(write_info, nullptr);
+        // Setup descriptor set to point to right VP UBO
+        vk::DescriptorBufferInfo vp_buffer_write;
+        vp_buffer_write.buffer = frame_info.vp_ubo.buffer;
+        vp_buffer_write.offset = 0;
+        vp_buffer_write.range = frame_info.vp_ubo.size;
+        
+        vk::DescriptorBufferInfo instance_buffer_write;
+        instance_buffer_write.buffer = frame_info.instance_ssbo.buffer_handle();
+        instance_buffer_write.offset = 0;
+        instance_buffer_write.range = frame_info.instance_ssbo.size();
+
+        constexpr size_t write_cnt = 2;
+        constexpr size_t vp_write = 0;
+        constexpr size_t instance_write = 1;
+        vk::WriteDescriptorSet writes[write_cnt];
+        writes[vp_write].descriptorCount = 1;
+        writes[vp_write].descriptorType = vk::DescriptorType::eUniformBuffer;
+        writes[vp_write].dstSet = frame_info.fixed_descriptor_set;
+        writes[vp_write].dstBinding = 0;
+        writes[vp_write].dstArrayElement = 0;
+        writes[vp_write].pBufferInfo = &vp_buffer_write;
+
+        writes[instance_write].descriptorCount = 1;
+        writes[instance_write].descriptorType = vk::DescriptorType::eStorageBuffer;
+        writes[instance_write].dstSet = frame_info.fixed_descriptor_set;
+        writes[instance_write].dstBinding = 1;
+        writes[instance_write].dstArrayElement = 0;
+        writes[instance_write].pBufferInfo = &instance_buffer_write;
+
+        ctx.device.updateDescriptorSets(write_cnt, writes, 0, nullptr);
     }
 }
 
@@ -146,12 +170,13 @@ void PresentManager::wait_for_available_frame() {
 
 void PresentManager::destroy() {
     for (auto& frame : frames) {
+        frame.instance_ssbo.destroy();
         context.device.destroyFence(frame.fence);
         context.device.destroySemaphore(frame.image_available);
         context.device.destroySemaphore(frame.render_finished);
-        context.device.destroyBuffer(frame.mvp_ubo.buffer);
-        context.device.unmapMemory(frame.mvp_ubo.memory);
-        context.device.freeMemory(frame.mvp_ubo.memory);
+        context.device.destroyBuffer(frame.vp_ubo.buffer);
+        context.device.unmapMemory(frame.vp_ubo.memory);
+        context.device.freeMemory(frame.vp_ubo.memory);
     }
     context.device.destroyDescriptorPool(fixed_descriptor_pool);
     context.device.destroyCommandPool(command_pool);
