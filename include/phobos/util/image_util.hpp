@@ -5,7 +5,8 @@
 
 namespace ph {
 
-vk::ImageView create_image_view(vk::Device device, vk::Image image, vk::Format format);
+vk::ImageView create_image_view(vk::Device device, vk::Image image, vk::Format format, 
+    vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor);
 
 }
 

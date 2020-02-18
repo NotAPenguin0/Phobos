@@ -7,7 +7,7 @@ namespace ph {
 
 namespace memory_util {
 
-uint32_t find_memory_type(VulkanContext& ctx, uint32_t type_filter, vk::MemoryPropertyFlags properties);
+uint32_t find_memory_type(PhysicalDeviceDetails const& phys_device, uint32_t type_filter, vk::MemoryPropertyFlags properties);
 
 }
 

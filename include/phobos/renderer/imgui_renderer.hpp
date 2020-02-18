@@ -23,6 +23,8 @@ private:
 
     std::vector<vk::CommandBuffer> cmd_buffers;
     vk::RenderPass render_pass;
+
+    std::vector<vk::Framebuffer> framebuffers;
 };
 
 }

@@ -11,11 +11,13 @@ vk::Device create_device(PhysicalDeviceDetails const& physical_device, DeviceReq
     queue_info.pQueuePriorities = &priority;
 
     vk::DeviceCreateInfo info;
+    
     info.pQueueCreateInfos = &queue_info;
     info.queueCreateInfoCount = 1;
     info.enabledExtensionCount = requirements.extensions.size();
     info.ppEnabledExtensionNames = requirements.extensions.data();
     info.pEnabledFeatures = &requirements.features;
+    info.pNext = requirements.pNext;
 
     return physical_device.handle.createDevice(info);
 }

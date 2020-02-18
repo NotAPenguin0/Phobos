@@ -2,9 +2,9 @@
 
 namespace ph::memory_util {
 
-uint32_t find_memory_type(VulkanContext& ctx, uint32_t type_filter, vk::MemoryPropertyFlags properties) {
+uint32_t find_memory_type(PhysicalDeviceDetails const& phys_device, uint32_t type_filter, vk::MemoryPropertyFlags properties) {
      // Get available memory types
-    vk::PhysicalDeviceMemoryProperties const device_properties = ctx.physical_device.memory_properties;
+    vk::PhysicalDeviceMemoryProperties const& device_properties = phys_device.memory_properties;
     // Find a matching one
     for (uint32_t i = 0; i < device_properties.memoryTypeCount; ++i) {
         // If the filter matches the memory type, return the index of the memory type

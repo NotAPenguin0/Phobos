@@ -116,6 +116,16 @@ static vk::PipelineColorBlendStateCreateInfo color_blending() {
     return info;
 }
 
+static vk::PipelineDepthStencilStateCreateInfo depth_stencil() {
+    static vk::PipelineDepthStencilStateCreateInfo info;
+    info.depthTestEnable = true;
+    info.depthWriteEnable = true;
+    info.depthCompareOp = vk::CompareOp::eLess;
+    info.depthBoundsTestEnable = false;
+    info.stencilTestEnable = false;
+    return info;
+}
+
 } // namespace generic_pipeline
 
 static void create_generic_pipeline(VulkanContext& ctx, PipelineManager& pipelines) {
@@ -127,6 +137,7 @@ static void create_generic_pipeline(VulkanContext& ctx, PipelineManager& pipelin
     vk::PipelineInputAssemblyStateCreateInfo input_assembly = generic_pipeline::input_assembly();
     vk::Viewport viewport = generic_pipeline::viewport(ctx);
     vk::Rect2D scissor = generic_pipeline::scissor(ctx);
+    vk::PipelineDepthStencilStateCreateInfo depth_stencil = generic_pipeline::depth_stencil();
 
     vk::PipelineViewportStateCreateInfo viewport_info;
     viewport_info.viewportCount = 1;
@@ -147,6 +158,7 @@ static void create_generic_pipeline(VulkanContext& ctx, PipelineManager& pipelin
     info.pRasterizationState = &rasterizer;
     info.pMultisampleState = &multisample_info;
     info.pColorBlendState = &blending;
+    info.pDepthStencilState = &depth_stencil;
 
     info.renderPass = ctx.default_render_pass;
     info.subpass = 0;

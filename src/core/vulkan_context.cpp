@@ -85,12 +85,26 @@ static vk::RenderPass create_default_render_pass(VulkanContext& ctx) {
     color_attachment_ref.attachment = 0;
     color_attachment_ref.layout = vk::ImageLayout::eColorAttachmentOptimal;
 
+    vk::AttachmentDescription depth_attachment;
+    depth_attachment.format = vk::Format::eD32Sfloat;
+    depth_attachment.samples = vk::SampleCountFlagBits::e1;
+    depth_attachment.loadOp = vk::AttachmentLoadOp::eClear;
+    depth_attachment.storeOp = vk::AttachmentStoreOp::eDontCare;
+    depth_attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+    depth_attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+    depth_attachment.initialLayout = vk::ImageLayout::eUndefined;
+    depth_attachment.finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+
+    vk::AttachmentReference depth_attachment_ref;
+    depth_attachment_ref.attachment = 1;
+    depth_attachment_ref.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
     // Create subpass
     vk::SubpassDescription subpass;
     subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &color_attachment_ref;
+    subpass.pDepthStencilAttachment = &depth_attachment_ref;
 
     // Setup subpass dependencies
     vk::SubpassDependency dependency;
@@ -100,9 +114,11 @@ static vk::RenderPass create_default_render_pass(VulkanContext& ctx) {
     dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
     dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite;
 
+    vk::AttachmentDescription attachments[2] = { color_attachment, depth_attachment };
+
     vk::RenderPassCreateInfo info;
-    info.attachmentCount = 1;
-    info.pAttachments = &color_attachment;
+    info.attachmentCount = 2;
+    info.pAttachments = attachments;
     info.subpassCount = 1;
     info.pSubpasses = &subpass;
     info.dependencyCount = 1;
@@ -115,6 +131,10 @@ void VulkanContext::destroy() {
     pipelines.destroy_all(device);
     pipeline_layouts.destroy_all(device);
     device.destroyRenderPass(default_render_pass);
+
+    device.destroyImage(swapchain.depth_image);
+    device.destroyImageView(swapchain.depth_image_view);
+    device.freeMemory(swapchain.depth_image_memory);
 
     for (auto const& framebuf : swapchain.framebuffers) {
         device.destroyFramebuffer(framebuf);

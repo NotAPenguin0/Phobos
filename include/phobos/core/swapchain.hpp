@@ -20,6 +20,10 @@ struct SwapchainDetails {
     std::vector<vk::ImageView> image_views;
 
     std::vector<vk::Framebuffer> framebuffers;
+
+    vk::Image depth_image;
+    vk::DeviceMemory depth_image_memory;
+    vk::ImageView depth_image_view;
 };
 
 SwapchainDetails create_swapchain(vk::Device device, WindowContext const& window_ctx, PhysicalDeviceDetails const& physical_device);

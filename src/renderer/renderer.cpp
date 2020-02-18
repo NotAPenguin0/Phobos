@@ -22,9 +22,11 @@ void Renderer::render_frame(FrameInfo& info, RenderGraph const& graph) {
     render_pass_info.renderArea.offset = vk::Offset2D{0, 0};
     render_pass_info.renderArea.extent = ctx.swapchain.extent;
 
-    render_pass_info.clearValueCount = 1;
-    vk::ClearValue clear_value = graph.clear_color;
-    render_pass_info.pClearValues = &clear_value;
+    render_pass_info.clearValueCount = 2;
+    vk::ClearValue clear_values[2];
+    clear_values[0].color = graph.clear_color;
+    clear_values[1].depthStencil = vk::ClearDepthStencilValue {1.0f, 0};
+    render_pass_info.pClearValues = clear_values;
 
     cmd_buffer.beginRenderPass(render_pass_info, vk::SubpassContents::eInline);
     
@@ -67,6 +69,21 @@ void Renderer::update_pv_matrix(FrameInfo& info, RenderGraph const& graph) {
 
 void Renderer::update_model_matrices(FrameInfo& info, RenderGraph::DrawCommand const& draw) {
     info.instance_ssbo.write_data(&draw.instances[0], draw.instances.size() * sizeof(draw.instances[0]));
+    if (info.instance_ssbo.last_write_resized()) {
+        // Update descriptor set to point to the new buffer
+        vk::DescriptorBufferInfo buffer;
+        buffer.buffer = info.instance_ssbo.buffer_handle();
+        buffer.offset = 0;
+        buffer.range = info.instance_ssbo.size();
+        vk::WriteDescriptorSet write;
+        write.pBufferInfo = &buffer;
+        write.dstBinding = 1;
+        write.descriptorCount = 1;
+        write.descriptorType = vk::DescriptorType::eStorageBuffer;
+        write.dstSet = info.fixed_descriptor_set;
+        write.dstArrayElement = 0;
+        ctx.device.updateDescriptorSets(write, nullptr);
+    }
 }
 
 }

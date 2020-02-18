@@ -77,6 +77,7 @@ PhysicalDeviceDetails get_physical_device(vk::Instance instance, vk::SurfaceKHR 
         device.features = device.handle.getFeatures();
         device.properties = device.handle.getProperties();
         device.memory_properties = device.handle.getMemoryProperties();
+        
 
         device.queue_families = get_queue_families(device, surface);
 

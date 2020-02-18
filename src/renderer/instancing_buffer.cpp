@@ -47,8 +47,22 @@ size_t InstancingBuffer::size() const {
 }
 
 void InstancingBuffer::write_data(void const* data, size_t size) {
-    // TODO: Implement buffer resizing
+    was_resized = false;
+    if (size > current_size) {
+        size_t new_size = current_size;
+        while(size > new_size) {
+            new_size *= 2;
+        }
+        destroy();
+        create(new_size);
+        was_resized = true;
+    }
+
     std::memcpy(data_ptr, data, size);
+}
+
+bool InstancingBuffer::last_write_resized() const {
+    return was_resized;
 }
 
 }

@@ -1,5 +1,6 @@
 #include <phobos/core/swapchain.hpp>
 #include <phobos/util/image_util.hpp>
+#include <phobos/util/memory_util.hpp>
 #include <phobos/core/vulkan_context.hpp>
 
 #include <limits>
@@ -46,6 +47,34 @@ static vk::Extent2D choose_swapchain_extent(WindowContext const& window_ctx, Sur
     }
 }
 
+static void create_depth_buffer(vk::Device device, PhysicalDeviceDetails const& phys_device, SwapchainDetails& swapchain) {
+    vk::ImageCreateInfo info;
+    info.imageType = vk::ImageType::e2D;
+    info.extent.width = swapchain.extent.width;
+    info.extent.height = swapchain.extent.height;
+    info.extent.depth = 1;
+    info.initialLayout = vk::ImageLayout::eUndefined;
+    info.mipLevels = 1;
+    info.arrayLayers = 1;
+    info.format = vk::Format::eD32Sfloat;
+    info.tiling = vk::ImageTiling::eOptimal;
+    info.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
+    info.sharingMode = vk::SharingMode::eExclusive;
+    info.samples = vk::SampleCountFlagBits::e1;
+    swapchain.depth_image = device.createImage(info);
+
+    vk::MemoryRequirements mem_requirements = device.getImageMemoryRequirements(swapchain.depth_image);
+    vk::MemoryAllocateInfo alloc_info;
+    alloc_info.allocationSize = mem_requirements.size;
+    alloc_info.memoryTypeIndex = memory_util::find_memory_type(phys_device, mem_requirements.memoryTypeBits, 
+        vk::MemoryPropertyFlagBits::eDeviceLocal);
+    swapchain.depth_image_memory = device.allocateMemory(alloc_info);;
+    device.bindImageMemory(swapchain.depth_image, swapchain.depth_image_memory, 0);
+
+    swapchain.depth_image_view = create_image_view(device, swapchain.depth_image, 
+        vk::Format::eD32Sfloat, vk::ImageAspectFlagBits::eDepth);
+}
+
 SwapchainDetails create_swapchain(vk::Device device, WindowContext const& window_ctx, PhysicalDeviceDetails const& physical_device) {
     SwapchainDetails details;
     details.format = choose_surface_format(physical_device.surface_details);
@@ -89,6 +118,8 @@ SwapchainDetails create_swapchain(vk::Device device, WindowContext const& window
         details.image_views[i] = create_image_view(device, details.images[i], details.format.format);    
     }
 
+    create_depth_buffer(device, physical_device, details);
+
     return details;
 }
 
@@ -97,8 +128,9 @@ void create_swapchain_framebuffers(VulkanContext& ctx, SwapchainDetails& swapcha
     for (size_t i = 0; i < swapchain.images.size(); ++i) {
         vk::FramebufferCreateInfo info;
         info.renderPass = ctx.default_render_pass;
-        info.attachmentCount = 1;
-        info.pAttachments = &swapchain.image_views[i];
+        info.attachmentCount = 2;
+        vk::ImageView attachments[2] = { swapchain.image_views[i], swapchain.depth_image_view };
+        info.pAttachments = attachments;
         info.width = swapchain.extent.width;
         info.height = swapchain.extent.height;
         info.layers = 1;

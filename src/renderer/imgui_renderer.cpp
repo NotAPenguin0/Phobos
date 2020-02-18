@@ -106,7 +106,9 @@ ImGuiRenderer::ImGuiRenderer(WindowContext& window_ctx, VulkanContext& context) 
     command_pool_info.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
     command_pool = context.device.createCommandPool(command_pool_info);
 
-    // Initialize imgui for Vulkan
+    // Initialize imgui for Vulkan. Make sure to create the renderpass first as we'll need it
+    render_pass = create_imgui_renderpass(context);
+
     ImGui_ImplGlfw_InitForVulkan(window_ctx.handle, true);
     ImGui_ImplVulkan_InitInfo info = {};
     info.Instance = context.instance;
@@ -121,7 +123,7 @@ ImGuiRenderer::ImGuiRenderer(WindowContext& window_ctx, VulkanContext& context) 
     info.PipelineCache = VK_NULL_HANDLE;
     info.ImageCount = context.swapchain.images.size();
     info.CheckVkResultFn = nullptr;
-    ImGui_ImplVulkan_Init(&info, context.default_render_pass);
+    ImGui_ImplVulkan_Init(&info, render_pass);
 
     // Initialize fonts
     io.Fonts->AddFontDefault();
@@ -134,13 +136,30 @@ ImGuiRenderer::ImGuiRenderer(WindowContext& window_ctx, VulkanContext& context) 
     alloc_info.commandPool = command_pool;
     cmd_buffers = context.device.allocateCommandBuffers(alloc_info);
 
-    render_pass = create_imgui_renderpass(context);
+    // Create framebuffers
+    framebuffers.resize(context.swapchain.images.size());
+    for (size_t i = 0; i < context.swapchain.images.size(); ++i) {
+        vk::FramebufferCreateInfo framebuf_info;
+        framebuf_info.renderPass = render_pass;
+        framebuf_info.attachmentCount = 1;
+        vk::ImageView attachments[1] = { context.swapchain.image_views[i]};
+        framebuf_info.pAttachments = attachments;
+        framebuf_info.width = context.swapchain.extent.width;
+        framebuf_info.height = context.swapchain.extent.height;
+        framebuf_info.layers = 1;
+
+        framebuffers[i] = context.device.createFramebuffer(framebuf_info);
+    }
 }
 
 void ImGuiRenderer::destroy() {
     ctx.device.destroyCommandPool(command_pool);
     ctx.device.destroyDescriptorPool(descriptor_pool);
     ctx.device.destroyRenderPass(render_pass);
+    for (auto framebuf : framebuffers) {
+        ctx.device.destroyFramebuffer(framebuf);
+    }
+    framebuffers.clear();
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
@@ -180,7 +199,7 @@ void ImGuiRenderer::render_frame(FrameInfo& info) {
     // Start render pass
     vk::RenderPassBeginInfo render_pass_info;
     render_pass_info.renderPass = render_pass;
-    render_pass_info.framebuffer = info.framebuffer;
+    render_pass_info.framebuffer = framebuffers[info.image_index];
     render_pass_info.renderArea.offset = vk::Offset2D{0, 0};
     render_pass_info.renderArea.extent = ctx.swapchain.extent;
 

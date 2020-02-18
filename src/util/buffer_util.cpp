@@ -15,7 +15,7 @@ void create_buffer(VulkanContext& ctx, vk::DeviceSize size, vk::BufferUsageFlags
     vk::MemoryRequirements memory_requirements = ctx.device.getBufferMemoryRequirements(buffer);
     vk::MemoryAllocateInfo alloc_info;
     alloc_info.allocationSize = memory_requirements.size;
-    alloc_info.memoryTypeIndex = memory_util::find_memory_type(ctx, memory_requirements.memoryTypeBits, properties);
+    alloc_info.memoryTypeIndex = memory_util::find_memory_type(ctx.physical_device, memory_requirements.memoryTypeBits, properties);
     memory = ctx.device.allocateMemory(alloc_info);
 }
 

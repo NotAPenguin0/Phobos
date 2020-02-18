@@ -10,6 +10,7 @@ namespace ph {
 struct DeviceRequirements {
     std::vector<const char*> extensions;
     vk::PhysicalDeviceFeatures features;  
+    void* pNext = nullptr;
 };
 
 vk::Device create_device(PhysicalDeviceDetails const& physical_device, DeviceRequirements const& requirements = {});
