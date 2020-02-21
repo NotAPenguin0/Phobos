@@ -95,7 +95,6 @@ void Mesh::create_vertex_buffer(CreateInfo const& info) {
         vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, staging_buffer, staging_buffer_memory);
 
     // Fill staging buffer
-    ctx->device.bindBufferMemory(staging_buffer, staging_buffer_memory, 0);
     void* data_ptr = ctx->device.mapMemory(staging_buffer_memory, 0, byte_size);
     std::memcpy(data_ptr, info.vertices, byte_size);
     ctx->device.unmapMemory(staging_buffer_memory);
@@ -103,7 +102,6 @@ void Mesh::create_vertex_buffer(CreateInfo const& info) {
     // Now copy this buffer to device local memory
     create_buffer(*ctx, byte_size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
         vk::MemoryPropertyFlagBits::eDeviceLocal, buffer, memory);
-    ctx->device.bindBufferMemory(buffer, memory, 0);
     copy_buffer(*ctx, staging_buffer, buffer, byte_size);
 
     // Free the staging buffer
@@ -120,14 +118,12 @@ void Mesh::create_index_buffer(CreateInfo const& info) {
     create_buffer(*ctx, byte_size, vk::BufferUsageFlagBits::eTransferSrc, 
         vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, staging_buffer, staging_buffer_memory);
     // Fill staging buffer
-    ctx->device.bindBufferMemory(staging_buffer, staging_buffer_memory, 0);
     void* data_ptr = ctx->device.mapMemory(staging_buffer_memory, 0, byte_size);
     std::memcpy(data_ptr, info.indices, byte_size);
     ctx->device.unmapMemory(staging_buffer_memory);
     // Now copy this buffer to device local memory
     create_buffer(*ctx, byte_size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
         vk::MemoryPropertyFlagBits::eDeviceLocal, index_buffer, index_buffer_memory);
-    ctx->device.bindBufferMemory(index_buffer, index_buffer_memory, 0);
     copy_buffer(*ctx, staging_buffer, index_buffer, byte_size);
 
     // Free the staging buffer

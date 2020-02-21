@@ -13,7 +13,6 @@ void InstancingBuffer::create(size_t initial_size, size_t) {
     create_buffer(*ctx, initial_size, vk::BufferUsageFlagBits::eStorageBuffer, 
         vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, 
         buffer, memory);
-    ctx->device.bindBufferMemory(buffer, memory, 0);
     data_ptr = ctx->device.mapMemory(memory, 0, initial_size); 
 }
 

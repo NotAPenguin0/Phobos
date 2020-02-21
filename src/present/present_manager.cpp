@@ -55,7 +55,6 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         create_buffer(ctx, 2 * 16 * sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer, 
             vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, 
             frame_info.vp_ubo.buffer, frame_info.vp_ubo.memory);
-        ctx.device.bindBufferMemory(frame_info.vp_ubo.buffer, frame_info.vp_ubo.memory, 0);
         frame_info.vp_ubo.size = 2 * 16 * sizeof(float);
         frame_info.vp_ubo.ptr = ctx.device.mapMemory(frame_info.vp_ubo.memory, 0, 2 * 16 * sizeof(float));
 

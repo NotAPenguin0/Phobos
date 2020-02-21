@@ -166,6 +166,8 @@ void ImGui_ImplMimas_NewFrame() {
     // TODO
     io.DisplayFramebufferScale = ImVec2(1, 1);
 
+    // Update deltatime
+
     ImGui_ImplMimas_UpdateMousePosAndButtons();
 }
 

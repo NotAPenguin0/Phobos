@@ -3,6 +3,9 @@
 #include <phobos/present/present_manager.hpp>
 #include <phobos/renderer/renderer.hpp>
 #include <phobos/renderer/imgui_renderer.hpp>
+#include <phobos/renderer/texture.hpp>
+
+#include <stb/stb_image.h>
 
 #include <mimas/mimas.h>
 #include <mimas/mimas_vk.h>
@@ -107,6 +110,18 @@ int main() {
     triangle_info.indices = indices;
     triangle_info.index_count = 6;
     ph::Mesh triangle(triangle_info);
+
+    int w, h, channels;
+    uint8_t* img = stbi_load("data/textures/pengu.png", &w, &h, &channels, STBI_rgb_alpha);
+    ph::Texture::CreateInfo tex_info;
+    tex_info.ctx = &vulkan_context;
+    tex_info.channels = channels;
+    tex_info.format = vk::Format::eR8G8B8A8Srgb;
+    tex_info.width = w;
+    tex_info.height = h;
+    tex_info.data = img;
+    ph::Texture pengu(tex_info);
+    stbi_image_free(img);
 
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)window_context.width / (float)window_context.height, 
         0.1f, 100.0f);
