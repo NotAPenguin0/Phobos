@@ -1,6 +1,7 @@
 #include  <phobos/core/window_context.hpp>
 
-#include <GLFW/glfw3.h>
+#include <mimas/mimas.h>
+#include <mimas/mimas_vk.h>
 #include <stdexcept>
 
 namespace ph {
@@ -12,22 +13,22 @@ WindowContext::~WindowContext() {
 WindowContext create_window_context(std::string_view title, size_t width, size_t height, bool fullscreen /* = false*/) {
     WindowContext context;
 
-    // If GLFW was already initialized, this will return true without doing further work
-    if (!glfwInit()) {
-        throw std::runtime_error("Fatal error: failed to initialize glfw");
+    // If Mimas was already initialized, this will return true without doing further work
+    if (!mimas_init_with_vk()) {
+        throw std::runtime_error("Fatal error: failed to initialize mimas");
     }
+    
 
-    // Initialize for Vulkan (aka no api)
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    // Currently we do not support window resizing
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-
-    GLFWmonitor* monitor = fullscreen ? glfwGetPrimaryMonitor() : nullptr;
-    context.handle = glfwCreateWindow(width, height, title.data(), monitor, nullptr);
-
+    Mimas_Window_Create_Info window_info;
+    window_info.decorated = true;
+    window_info.height = height;
+    window_info.width = width;
+    window_info.title = title.data();
+    context.handle = mimas_create_window(window_info);
+    mimas_show_window(context.handle);
     // Retrieve window size. This may be different from the supplied size if fullscreen was true.
     int w, h;
-    glfwGetWindowSize(context.handle, &w, &h);
+    mimas_get_window_content_size(context.handle, &w, &h);
     context.width = w;
     context.height = h;
 
@@ -37,15 +38,15 @@ WindowContext create_window_context(std::string_view title, size_t width, size_t
 }
 
 bool WindowContext::is_open() const {
-    return !glfwWindowShouldClose(handle);
+    return !mimas_close_requested(handle);
 }
 
 void WindowContext::close() {
-    glfwSetWindowShouldClose(handle, true);
+    mimas_destroy_window(handle);
 }
 
 void WindowContext::poll_events() {
-    glfwPollEvents();
+    mimas_poll_events();
 }
 
 

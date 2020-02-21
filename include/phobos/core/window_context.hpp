@@ -7,7 +7,7 @@
 namespace ph {
 
 struct WindowContext {
-    GLFWwindow* handle = nullptr;
+    Mimas_Window* handle = nullptr;
 
     size_t width = 0;
     size_t height = 0;

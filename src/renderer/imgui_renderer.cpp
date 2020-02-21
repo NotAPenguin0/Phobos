@@ -2,7 +2,7 @@
 
 #include <imgui/imgui.h>
 #include <imgui_impl_vulkan.h>
-#include <imgui_impl_glfw.h>
+#include <imgui_impl_mimas.h>
 
 namespace ph {
 
@@ -108,8 +108,8 @@ ImGuiRenderer::ImGuiRenderer(WindowContext& window_ctx, VulkanContext& context) 
 
     // Initialize imgui for Vulkan. Make sure to create the renderpass first as we'll need it
     render_pass = create_imgui_renderpass(context);
-
-    ImGui_ImplGlfw_InitForVulkan(window_ctx.handle, true);
+ 
+    ImGui_ImplMimas_InitForVulkan(window_ctx.handle);
     ImGui_ImplVulkan_InitInfo info = {};
     info.Instance = context.instance;
     info.PhysicalDevice = context.physical_device.handle;
@@ -161,13 +161,13 @@ void ImGuiRenderer::destroy() {
     }
     framebuffers.clear();
     ImGui_ImplVulkan_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
+    ImGui_ImplMimas_Shutdown();
     ImGui::DestroyContext();
 }
 
 void ImGuiRenderer::begin_frame() {
     ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
+    ImGui_ImplMimas_NewFrame();
     ImGui::NewFrame();
 }
 

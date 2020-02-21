@@ -4,7 +4,8 @@
 #include <phobos/renderer/renderer.hpp>
 #include <phobos/renderer/imgui_renderer.hpp>
 
-#include <GLFW/glfw3.h>
+#include <mimas/mimas.h>
+#include <mimas/mimas_vk.h>
 #include <iostream>
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -14,10 +15,6 @@
 
 #include "imgui_style.hpp"
 
-void glfw_error_callback(int error, const char* description) {
-    fprintf(stderr, "Error: %s\n", description);
-    fflush(stderr);
-}
 
 void make_ui(int draw_calls) {
     ImGuiWindowFlags flags =
@@ -66,7 +63,6 @@ void make_ui(int draw_calls) {
 
 
 int main() {
-    glfwSetErrorCallback(glfw_error_callback);
     // Create window context
     ph::WindowContext window_context = ph::create_window_context("Phobos Test App", 1280, 720);
 
@@ -75,7 +71,7 @@ int main() {
     settings.enable_validation_layers = true;
     settings.version = ph::Version{0, 0, 1};
     ph::VulkanContext vulkan_context = ph::create_vulkan_context(window_context, settings);
-
+    
     // Setup ImGui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -89,7 +85,7 @@ int main() {
     ph::PresentManager present_manager(vulkan_context);
     ph::Renderer renderer(vulkan_context);
     ph::ImGuiRenderer imgui_renderer(window_context, vulkan_context);
-    
+
     size_t draw_calls = 0;
 
     float vertices[] = {
@@ -162,6 +158,6 @@ int main() {
     imgui_renderer.destroy();
     present_manager.destroy();
     vulkan_context.destroy();
-    glfwDestroyWindow(window_context.handle);
-    glfwTerminate();
+    mimas_destroy_window(window_context.handle);
+    mimas_terminate();
 }

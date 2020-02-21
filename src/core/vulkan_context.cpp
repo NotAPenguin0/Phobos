@@ -1,7 +1,8 @@
 #include <phobos/core/vulkan_context.hpp>
 #include <phobos/core/device.hpp>
 
-#include <GLFW/glfw3.h>
+#include <mimas/mimas.h>
+#include <mimas/mimas_vk.h>
 #include <vector>
 #include <iostream>
 
@@ -10,11 +11,11 @@
 
 namespace ph {
 
-static std::vector<const char*> get_required_glfw_extensions() {
+static const char** get_required_window_extensions() {
     uint32_t count;
-    const char** extensions = glfwGetRequiredInstanceExtensions(&count);
+    const char** extensions = mimas_get_vk_extensions();
 
-    return std::vector<const char*>(extensions, extensions + count);
+    return extensions;
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
@@ -36,7 +37,13 @@ static vk::Instance create_vulkan_instance(vk::ApplicationInfo const& app_info, 
     vk::InstanceCreateInfo info;
     info.pApplicationInfo = &app_info;
 
-    std::vector<const char*> extensions = get_required_glfw_extensions();
+    const char** extensions_c = get_required_window_extensions();
+    std::vector<const char*> extensions;
+    const char** ptr = extensions_c;
+    while(*ptr) {
+        extensions.push_back(*ptr);
+        ++ptr;
+    }
     std::vector<const char*> const layers = {
         "VK_LAYER_KHRONOS_validation"
     };
@@ -179,7 +186,7 @@ VulkanContext create_vulkan_context(WindowContext const& window_ctx, AppSettings
     vk::SurfaceKHR surface;
 
     // Create surface
-    glfwCreateWindowSurface(context.instance, window_ctx.handle, nullptr, reinterpret_cast<VkSurfaceKHR*>(&surface));
+    mimas_create_vk_surface(window_ctx.handle, context.instance, nullptr, reinterpret_cast<VkSurfaceKHR*>(&surface));
 
     PhysicalDeviceRequirements requirements;
     // Require swapchain extension

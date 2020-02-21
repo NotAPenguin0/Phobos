@@ -3,7 +3,7 @@
 
 // This file contains forward declarations for all types used in Phobos
 
-struct GLFWwindow;
+struct Mimas_Window;
 
 namespace ph {
 
