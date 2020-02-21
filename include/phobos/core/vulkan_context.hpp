@@ -11,6 +11,8 @@
 #include <phobos/pipeline/pipeline_layout.hpp>
 #include <phobos/pipeline/pipeline.hpp>
 
+#include <phobos/util/log_interface.hpp>
+
 namespace ph {
 
 struct VulkanContext {
@@ -34,6 +36,8 @@ struct VulkanContext {
     // This command pool is marked with the eTransient flag
     vk::CommandPool command_pool;
 
+    log::LogInterface* logger = nullptr;
+
     void destroy();
 };
 
@@ -42,7 +46,7 @@ struct AppSettings {
     Version version = Version {1, 0, 0};
 };
 
-VulkanContext create_vulkan_context(WindowContext const& window_ctx, AppSettings settings = {});
+VulkanContext create_vulkan_context(WindowContext const& window_ctx, log::LogInterface* logger, AppSettings settings = {});
 
 }
 

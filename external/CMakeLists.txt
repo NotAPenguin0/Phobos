@@ -1,9 +1,8 @@
-#add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/glfw")
-
-#target_compile_options(glfw PUBLIC "-w")
-
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/mimas")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/fmt")
+
 target_compile_options(mimas PUBLIC "-w")
+target_compile_options(fmt PUBLIC "-w")
 
 set(PHOBOS_INCLUDE_DIRECTORIES ${PHOBOS_INCLUDE_DIRECTORIES}
     "${CMAKE_CURRENT_SOURCE_DIR}" 
@@ -11,11 +10,13 @@ set(PHOBOS_INCLUDE_DIRECTORIES ${PHOBOS_INCLUDE_DIRECTORIES}
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui"
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/examples"
     "${CMAKE_CURRENT_SOURCE_DIR}/glm/"
+    "${CMAKE_CURRENT_SOURCE_DIR}/fmt/include"
     PARENT_SCOPE   
 )
 
 set(PHOBOS_LINK_LIBRARIES ${PHOBOS_LINK_LIBRARIES} 
     mimas
+    fmt
     PARENT_SCOPE
 )
 
@@ -38,5 +39,6 @@ set(PHOBOS_TEST_APP_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui"
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/examples"
     "${CMAKE_CURRENT_SOURCE_DIR}/glm/"
+    "${CMAKE_CURRENT_SOURCE_DIR}/fmt/include"
     PARENT_SCOPE
 )

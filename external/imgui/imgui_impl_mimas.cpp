@@ -12,8 +12,12 @@
 // Mimas
 #include <mimas/mimas.h>
 
+// Mimas does not provide timing functions, so we have to implement this using std::chrono
+#include <chrono>
+#include <algorithm>
+
 static Mimas_Window* g_Window = nullptr;
-static double g_Time = 0.0;
+static long long g_Time = 0;
 static bool g_MouseJustPressed[3] = {false, false, false};
 
 // Old user callbacks
@@ -65,7 +69,7 @@ static void ImGui_ImplMimas_MouseButtonCallback(Mimas_Window* window, Mimas_Mous
 
 bool ImGui_ImplMimas_InitForVulkan(Mimas_Window* window) {
     g_Window = window;
-    g_Time = 0.0;
+    g_Time = 0;
     ImGuiIO& io = ImGui::GetIO();
     io.BackendPlatformName = "imgui_impl_mimas";
 
@@ -167,7 +171,13 @@ void ImGui_ImplMimas_NewFrame() {
     io.DisplayFramebufferScale = ImVec2(1, 1);
 
     // Update deltatime
-
+    std::chrono::milliseconds time = std::chrono::duration_cast<std::chrono::milliseconds>
+        (std::chrono::system_clock::now().time_since_epoch());
+    long long time_cnt = time.count();
+    // DeltaTime is in seconds, which is why we divide by 1000
+    io.DeltaTime = (g_Time > 0.0) ? ((float)(time_cnt - g_Time) / 1000.0f) : (float)(1.0f/60.0f);
+    io.DeltaTime = std::max(io.DeltaTime, 0.0001f);
+    g_Time = time_cnt;
     ImGui_ImplMimas_UpdateMousePosAndButtons();
 }
 

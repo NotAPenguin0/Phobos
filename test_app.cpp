@@ -4,6 +4,7 @@
 #include <phobos/renderer/renderer.hpp>
 #include <phobos/renderer/imgui_renderer.hpp>
 #include <phobos/renderer/texture.hpp>
+#include <phobos/util/log_interface.hpp>
 
 #include <stb/stb_image.h>
 
@@ -43,7 +44,6 @@ void make_ui(int draw_calls) {
                          ImGuiDockNodeFlags_None);
     }
 
-
     static bool show_stats = true;
     if (ImGui::Begin("Renderer stats", &show_stats)) {
         int fps = ImGui::GetIO().Framerate;
@@ -64,8 +64,20 @@ void make_ui(int draw_calls) {
     // End dockspace
 }
 
+class DefaultLogger : public ph::log::LogInterface {
+public:
+    void write(ph::log::Severity severity, std::string_view str) {
+        if (timestamp_enabled) {
+            std::cout << get_timestamp_string() << ": ";
+        }
+        std::cout << str << "\n";
+    }
+};
+
 
 int main() {
+    DefaultLogger logger;
+    logger.set_timestamp(true);
     // Create window context
     ph::WindowContext window_context = ph::create_window_context("Phobos Test App", 1280, 720);
 
@@ -73,8 +85,8 @@ int main() {
     ph::AppSettings settings;
     settings.enable_validation_layers = true;
     settings.version = ph::Version{0, 0, 1};
-    ph::VulkanContext vulkan_context = ph::create_vulkan_context(window_context, settings);
-    
+    ph::VulkanContext vulkan_context = ph::create_vulkan_context(window_context, &logger, settings);
+  
     // Setup ImGui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -123,10 +135,12 @@ int main() {
     ph::Texture pengu(tex_info);
     stbi_image_free(img);
 
+    logger.write_fmt(ph::log::Severity::Info, "Loaded assets");
+
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)window_context.width / (float)window_context.height, 
         0.1f, 100.0f);
     projection[1][1] *= -1;
-    glm::mat4 view = glm::lookAt(glm::vec3(2, 2, 2), glm::vec3(0, 0, 0), glm::vec3(0, 0, 1));
+    glm::mat4 view = glm::lookAt(glm::vec3(2, 2, 2), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 
     while(window_context.is_open()) {
         window_context.poll_events();
@@ -145,8 +159,8 @@ int main() {
         ph::RenderGraph::DrawCommand draw;
         draw.mesh_index = 0;
         draw.instances = { 
-            { glm::translate(glm::mat4(1.0f), glm::vec3(1.0f, 0.0f, 0.0f)) }, 
-            { glm::rotate(glm::mat4(1.0f), glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f)) }
+            { glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, 0.0f, 0.0f)) }, 
+            { glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)) }
         };
         render_graph.draw_commands.push_back(draw);
 
@@ -163,11 +177,13 @@ int main() {
         ///// FRAME END
     }
 
+    logger.write_fmt(ph::log::Severity::Info, "Exiting");
+
     // Wait until everything is done before deallocating
     vulkan_context.device.waitIdle();
 
     triangle.destroy();
-
+    pengu.destroy();
     // Deallocate resources
     renderer.destroy();
     imgui_renderer.destroy();

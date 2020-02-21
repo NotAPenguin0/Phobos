@@ -25,5 +25,6 @@ set(PHOBOS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/util/shader_util.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/memory_util.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/buffer_util.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/util/log_interface.cpp"
     PARENT_SCOPE
 )
