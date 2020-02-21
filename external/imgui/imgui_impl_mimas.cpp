@@ -53,7 +53,7 @@ static void ImGui_ImplMimas_KeyCallback(Mimas_Window* window, Mimas_Key key,
 // #endif
 }
 
-static void ImGui_ImplMimas_MouseButtonCallback(Mimas_Window* window, Mimas_Mouse_Button btn, 
+static void ImGui_ImplMimas_MouseButtonCallback(Mimas_Window* window, Mimas_Key btn, 
     Mimas_Mouse_Button_Action action, void* user_data) {
 
     if (g_PrevUserCallbackMouseButton) {
@@ -118,7 +118,7 @@ static void ImGui_ImplMimas_UpdateMousePosAndButtons() {
     ImGuiIO& io = ImGui::GetIO();
     
     for (int i = 0; i < IM_ARRAYSIZE(g_MouseJustPressed); ++i) {
-        bool button_down = mimas_get_mouse_button((Mimas_Mouse_Button)i) == MIMAS_MOUSE_BUTTON_PRESS;
+        bool button_down = mimas_get_key((Mimas_Key)((int)MIMAS_MOUSE_LEFT_BUTTON + i)) == MIMAS_MOUSE_BUTTON_PRESS;
         io.MouseDown[i] = g_MouseJustPressed[i] || button_down;
         g_MouseJustPressed[i] = false;
     }
@@ -153,7 +153,7 @@ static void ImGui_ImplMimas_UpdateMousePosAndButtons() {
                 }
             }
              for (int i = 0; i < IM_ARRAYSIZE(g_MouseJustPressed); ++i) {
-                io.MouseDown[i] |= (mimas_get_mouse_button((Mimas_Mouse_Button)i) == MIMAS_MOUSE_BUTTON_PRESS);
+                io.MouseDown[i] |= (mimas_get_key((Mimas_Key)((int)MIMAS_MOUSE_LEFT_BUTTON + i)) == MIMAS_MOUSE_BUTTON_PRESS);
             }
         }
     }

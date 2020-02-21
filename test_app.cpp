@@ -66,7 +66,7 @@ void make_ui(int draw_calls) {
 
 class DefaultLogger : public ph::log::LogInterface {
 public:
-    void write(ph::log::Severity severity, std::string_view str) {
+    void write(ph::log::Severity severity, std::string_view str) override {
         if (timestamp_enabled) {
             std::cout << get_timestamp_string() << ": ";
         }
