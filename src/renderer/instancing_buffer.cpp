@@ -45,8 +45,7 @@ size_t InstancingBuffer::size() const {
     return current_size;
 }
 
-void InstancingBuffer::write_data(void const* data, size_t size) {
-    was_resized = false;
+void InstancingBuffer::write_data(vk::DescriptorSet descriptor_set, void const* data, size_t size) {
     if (size > current_size) {
         size_t new_size = current_size;
         while(size > new_size) {
@@ -54,14 +53,11 @@ void InstancingBuffer::write_data(void const* data, size_t size) {
         }
         destroy();
         create(new_size);
-        was_resized = true;
+        ctx->event_dispatcher.fire_event(InstancingBufferResizeEvent{buffer, descriptor_set, new_size});
     }
 
     std::memcpy(data_ptr, data, size);
 }
 
-bool InstancingBuffer::last_write_resized() const {
-    return was_resized;
-}
 
 }

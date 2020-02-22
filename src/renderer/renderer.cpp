@@ -5,7 +5,7 @@
 namespace ph {
 
 Renderer::Renderer(VulkanContext& context) : ctx(context) {
-    
+    ctx.event_dispatcher.add_listener(this);
 } 
 
 void Renderer::render_frame(FrameInfo& info, RenderGraph const& graph) {
@@ -66,7 +66,22 @@ void Renderer::render_frame(FrameInfo& info, RenderGraph const& graph) {
 }
 
 void Renderer::destroy() {
+    ctx.event_dispatcher.remove_listener(this);
+}
 
+void Renderer::on_event(InstancingBufferResizeEvent const& e) {
+    vk::DescriptorBufferInfo buffer;
+    buffer.buffer = e.buffer_handle;
+    buffer.offset = 0;
+    buffer.range = e.new_size;
+    vk::WriteDescriptorSet write;
+    write.pBufferInfo = &buffer;
+    write.dstBinding = 1;
+    write.descriptorCount = 1;
+    write.descriptorType = vk::DescriptorType::eStorageBuffer;
+    write.dstSet = e.descriptor_set;
+    write.dstArrayElement = 0;
+    ctx.device.updateDescriptorSets(write, nullptr);
 }
 
 void Renderer::update_pv_matrix(FrameInfo& info, RenderGraph const& graph) {
@@ -76,22 +91,8 @@ void Renderer::update_pv_matrix(FrameInfo& info, RenderGraph const& graph) {
 }
 
 void Renderer::update_model_matrices(FrameInfo& info, RenderGraph::DrawCommand const& draw) {
-    info.instance_ssbo.write_data(&draw.instances[0], draw.instances.size() * sizeof(draw.instances[0]));
-    if (info.instance_ssbo.last_write_resized()) {
-        // Update descriptor set to point to the new buffer
-        vk::DescriptorBufferInfo buffer;
-        buffer.buffer = info.instance_ssbo.buffer_handle();
-        buffer.offset = 0;
-        buffer.range = info.instance_ssbo.size();
-        vk::WriteDescriptorSet write;
-        write.pBufferInfo = &buffer;
-        write.dstBinding = 1;
-        write.descriptorCount = 1;
-        write.descriptorType = vk::DescriptorType::eStorageBuffer;
-        write.dstSet = info.fixed_descriptor_set;
-        write.dstArrayElement = 0;
-        ctx.device.updateDescriptorSets(write, nullptr);
-    }
+    info.instance_ssbo.write_data(info.fixed_descriptor_set, 
+        &draw.instances[0], draw.instances.size() * sizeof(draw.instances[0]));
 }
 
 void Renderer::update_materials(FrameInfo& info, RenderGraph const& graph) {

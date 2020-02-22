@@ -76,6 +76,12 @@ public:
     }
 };
 
+void mouse_button_callback(Mimas_Window* win, Mimas_Key button, Mimas_Mouse_Button_Action action, void* user_data) {
+    ph::VulkanContext* ctx = reinterpret_cast<ph::VulkanContext*>(user_data);
+    if (action == MIMAS_MOUSE_BUTTON_PRESS) {
+
+    }
+}
 
 int main() {
     DefaultLogger logger;
@@ -88,7 +94,9 @@ int main() {
     settings.enable_validation_layers = true;
     settings.version = ph::Version{0, 0, 1};
     ph::VulkanContext* vulkan_context = ph::create_vulkan_context(window_context, &logger, settings);
-  
+    
+    mimas_set_window_mouse_button_callback(window_context.handle, mouse_button_callback, vulkan_context);
+
     // Setup ImGui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();

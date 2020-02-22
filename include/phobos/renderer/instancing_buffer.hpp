@@ -26,9 +26,7 @@ public:
 
     size_t size() const;
 
-    void write_data(void const* data, size_t size);
-
-    bool last_write_resized() const;
+    void write_data(vk::DescriptorSet descriptor_set, void const* data, size_t size);
 
 private:
     VulkanContext* ctx;
@@ -39,7 +37,6 @@ private:
     vk::DeviceSize current_size = 0;
     void* data_ptr = nullptr;
 
-    bool was_resized = false;
 };
 
 }

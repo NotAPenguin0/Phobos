@@ -6,9 +6,11 @@
 
 #include <phobos/renderer/render_graph.hpp>
 
+#include <phobos/events/event_listener.hpp>
+
 namespace ph {
 
-class Renderer {
+class Renderer : public EventListener<InstancingBufferResizeEvent> {
 public:
     Renderer(VulkanContext& context);
 
@@ -16,6 +18,8 @@ public:
 
     void destroy();
 
+protected:
+    void on_event(InstancingBufferResizeEvent const& e) override;
 private:
     VulkanContext& ctx;
 

@@ -17,6 +17,9 @@ static uint64_t to_u64(VkT vulkan_handle) {
 
 namespace std {
 
+// TODO: Use proper hash combine: seed ^= hash_value(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+// See also https://stackoverflow.com/questions/8513911/how-to-create-a-good-hash-combine-with-64-bit-output-inspired-by-boosthash-co
+
 template<>
 struct hash<ph::Mesh> {
     uint64_t operator()(ph::Mesh const& mesh) const {

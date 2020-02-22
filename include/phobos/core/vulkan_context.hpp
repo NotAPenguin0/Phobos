@@ -13,6 +13,8 @@
 
 #include <phobos/util/log_interface.hpp>
 
+#include <phobos/events/event_dispatcher.hpp>
+
 namespace ph {
 
 struct VulkanContext {
@@ -37,6 +39,8 @@ struct VulkanContext {
     vk::CommandPool command_pool;
 
     log::LogInterface* logger = nullptr;
+
+    EventDispatcher event_dispatcher;
 
     void destroy();
 };
