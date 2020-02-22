@@ -29,14 +29,14 @@ public:
     void create(CreateInfo const& info);
     void destroy();
 
-    vk::Buffer get_vertices();
-    vk::Buffer get_indices();
+    vk::Buffer get_vertices() const;
+    vk::Buffer get_indices() const;
 
     size_t get_vertex_count() const;
     size_t get_index_count() const;
 
-    vk::DeviceMemory get_memory_handle();
-    vk::DeviceMemory get_index_memory();
+    vk::DeviceMemory get_memory_handle() const;
+    vk::DeviceMemory get_index_memory() const;
 
 private:
     VulkanContext* ctx = nullptr;

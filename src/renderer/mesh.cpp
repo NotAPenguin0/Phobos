@@ -16,6 +16,10 @@ Mesh::Mesh(CreateInfo const& info) : Mesh(*info.ctx) {
 Mesh::Mesh(Mesh&& rhs) : Mesh(*rhs.ctx) {
     std::swap(buffer, rhs.buffer);
     std::swap(memory, rhs.memory);
+    std::swap(index_buffer, rhs.index_buffer);
+    std::swap(index_buffer_memory, rhs.index_buffer_memory);
+    std::swap(vertex_count, rhs.vertex_count);
+    std::swap(index_count, rhs.index_count);
 }
 
 Mesh& Mesh::operator=(Mesh&& rhs) {
@@ -23,6 +27,10 @@ Mesh& Mesh::operator=(Mesh&& rhs) {
         std::swap(ctx, rhs.ctx);
         std::swap(buffer, rhs.buffer);
         std::swap(memory, rhs.memory);
+        std::swap(index_buffer, rhs.index_buffer);
+        std::swap(index_buffer_memory, rhs.index_buffer_memory);
+        std::swap(vertex_count, rhs.vertex_count);
+        std::swap(index_count, rhs.index_count);
     }
     return *this;
 }
@@ -60,11 +68,11 @@ void Mesh::destroy() {
     }
 }
 
-vk::Buffer Mesh::get_vertices() {
+vk::Buffer Mesh::get_vertices() const {
     return buffer;
 }
 
-vk::Buffer Mesh::get_indices() {
+vk::Buffer Mesh::get_indices() const {
     return index_buffer;
 }
 
@@ -76,11 +84,11 @@ size_t Mesh::get_index_count() const {
     return index_count;
 }
 
-vk::DeviceMemory Mesh::get_memory_handle() {
+vk::DeviceMemory Mesh::get_memory_handle() const {
     return memory;
 }
 
-vk::DeviceMemory Mesh::get_index_memory() {
+vk::DeviceMemory Mesh::get_index_memory() const {
     return index_buffer_memory;
 }
 

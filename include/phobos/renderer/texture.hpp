@@ -31,9 +31,9 @@ public:
     void create(CreateInfo const& info);
     void destroy();
 
-    vk::Image handle();
-    vk::ImageView view_handle();
-    vk::DeviceMemory memory_handle();
+    vk::Image handle() const;
+    vk::ImageView view_handle() const;
+    vk::DeviceMemory memory_handle() const;
 
 private:
     VulkanContext* ctx;

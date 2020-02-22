@@ -78,15 +78,15 @@ void Texture::destroy() {
     }
 }
 
-vk::Image Texture::handle() {
+vk::Image Texture::handle() const {
     return image;
 }
 
-vk::ImageView Texture::view_handle() {
+vk::ImageView Texture::view_handle() const {
     return view;
 }
 
-vk::DeviceMemory Texture::memory_handle() {
+vk::DeviceMemory Texture::memory_handle() const {
     return memory;
 }
 

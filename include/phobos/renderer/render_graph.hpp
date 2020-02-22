@@ -7,6 +7,7 @@
 #include <phobos/renderer/mesh.hpp>
 #include <phobos/renderer/material.hpp>
 
+#include <phobos/assets/asset_manager.hpp>
 
 namespace ph {
 
@@ -17,8 +18,8 @@ struct RenderGraph {
     glm::mat4 projection;
     glm::mat4 view;
 
-    // TODO: Proper resource referencing instead of raw pointers?
-    std::vector<Mesh*> meshes;
+    AssetManager* asset_manager;
+
     std::vector<Material*> materials;
 
     struct Instance {
@@ -26,7 +27,7 @@ struct RenderGraph {
     };
 
     struct DrawCommand {
-        uint32_t mesh_index;
+        Handle<Mesh> mesh;
         uint32_t material_index;
         std::vector<Instance> instances;
     };

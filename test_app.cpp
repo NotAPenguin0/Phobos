@@ -6,6 +6,8 @@
 #include <phobos/renderer/texture.hpp>
 #include <phobos/util/log_interface.hpp>
 
+#include <phobos/assets/asset_manager.hpp>
+
 #include <stb/stb_image.h>
 
 #include <mimas/mimas.h>
@@ -116,6 +118,8 @@ int main() {
         0, 1, 2, 2, 3, 0
     };
 
+    ph::AssetManager asset_manager;
+
     ph::Mesh::CreateInfo triangle_info;
     triangle_info.ctx = vulkan_context;
     triangle_info.vertices = vertices;
@@ -123,7 +127,7 @@ int main() {
     triangle_info.vertex_size = 5;
     triangle_info.indices = indices;
     triangle_info.index_count = 6;
-    ph::Mesh triangle(triangle_info);
+    ph::Handle<ph::Mesh> triangle = asset_manager.add_mesh(triangle_info);
 
     int w, h, channels;
     uint8_t* img = stbi_load("data/textures/pengu.png", &w, &h, &channels, STBI_rgb_alpha);
@@ -134,11 +138,11 @@ int main() {
     tex_info.width = w;
     tex_info.height = h;
     tex_info.data = img;
-    ph::Texture pengu(tex_info);
+    ph::Handle<ph::Texture> pengu = asset_manager.add_texture(tex_info);
     stbi_image_free(img);
 
     ph::Material default_material;
-    default_material.texture = &pengu;
+    default_material.texture = pengu;
 
     logger.write_fmt(ph::log::Severity::Info, "Loaded assets");
 
@@ -160,10 +164,10 @@ int main() {
         make_ui(draw_calls);
 
         ph::RenderGraph render_graph;
-        render_graph.meshes.push_back(&triangle);
+        render_graph.asset_manager = &asset_manager;
         render_graph.materials.push_back(&default_material);
         ph::RenderGraph::DrawCommand draw;
-        draw.mesh_index = 0;
+        draw.mesh = triangle;
         draw.material_index = 0;
         draw.instances = { 
             { glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, 0.0f, 0.0f)) }, 
@@ -189,9 +193,8 @@ int main() {
     // Wait until everything is done before deallocating
     vulkan_context->device.waitIdle();
 
-    triangle.destroy();
-    pengu.destroy();
     // Deallocate resources
+    asset_manager.destroy_all();
     renderer.destroy();
     imgui_renderer.destroy();
     present_manager.destroy();
