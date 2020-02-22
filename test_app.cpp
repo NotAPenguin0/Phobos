@@ -85,7 +85,7 @@ int main() {
     ph::AppSettings settings;
     settings.enable_validation_layers = true;
     settings.version = ph::Version{0, 0, 1};
-    ph::VulkanContext vulkan_context = ph::create_vulkan_context(window_context, &logger, settings);
+    ph::VulkanContext* vulkan_context = ph::create_vulkan_context(window_context, &logger, settings);
   
     // Setup ImGui
     IMGUI_CHECKVERSION();
@@ -97,9 +97,11 @@ int main() {
     style_theme_grey();
 
     // Create present manager (required for presenting to the screen).
-    ph::PresentManager present_manager(vulkan_context);
-    ph::Renderer renderer(vulkan_context);
-    ph::ImGuiRenderer imgui_renderer(window_context, vulkan_context);
+    ph::PresentManager present_manager(*vulkan_context);
+    ph::Renderer renderer(*vulkan_context);
+    ph::ImGuiRenderer imgui_renderer(window_context, *vulkan_context);
+
+    logger.write_fmt(ph::log::Severity::Info, "Created renderers");
 
     size_t draw_calls = 0;
 
@@ -115,7 +117,7 @@ int main() {
     };
 
     ph::Mesh::CreateInfo triangle_info;
-    triangle_info.ctx = &vulkan_context;
+    triangle_info.ctx = vulkan_context;
     triangle_info.vertices = vertices;
     triangle_info.vertex_count = 4;
     triangle_info.vertex_size = 5;
@@ -126,7 +128,7 @@ int main() {
     int w, h, channels;
     uint8_t* img = stbi_load("data/textures/pengu.png", &w, &h, &channels, STBI_rgb_alpha);
     ph::Texture::CreateInfo tex_info;
-    tex_info.ctx = &vulkan_context;
+    tex_info.ctx = vulkan_context;
     tex_info.channels = channels;
     tex_info.format = vk::Format::eR8G8B8A8Srgb;
     tex_info.width = w;
@@ -134,6 +136,9 @@ int main() {
     tex_info.data = img;
     ph::Texture pengu(tex_info);
     stbi_image_free(img);
+
+    ph::Material default_material;
+    default_material.texture = &pengu;
 
     logger.write_fmt(ph::log::Severity::Info, "Loaded assets");
 
@@ -156,8 +161,10 @@ int main() {
 
         ph::RenderGraph render_graph;
         render_graph.meshes.push_back(&triangle);
+        render_graph.materials.push_back(&default_material);
         ph::RenderGraph::DrawCommand draw;
         draw.mesh_index = 0;
+        draw.material_index = 0;
         draw.instances = { 
             { glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, 0.0f, 0.0f)) }, 
             { glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)) }
@@ -180,7 +187,7 @@ int main() {
     logger.write_fmt(ph::log::Severity::Info, "Exiting");
 
     // Wait until everything is done before deallocating
-    vulkan_context.device.waitIdle();
+    vulkan_context->device.waitIdle();
 
     triangle.destroy();
     pengu.destroy();
@@ -188,7 +195,8 @@ int main() {
     renderer.destroy();
     imgui_renderer.destroy();
     present_manager.destroy();
-    vulkan_context.destroy();
+    vulkan_context->destroy();
+    delete vulkan_context;
     mimas_destroy_window(window_context.handle);
     mimas_terminate();
 }

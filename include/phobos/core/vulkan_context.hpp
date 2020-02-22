@@ -46,7 +46,7 @@ struct AppSettings {
     Version version = Version {1, 0, 0};
 };
 
-VulkanContext create_vulkan_context(WindowContext const& window_ctx, log::LogInterface* logger, AppSettings settings = {});
+VulkanContext* create_vulkan_context(WindowContext const& window_ctx, log::LogInterface* logger, AppSettings settings = {});
 
 }
 

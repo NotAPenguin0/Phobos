@@ -21,6 +21,7 @@ private:
 
     void update_pv_matrix(FrameInfo& info, RenderGraph const& graph);
     void update_model_matrices(FrameInfo& info, RenderGraph::DrawCommand const& model);
+    void update_materials(FrameInfo& info, RenderGraph const& graph);
 };
 
 }

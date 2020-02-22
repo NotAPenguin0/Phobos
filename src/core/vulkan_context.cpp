@@ -64,7 +64,7 @@ static vk::Instance create_vulkan_instance(vk::ApplicationInfo const& app_info, 
     return vk::createInstance(info);
 }
 
-static vk::DebugUtilsMessengerEXT create_debug_messenger(VulkanContext& ctx) {
+static vk::DebugUtilsMessengerEXT create_debug_messenger(VulkanContext* ctx) {
     vk::DebugUtilsMessengerCreateInfoEXT info;
     // Specify message severity and message types to log
     info.messageSeverity = vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | 
@@ -73,9 +73,9 @@ static vk::DebugUtilsMessengerEXT create_debug_messenger(VulkanContext& ctx) {
     info.messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
                        vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral;
     info.pfnUserCallback = &vk_debug_callback;  
-    info.pUserData = &ctx;
+    info.pUserData = ctx;
     
-    return ctx.instance.createDebugUtilsMessengerEXT(info, nullptr, ctx.dynamic_dispatcher);
+    return ctx->instance.createDebugUtilsMessengerEXT(info, nullptr, ctx->dynamic_dispatcher);
 }
 
 static vk::RenderPass create_default_render_pass(VulkanContext& ctx) {
@@ -166,8 +166,8 @@ void VulkanContext::destroy() {
     instance.destroy();
 }
 
-VulkanContext create_vulkan_context(WindowContext const& window_ctx, log::LogInterface* logger, AppSettings settings) {
-    VulkanContext context;
+VulkanContext* create_vulkan_context(WindowContext const& window_ctx, log::LogInterface* logger, AppSettings settings) {
+    VulkanContext* context = new VulkanContext;
 
     vk::ApplicationInfo app_info;
     app_info.pApplicationName = window_ctx.title.c_str();
@@ -178,12 +178,12 @@ VulkanContext create_vulkan_context(WindowContext const& window_ctx, log::LogInt
     app_info.engineVersion = VK_MAKE_VERSION(version.major, version.minor, version.patch);
     app_info.apiVersion = VK_VERSION_1_2;
 
-    context.logger = logger;
-    context.instance = create_vulkan_instance(app_info, settings);
-    context.dynamic_dispatcher = { context.instance, vkGetInstanceProcAddr };
+    context->logger = logger;
+    context->instance = create_vulkan_instance(app_info, settings);
+    context->dynamic_dispatcher = { context->instance, vkGetInstanceProcAddr };
 
     if (settings.enable_validation_layers) {
-        context.debug_messenger = create_debug_messenger(context);    
+        context->debug_messenger = create_debug_messenger(context);    
     }
 
     logger->write_fmt(log::Severity::Info, "Created VkInstance");
@@ -191,49 +191,56 @@ VulkanContext create_vulkan_context(WindowContext const& window_ctx, log::LogInt
     vk::SurfaceKHR surface;
 
     // Create surface
-    mimas_create_vk_surface(window_ctx.handle, context.instance, nullptr, reinterpret_cast<VkSurfaceKHR*>(&surface));
+    mimas_create_vk_surface(window_ctx.handle, context->instance, nullptr, reinterpret_cast<VkSurfaceKHR*>(&surface));
 
     PhysicalDeviceRequirements requirements;
     // Require swapchain extension
     requirements.required_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-    context.physical_device = get_physical_device(context.instance, surface, requirements);
+    context->physical_device = get_physical_device(context->instance, surface, requirements);
 
-    logger->write_fmt(log::Severity::Info, "Picked physical device {}", context.physical_device.properties.deviceName);
+    logger->write_fmt(log::Severity::Info, "Picked physical device {}", context->physical_device.properties.deviceName);
 
     // Create logical device
     DeviceRequirements device_requirements;
     device_requirements.extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-    context.device = create_device(context.physical_device, device_requirements);
+    device_requirements.features.samplerAnisotropy = true;
+    vk::PhysicalDeviceDescriptorIndexingFeatures descriptor_indexing;
+    descriptor_indexing.shaderSampledImageArrayNonUniformIndexing = true;
+    descriptor_indexing.runtimeDescriptorArray = true;
+    descriptor_indexing.descriptorBindingVariableDescriptorCount = true;
+    descriptor_indexing.descriptorBindingPartiallyBound = true;
+    device_requirements.pNext = &descriptor_indexing;
+    context->device = create_device(context->physical_device, device_requirements);
 
     logger->write_fmt(log::Severity::Info, "Created VkDevice");
 
     // Finally, get the graphics queue
-    context.graphics_queue = context.device.getQueue(context.physical_device.queue_families.graphics_family.value(), 0);
+    context->graphics_queue = context->device.getQueue(context->physical_device.queue_families.graphics_family.value(), 0);
 
-    context.swapchain = create_swapchain(context.device, window_ctx, context.physical_device);
+    context->swapchain = create_swapchain(context->device, window_ctx, context->physical_device);
 
     logger->write_fmt(log::Severity::Info, "Created swapchain. Dimensions are {}x{}", 
-        context.swapchain.extent.width, context.swapchain.extent.height);
+        context->swapchain.extent.width, context->swapchain.extent.height);
 
     // We have to create the renderpass before creating the pipeline. 
-    context.default_render_pass = create_default_render_pass(context);
+    context->default_render_pass = create_default_render_pass(*context);
 
     logger->write_fmt(log::Severity::Info, "Created renderpass");
 
     // Only after the renderpass as been created, we can create the swapchain framebuffers
-    create_swapchain_framebuffers(context, context.swapchain);
+    create_swapchain_framebuffers(*context, context->swapchain);
 
     logger->write_fmt(log::Severity::Info, "Created framebuffers");
 
-    create_pipeline_layouts(context.device, context.pipeline_layouts);
-    create_pipelines(context, context.pipelines);
+    create_pipeline_layouts(context->device, context->pipeline_layouts);
+    create_pipelines(*context, context->pipelines);
 
     logger->write_fmt(log::Severity::Info, "Created pipelines");
 
     vk::CommandPoolCreateInfo cmd_pool_info;
     cmd_pool_info.flags = vk::CommandPoolCreateFlagBits::eTransient | vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
-    cmd_pool_info.queueFamilyIndex = context.physical_device.queue_families.graphics_family.value();
-    context.command_pool = context.device.createCommandPool(cmd_pool_info);
+    cmd_pool_info.queueFamilyIndex = context->physical_device.queue_families.graphics_family.value();
+    context->command_pool = context->device.createCommandPool(cmd_pool_info);
 
     logger->write_fmt(log::Severity::Info, "Created command pool");
 

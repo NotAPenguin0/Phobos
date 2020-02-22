@@ -38,6 +38,9 @@ private:
 
     // Pool for all "fixed" descriptors
     vk::DescriptorPool fixed_descriptor_pool;
+
+    // Samplers
+    vk::Sampler default_sampler;
 };
 
 }

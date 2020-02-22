@@ -29,7 +29,9 @@ struct FrameInfo {
     // Other resources
     MappedUBO vp_ubo;
     InstancingBuffer instance_ssbo;
+    vk::Sampler default_sampler;
 
+    // Descriptors
     vk::DescriptorSet fixed_descriptor_set;
 
     // Command buffers

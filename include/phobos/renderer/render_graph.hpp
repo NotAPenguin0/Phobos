@@ -5,6 +5,7 @@
 #include <glm/mat4x4.hpp>
 
 #include <phobos/renderer/mesh.hpp>
+#include <phobos/renderer/material.hpp>
 
 
 namespace ph {
@@ -18,13 +19,15 @@ struct RenderGraph {
 
     // TODO: Proper resource referencing instead of raw pointers?
     std::vector<Mesh*> meshes;
+    std::vector<Material*> materials;
 
     struct Instance {
         glm::mat4 transform;
     };
 
     struct DrawCommand {
-        size_t mesh_index;
+        uint32_t mesh_index;
+        uint32_t material_index;
         std::vector<Instance> instances;
     };
 

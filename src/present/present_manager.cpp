@@ -27,9 +27,28 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
     alloc_info.level = vk::CommandBufferLevel::ePrimary;
     command_buffers = ctx.device.allocateCommandBuffers(alloc_info);
 
+    vk::SamplerCreateInfo sampler_info;
+    sampler_info.magFilter = vk::Filter::eLinear;
+    sampler_info.minFilter = vk::Filter::eLinear;
+    sampler_info.addressModeU = vk::SamplerAddressMode::eRepeat;
+    sampler_info.addressModeV = vk::SamplerAddressMode::eRepeat;
+    sampler_info.addressModeW = vk::SamplerAddressMode::eRepeat;
+    sampler_info.anisotropyEnable = true;
+    sampler_info.maxAnisotropy = 8;
+    sampler_info.borderColor = vk::BorderColor::eIntOpaqueBlack;
+    sampler_info.unnormalizedCoordinates = false;
+    sampler_info.compareEnable = false;
+    sampler_info.compareOp = vk::CompareOp::eAlways;
+    sampler_info.mipmapMode = vk::SamplerMipmapMode::eLinear;
+    sampler_info.minLod = 0.0;
+    sampler_info.maxLod = 0.0;
+    sampler_info.mipLodBias = 0.0;
+    default_sampler = ctx.device.createSampler(sampler_info);
+
     vk::DescriptorPoolSize sizes[] = {
         vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, swapchain_image_count),
-        vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, swapchain_image_count)
+        vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, swapchain_image_count),
+        vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 64 * swapchain_image_count)
     };
 
     vk::DescriptorPoolCreateInfo fixed_descriptor_pool_info;
@@ -43,6 +62,8 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
     frames.resize(max_frames_in_flight);
     // Initialize frame info data
     for (auto& frame_info : frames) {
+        frame_info.default_sampler = default_sampler;
+
         vk::FenceCreateInfo fence_info;
         fence_info.flags = vk::FenceCreateFlagBits::eSignaled;
         frame_info.fence = ctx.device.createFence(fence_info);
@@ -64,11 +85,19 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         frame_info.instance_ssbo.create(1 * sizeof(RenderGraph::Instance));
 
         // Create descriptor sets for this frame
-        PipelineLayout vp_layout = ctx.pipeline_layouts.get_layout(PipelineLayoutID::eMVPOnly);
+        PipelineLayout vp_layout = ctx.pipeline_layouts.get_layout(PipelineLayoutID::eDefault);
         vk::DescriptorSetAllocateInfo descriptor_set_info;
         descriptor_set_info.descriptorPool = fixed_descriptor_pool;
         descriptor_set_info.descriptorSetCount = 1;
         descriptor_set_info.pSetLayouts = &vp_layout.descriptor_set_layout;
+
+        vk::DescriptorSetVariableDescriptorCountAllocateInfo variable_count_info;
+        uint32_t counts[1] { 64 };
+        variable_count_info.descriptorSetCount = 1;
+        variable_count_info.pDescriptorCounts = counts;
+
+        descriptor_set_info.pNext = &variable_count_info;
+
         frame_info.fixed_descriptor_set = ctx.device.allocateDescriptorSets(descriptor_set_info)[0];
 
         // Setup descriptor set to point to right VP UBO
@@ -168,6 +197,7 @@ void PresentManager::wait_for_available_frame() {
 
 
 void PresentManager::destroy() {
+    context.device.destroySampler(default_sampler);
     for (auto& frame : frames) {
         frame.instance_ssbo.destroy();
         context.device.destroyFence(frame.fence);
