@@ -87,16 +87,16 @@ int main() {
     DefaultLogger logger;
     logger.set_timestamp(true);
     // Create window context
-    ph::WindowContext window_context = ph::create_window_context("Phobos Test App", 1280, 720);
+    ph::WindowContext* window_context = ph::create_window_context("Phobos Test App", 1280, 720);
 
     // Create Vulkan context
     ph::AppSettings settings;
     settings.enable_validation_layers = true;
     settings.version = ph::Version{0, 0, 1};
-    ph::VulkanContext* vulkan_context = ph::create_vulkan_context(window_context, &logger, settings);
+    ph::VulkanContext* vulkan_context = ph::create_vulkan_context(*window_context, &logger, settings);
     
-    mimas_set_window_mouse_button_callback(window_context.handle, mouse_button_callback, vulkan_context);
-
+    mimas_set_window_mouse_button_callback(window_context->handle, mouse_button_callback, vulkan_context);
+    
     // Setup ImGui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -109,7 +109,7 @@ int main() {
     // Create present manager (required for presenting to the screen).
     ph::PresentManager present_manager(*vulkan_context);
     ph::Renderer renderer(*vulkan_context);
-    ph::ImGuiRenderer imgui_renderer(window_context, *vulkan_context);
+    ph::ImGuiRenderer imgui_renderer(*window_context, *vulkan_context);
 
     logger.write_fmt(ph::log::Severity::Info, "Created renderers");
 
@@ -154,13 +154,13 @@ int main() {
 
     logger.write_fmt(ph::log::Severity::Info, "Loaded assets");
 
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)window_context.width / (float)window_context.height, 
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)window_context->width / (float)window_context->height, 
         0.1f, 100.0f);
     projection[1][1] *= -1;
     glm::mat4 view = glm::lookAt(glm::vec3(2, 2, 2), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 
-    while(window_context.is_open()) {
-        window_context.poll_events();
+    while(window_context->is_open()) {
+        window_context->poll_events();
         present_manager.wait_for_available_frame();
 
         ///// FRAME START
@@ -208,6 +208,6 @@ int main() {
     present_manager.destroy();
     vulkan_context->destroy();
     delete vulkan_context;
-    mimas_destroy_window(window_context.handle);
+    mimas_destroy_window(window_context->handle);
     mimas_terminate();
 }

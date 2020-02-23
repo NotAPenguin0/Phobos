@@ -17,9 +17,12 @@
 
 namespace ph {
 
-struct VulkanContext {
+struct VulkanContext : public EventListener<SwapchainRecreateEvent> {
     vk::Instance instance;    
     vk::DispatchLoaderDynamic dynamic_dispatcher;
+
+    WindowContext* window_ctx;
+
     // Only available if enable_validation_layers is set to true
     vk::DebugUtilsMessengerEXT debug_messenger;
 
@@ -43,6 +46,9 @@ struct VulkanContext {
     EventDispatcher event_dispatcher;
 
     void destroy();
+
+protected:
+    void on_event(SwapchainRecreateEvent const& evt) override;
 };
 
 struct AppSettings {
@@ -50,7 +56,7 @@ struct AppSettings {
     Version version = Version {1, 0, 0};
 };
 
-VulkanContext* create_vulkan_context(WindowContext const& window_ctx, log::LogInterface* logger, AppSettings settings = {});
+VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterface* logger, AppSettings settings = {});
 
 }
 

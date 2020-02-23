@@ -12,6 +12,9 @@ namespace ph {
 
 PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight) 
     : context(ctx), max_frames_in_flight(max_frames_in_flight) {
+
+    context.event_dispatcher.add_listener((EventListener<WindowResizeEvent>*)this);
+
     vk::CommandPoolCreateInfo command_pool_info;
     command_pool_info.queueFamilyIndex = ctx.physical_device.queue_families.graphics_family.value();
     // We're going to reset the command buffers each frame and re-record them
@@ -54,7 +57,8 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
     vk::DescriptorPoolCreateInfo fixed_descriptor_pool_info;
     fixed_descriptor_pool_info.poolSizeCount = sizeof(sizes) / sizeof(sizes[0]);
     fixed_descriptor_pool_info.pPoolSizes = sizes;
-    fixed_descriptor_pool_info.maxSets = swapchain_image_count;
+    // Add some extra space
+    fixed_descriptor_pool_info.maxSets = swapchain_image_count * 3;
 
     fixed_descriptor_pool = ctx.device.createDescriptorPool(fixed_descriptor_pool_info);
 
@@ -209,6 +213,43 @@ void PresentManager::destroy() {
     }
     context.device.destroyDescriptorPool(fixed_descriptor_pool);
     context.device.destroyCommandPool(command_pool);
+}
+
+void PresentManager::on_event(WindowResizeEvent const& evt) {
+    // Only handle the event if it matches our context
+    if (evt.window_ctx != context.window_ctx) return;
+
+    // Wait until all rendering is done
+    context.device.waitIdle();
+
+    for (auto framebuf : context.swapchain.framebuffers) {
+        context.device.destroyFramebuffer(framebuf);
+    }
+
+    context.swapchain.framebuffers.clear();
+
+    context.device.destroyRenderPass(context.default_render_pass);
+
+    for (auto view : context.swapchain.image_views) {
+        context.device.destroyImageView(view);
+    }
+
+    context.swapchain.image_views.clear();
+
+    context.device.destroyImageView(context.swapchain.depth_image_view);
+    context.device.destroyImage(context.swapchain.depth_image);
+    context.device.freeMemory(context.swapchain.depth_image_memory);
+
+    // Recreate the swapchain
+    auto new_swapchain = create_swapchain(context.device, *context.window_ctx, context.physical_device);
+    context.device.destroySwapchainKHR(context.swapchain.handle);
+    context.swapchain = std::move(new_swapchain);
+
+    // Recreate renderpass
+    context.event_dispatcher.fire_event(SwapchainRecreateEvent{evt.window_ctx});
+
+    // Recreate framebuffers. This has to be done after the renderpass has been recreated
+    create_swapchain_framebuffers(context, context.swapchain);
 }
 
 

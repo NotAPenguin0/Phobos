@@ -75,8 +75,18 @@ static void create_depth_buffer(vk::Device device, PhysicalDeviceDetails const& 
         vk::Format::eD32Sfloat, vk::ImageAspectFlagBits::eDepth);
 }
 
-SwapchainDetails create_swapchain(vk::Device device, WindowContext const& window_ctx, PhysicalDeviceDetails const& physical_device) {
+
+SwapchainDetails create_swapchain(vk::Device device, WindowContext const& window_ctx, 
+    PhysicalDeviceDetails& physical_device, vk::SwapchainKHR old_swapchain) {
     SwapchainDetails details;
+
+    physical_device.surface_details.capabilities = physical_device.handle.getSurfaceCapabilitiesKHR(
+            physical_device.surface_details.handle);
+    physical_device.surface_details.formats = physical_device.handle.getSurfaceFormatsKHR(
+        physical_device.surface_details.handle);
+    physical_device.surface_details.present_modes = physical_device.handle.getSurfacePresentModesKHR(
+        physical_device.surface_details.handle);
+
     details.format = choose_surface_format(physical_device.surface_details);
     details.present_mode = choose_present_mode(physical_device.surface_details);
     details.extent = choose_swapchain_extent(window_ctx, physical_device.surface_details);
@@ -90,6 +100,7 @@ SwapchainDetails create_swapchain(vk::Device device, WindowContext const& window
     }
 
     vk::SwapchainCreateInfoKHR info;
+    info.oldSwapchain = old_swapchain;
     info.surface = physical_device.surface_details.handle;
     info.minImageCount = image_count;
     info.imageFormat = details.format.format;
@@ -108,7 +119,6 @@ SwapchainDetails create_swapchain(vk::Device device, WindowContext const& window
     info.preTransform = physical_device.surface_details.capabilities.currentTransform;
     info.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
     info.clipped = true;
-    info.oldSwapchain = nullptr;
 
     details.handle = device.createSwapchainKHR(info);
     

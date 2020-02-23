@@ -3,13 +3,14 @@
 
 #include <phobos/core/vulkan_context.hpp>
 #include <phobos/present/frame_info.hpp>
+#include <phobos/events/event_dispatcher.hpp>
 
 #include <vector>
 
 
 namespace ph {
 
-class PresentManager {
+class PresentManager : public EventListener<WindowResizeEvent> {
 public:
     PresentManager(VulkanContext& ctx, size_t max_frames_in_flight = 2);
 
@@ -24,6 +25,8 @@ public:
 
     void destroy();
 
+protected:
+    void on_event(WindowResizeEvent const& evt) override;
 private:
     VulkanContext& context;
 

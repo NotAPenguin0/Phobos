@@ -34,6 +34,13 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
     return VK_FALSE;
 }
 
+static void window_resize_callback(Mimas_Window* window, mimas_i32 w, mimas_i32 h, void* user_data) {
+    VulkanContext* ctx = reinterpret_cast<VulkanContext*>(user_data);
+    ctx->window_ctx->width = w;
+    ctx->window_ctx->height = h;
+    ctx->event_dispatcher.fire_event(WindowResizeEvent{ctx->window_ctx, w, h});
+}
+
 static vk::Instance create_vulkan_instance(vk::ApplicationInfo const& app_info, AppSettings const& app_settings) {
     vk::InstanceCreateInfo info;
     info.pApplicationInfo = &app_info;
@@ -166,8 +173,17 @@ void VulkanContext::destroy() {
     instance.destroy();
 }
 
-VulkanContext* create_vulkan_context(WindowContext const& window_ctx, log::LogInterface* logger, AppSettings settings) {
+void VulkanContext::on_event(SwapchainRecreateEvent const& evt) {
+    if (evt.window_ctx != window_ctx) return;
+
+    default_render_pass = create_default_render_pass(*this);
+}
+
+VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterface* logger, AppSettings settings) {
     VulkanContext* context = new VulkanContext;
+    context->window_ctx = &window_ctx;
+
+    mimas_set_window_resize_callback(window_ctx.handle, window_resize_callback, context);
 
     vk::ApplicationInfo app_info;
     app_info.pApplicationName = window_ctx.title.c_str();

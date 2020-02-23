@@ -22,7 +22,7 @@ struct WindowContext {
     void poll_events();
 };
 
-WindowContext create_window_context(std::string_view title, size_t width, size_t height, bool fullscreen = false);
+WindowContext* create_window_context(std::string_view title, size_t width, size_t height, bool fullscreen = false);
 
 }
 

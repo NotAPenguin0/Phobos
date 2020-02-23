@@ -216,4 +216,31 @@ void ImGuiRenderer::render_frame(FrameInfo& info) {
     info.extra_command_buffers.push_back(cmd_buffer);
 }
 
+void ImGuiRenderer::on_event(SwapchainRecreateEvent const& evt) {
+    // Destroy old resources
+    for (auto framebuf : framebuffers) {
+        ctx.device.destroyFramebuffer(framebuf);
+    }
+    framebuffers.clear();
+    ctx.device.destroyRenderPass(render_pass);
+
+    // Recreate renderpass first       
+    render_pass = create_imgui_renderpass(ctx);
+
+    // Recreate framebuffer
+    framebuffers.resize(ctx.swapchain.images.size());
+    for (size_t i = 0; i < ctx.swapchain.images.size(); ++i) {
+        vk::FramebufferCreateInfo framebuf_info;
+        framebuf_info.renderPass = render_pass;
+        framebuf_info.attachmentCount = 1;
+        vk::ImageView attachments[1] = { ctx.swapchain.image_views[i]};
+        framebuf_info.pAttachments = attachments;
+        framebuf_info.width = ctx.swapchain.extent.width;
+        framebuf_info.height = ctx.swapchain.extent.height;
+        framebuf_info.layers = 1;
+
+        framebuffers[i] = ctx.device.createFramebuffer(framebuf_info);
+    }
+}
+
 }

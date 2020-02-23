@@ -6,7 +6,7 @@
 
 namespace ph {
 
-class ImGuiRenderer {
+class ImGuiRenderer : public EventListener<SwapchainRecreateEvent> {
 public:
     ImGuiRenderer(WindowContext& window_ctx, VulkanContext& context);
 
@@ -15,7 +15,8 @@ public:
     void begin_frame();
     // Records command buffers and writes them to the FrameInfo struct
     void render_frame(FrameInfo& info);
-
+protected:
+    void on_event(SwapchainRecreateEvent const& evt) override;
 private:
     VulkanContext& ctx;
     vk::DescriptorPool descriptor_pool;

@@ -10,8 +10,8 @@ WindowContext::~WindowContext() {
 
 }
 
-WindowContext create_window_context(std::string_view title, size_t width, size_t height, bool fullscreen /* = false*/) {
-    WindowContext context;
+WindowContext* create_window_context(std::string_view title, size_t width, size_t height, bool fullscreen /* = false*/) {
+    WindowContext* context = new WindowContext;
 
     // If Mimas was already initialized, this will return true without doing further work
     if (!mimas_init_with_vk()) {
@@ -24,15 +24,15 @@ WindowContext create_window_context(std::string_view title, size_t width, size_t
     window_info.height = height;
     window_info.width = width;
     window_info.title = title.data();
-    context.handle = mimas_create_window(window_info);
-    mimas_show_window(context.handle);
+    context->handle = mimas_create_window(window_info);
+    mimas_show_window(context->handle);
     // Retrieve window size. This may be different from the supplied size if fullscreen was true.
     int w, h;
-    mimas_get_window_content_size(context.handle, &w, &h);
-    context.width = w;
-    context.height = h;
+    mimas_get_window_content_size(context->handle, &w, &h);
+    context->width = w;
+    context->height = h;
 
-    context.title = title;
+    context->title = title;
 
     return context;
 }

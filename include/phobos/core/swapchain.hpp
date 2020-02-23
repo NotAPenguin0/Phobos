@@ -26,7 +26,9 @@ struct SwapchainDetails {
     vk::ImageView depth_image_view;
 };
 
-SwapchainDetails create_swapchain(vk::Device device, WindowContext const& window_ctx, PhysicalDeviceDetails const& physical_device);
+SwapchainDetails create_swapchain(vk::Device device, WindowContext const& window_ctx, 
+    PhysicalDeviceDetails& physical_device, vk::SwapchainKHR old_swapchain = nullptr);
+    
 void create_swapchain_framebuffers(VulkanContext& ctx, SwapchainDetails& swapchain);
 
 }
