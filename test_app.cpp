@@ -192,6 +192,8 @@ int main() {
         glm::mat4 view = glm::lookAt(cam_pos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 
         float rotation_speed = 20.0f;
+        static float time = 0.0f;
+        time += ImGui::GetIO().DeltaTime;
         rotation += ImGui::GetIO().DeltaTime * rotation_speed;
 
         present_manager.wait_for_available_frame();
@@ -211,7 +213,9 @@ int main() {
         render_graph.materials.push_back(&default_material);
 
         // Add lights
-
+        scene.light.position.x = std::sin(time) * 2.0f;
+        scene.light.position.y = 1.0f;
+        scene.light.position.z = std::cos(time) * 2.0f;
         render_graph.point_lights.push_back(scene.light);
 
         // Add a draw command for our cube
@@ -220,7 +224,7 @@ int main() {
         draw.material_index = 0;
         glm::mat4 cube_scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f, 0.5f, 0.5f));
         draw.instances = { 
-            { glm::rotate(cube_scale, glm::radians(rotation), glm::vec3(0.0f, 1.0f, 0.0f)) }, 
+            { cube_scale }, 
 //            { glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)) }
         };
         render_graph.draw_commands.push_back(draw);
