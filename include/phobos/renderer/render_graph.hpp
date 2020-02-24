@@ -6,6 +6,7 @@
 
 #include <phobos/renderer/mesh.hpp>
 #include <phobos/renderer/material.hpp>
+#include <phobos/renderer/light.hpp>
 
 #include <phobos/assets/asset_manager.hpp>
 
@@ -17,10 +18,12 @@ struct RenderGraph {
     // Camera data
     glm::mat4 projection;
     glm::mat4 view;
+    glm::vec3 camera_pos;
 
     AssetManager* asset_manager;
 
     std::vector<Material*> materials;
+    std::vector<PointLight> point_lights; 
 
     struct Instance {
         glm::mat4 transform;

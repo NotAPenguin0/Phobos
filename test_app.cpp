@@ -12,6 +12,8 @@
 
 #include <mimas/mimas.h>
 #include <mimas/mimas_vk.h>
+
+#include <numeric>
 #include <iostream>
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -21,8 +23,11 @@
 
 #include "imgui_style.hpp"
 
+struct Scene {
+    ph::PointLight light;
+};
 
-void make_ui(int draw_calls) {
+void make_ui(int draw_calls, Scene& scene) {
     ImGuiWindowFlags flags =
         ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
     ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -48,17 +53,19 @@ void make_ui(int draw_calls) {
 
     static bool show_stats = true;
     if (ImGui::Begin("Renderer stats", &show_stats)) {
-        int fps = ImGui::GetIO().Framerate;
-        if (fps > 120) {
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));
-        } else if (fps > 60) {
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 0, 1));
-        } else {
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 0, 0, 1));
-        }
+        ImGui::Text("Frametime: %f ms", ImGui::GetIO().DeltaTime * 1000);
         ImGui::Text("FPS: %i", (int)ImGui::GetIO().Framerate);
-        ImGui::PopStyleColor();
         ImGui::Text("Draw calls (ImGui excluded): %i", draw_calls);
+    }
+
+    ImGui::End();
+
+    static bool show_scene = true;
+    if (ImGui::Begin("Scene", &show_scene)) {
+        ImGui::DragFloat3("light_pos", &scene.light.position.x);
+        ImGui::ColorEdit3("light_ambient", &scene.light.ambient.x);
+        ImGui::ColorEdit3("light_diffuse", &scene.light.diffuse.x);
+        ImGui::ColorEdit3("light_specular", &scene.light.specular.x);
     }
 
     ImGui::End();
@@ -116,29 +123,41 @@ int main() {
     size_t draw_calls = 0;
 
     float vertices[] = {
-        -0.5f, -0.5f, 0.0f, 0.0f, 1.0f,
-        0.5f, -0.5f, 0.0f, 1.0f, 1.0f,
-        0.5f, 0.5f, 0.0f, 1.0f, 0.0f,
-        -0.5f, 0.5f, 0.0, 0.0f, 0.0f
-    };
+        -1, -1, -1, 0, 0, -1, 1, 1,    1, 1, -1, 0, 0, -1, 0, 0,     1,  -1, -1, 0, 0, -1, 0, 1,
+        1,  1, -1, 0, 0, -1, 0, 0,    -1, -1, -1, 0, 0, -1, 1, 1,   -1, 1, -1, 0, 0, -1, 1, 0,
 
-    uint32_t indices[] = {
-        0, 1, 2, 2, 3, 0
+        -1, -1, 1, 0, 0, 1, 0, 1,    1, -1, 1, 0, 0, 1, 1, 1,     1, 1, 1, 0, 0, 1, 1, 0,
+        1,  1,  1, 0, 0, 1, 1, 0,    -1, 1, 1, 0, 0, 1, 0, 0,     -1, -1, 1, 0, 0, 1, 0, 1,
+
+        -1, 1, -1, -1, 0, 0, 0, 0,    -1, -1, -1, -1, 0, 0, 0, 1,   -1, 1, 1, -1, 0, 0, 1, 0,
+        -1, -1, -1, -1, 0, 0, 0, 1,   -1, -1, 1, -1, 0, 0, 1, 1,    -1, 1, 1, -1, 0, 0, 1, 0,
+
+        1, 1, 1, 1, 0, 0, 0, 0,      1, -1, -1, 1, 0, 0, 1, 1,    1, 1, -1, 1, 0, 0, 1, 0,
+        1, -1, -1, 1, 0, 0, 1, 1,    1,  1, 1, 1, 0, 0, 0, 0,     1, -1, 1, 1, 0, 0, 0, 1,
+
+        -1, -1, -1, 0, -1, 0, 0, 1,   1, -1, -1, 0, -1, 0, 1, 1,    1, -1, 1, 0, -1, 0, 1, 0,
+        1, -1, 1, 0, -1, 0, 1, 0,     -1, -1, 1, 0, -1, 0, 0, 0,    -1, -1, -1, 0, -1, 0, 0, 1,
+
+        -1, 1, -1, 0, 1, 0, 0, 0,    1, 1, 1, 0, 1, 0, 1, 1,      1, 1, -1, 0, 1, 0, 1, 0,
+        1,  1, 1, 0, 1, 0, 1, 1,    -1, 1, -1, 0, 1, 0, 0, 0,    -1, 1, 1, 0, 1, 0, 0, 1
     };
+  
+    uint32_t indices[36];
+    std::iota(indices, indices + 36, 0);
 
     ph::AssetManager asset_manager;
 
     ph::Mesh::CreateInfo triangle_info;
     triangle_info.ctx = vulkan_context;
     triangle_info.vertices = vertices;
-    triangle_info.vertex_count = 4;
-    triangle_info.vertex_size = 5;
+    triangle_info.vertex_count = 36;
+    triangle_info.vertex_size = 8;
     triangle_info.indices = indices;
-    triangle_info.index_count = 6;
-    ph::Handle<ph::Mesh> triangle = asset_manager.add_mesh(triangle_info);
+    triangle_info.index_count = 36;
+    ph::Handle<ph::Mesh> cube = asset_manager.add_mesh(triangle_info);
 
     int w, h, channels;
-    uint8_t* img = stbi_load("data/textures/pengu.png", &w, &h, &channels, STBI_rgb_alpha);
+    uint8_t* img = stbi_load("data/textures/blank.png", &w, &h, &channels, STBI_rgb_alpha);
     ph::Texture::CreateInfo tex_info;
     tex_info.ctx = vulkan_context;
     tex_info.channels = channels;
@@ -154,13 +173,27 @@ int main() {
 
     logger.write_fmt(ph::log::Severity::Info, "Loaded assets");
 
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)window_context->width / (float)window_context->height, 
-        0.1f, 100.0f);
-    projection[1][1] *= -1;
-    glm::mat4 view = glm::lookAt(glm::vec3(2, 2, 2), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+    Scene scene;
+    // Default values
+    scene.light.position = glm::vec3(0, 2, 4);
+    scene.light.ambient = glm::vec3(34.0f/255.0f, 34.0f/255.0f, 34.0f/255.0f);
+    scene.light.diffuse = glm::vec3(185.0f/255.0f, 194.0f/255.0f, 32.0f/255.0f);
+    scene.light.specular = glm::vec3(1, 1, 1);
+
+    float rotation = 0;
 
     while(window_context->is_open()) {
         window_context->poll_events();
+
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)window_context->width / (float)window_context->height, 
+        0.1f, 100.0f);
+        projection[1][1] *= -1;
+        glm::vec3 cam_pos = glm::vec3(2, 2, 2);
+        glm::mat4 view = glm::lookAt(cam_pos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+
+        float rotation_speed = 20.0f;
+        rotation += ImGui::GetIO().DeltaTime * rotation_speed;
+
         present_manager.wait_for_available_frame();
 
         ///// FRAME START
@@ -169,23 +202,35 @@ int main() {
         ph::FrameInfo& frame_info = present_manager.get_frame_info();
 
         // Imgui
-        make_ui(draw_calls);
+        make_ui(draw_calls, scene);
 
         ph::RenderGraph render_graph;
+
+        // Set materials
         render_graph.asset_manager = &asset_manager;
         render_graph.materials.push_back(&default_material);
+
+        // Add lights
+
+        render_graph.point_lights.push_back(scene.light);
+
+        // Add a draw command for our cube
         ph::RenderGraph::DrawCommand draw;
-        draw.mesh = triangle;
+        draw.mesh = cube;
         draw.material_index = 0;
+        glm::mat4 cube_scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f, 0.5f, 0.5f));
         draw.instances = { 
-            { glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, 0.0f, 0.0f)) }, 
-            { glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)) }
+            { glm::rotate(cube_scale, glm::radians(rotation), glm::vec3(0.0f, 1.0f, 0.0f)) }, 
+//            { glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)) }
         };
         render_graph.draw_commands.push_back(draw);
 
+        // Setup camera data
         render_graph.projection = projection;
         render_graph.view = view;
+        render_graph.camera_pos = cam_pos;
 
+        // Render frame
         renderer.render_frame(frame_info, render_graph);
         imgui_renderer.render_frame(frame_info);
 

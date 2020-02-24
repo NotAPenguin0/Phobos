@@ -3,12 +3,22 @@
 #include <phobos/util/buffer_util.hpp>
 #include <phobos/renderer/instancing_buffer.hpp>
 #include <phobos/renderer/render_graph.hpp>
+#include <phobos/renderer/meta.hpp>
 
 #undef min
 #undef max
 #include <limits>
 
 namespace ph {
+
+static void create_lights_ubo(VulkanContext& ctx, MappedUBO& ubo) {
+    size_t const size = meta::max_lights_per_type * sizeof(PointLight) + sizeof(uint32_t);
+    create_buffer(ctx, size, vk::BufferUsageFlagBits::eUniformBuffer, 
+            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, 
+    ubo.buffer, ubo.memory);
+    ubo.size = size;
+    ubo.ptr = ctx.device.mapMemory(ubo.memory, 0, VK_WHOLE_SIZE);
+}
 
 PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight) 
     : context(ctx), max_frames_in_flight(max_frames_in_flight) {
@@ -49,11 +59,11 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
     default_sampler = ctx.device.createSampler(sampler_info);
 
     vk::DescriptorPoolSize sizes[] = {
-        vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, swapchain_image_count),
+        vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2 * swapchain_image_count),
         vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, swapchain_image_count),
         vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 64 * swapchain_image_count)
     };
-
+     
     vk::DescriptorPoolCreateInfo fixed_descriptor_pool_info;
     fixed_descriptor_pool_info.poolSizeCount = sizeof(sizes) / sizeof(sizes[0]);
     fixed_descriptor_pool_info.pPoolSizes = sizes;
@@ -76,17 +86,21 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         frame_info.image_available = ctx.device.createSemaphore(semaphore_info);
         frame_info.render_finished = ctx.device.createSemaphore(semaphore_info);
 
-        // Create VP UBO for this frame
-        create_buffer(ctx, 2 * 16 * sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer, 
+        // Create camera UBO for this frame
+        // Note that the camera position is a vec3, but it is aligned to a vec4
+        size_t const camera_buffer_size = sizeof(glm::mat4) + sizeof(glm::vec4);
+        create_buffer(ctx, camera_buffer_size, vk::BufferUsageFlagBits::eUniformBuffer, 
             vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, 
             frame_info.vp_ubo.buffer, frame_info.vp_ubo.memory);
-        frame_info.vp_ubo.size = 2 * 16 * sizeof(float);
-        frame_info.vp_ubo.ptr = ctx.device.mapMemory(frame_info.vp_ubo.memory, 0, 2 * 16 * sizeof(float));
+        frame_info.vp_ubo.size = camera_buffer_size;
+        frame_info.vp_ubo.ptr = ctx.device.mapMemory(frame_info.vp_ubo.memory, 0, VK_WHOLE_SIZE);
 
-        // Create instance data UBO for this frame
+        create_lights_ubo(ctx, frame_info.lights);
+
+        // Create instance data SSBO for this frame
         frame_info.instance_ssbo = InstancingBuffer(ctx);
         // Start with 32 instances (arbitrary number)
-        frame_info.instance_ssbo.create(1 * sizeof(RenderGraph::Instance));
+        frame_info.instance_ssbo.create(32 * sizeof(RenderGraph::Instance));
 
         // Create descriptor sets for this frame
         PipelineLayout vp_layout = ctx.pipeline_layouts.get_layout(PipelineLayoutID::eDefault);
@@ -115,23 +129,36 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         instance_buffer_write.offset = 0;
         instance_buffer_write.range = frame_info.instance_ssbo.size();
 
-        constexpr size_t write_cnt = 2;
+        vk::DescriptorBufferInfo lights_buffer_write;
+        lights_buffer_write.buffer = frame_info.lights.buffer;
+        lights_buffer_write.offset = 0;
+        lights_buffer_write.range = frame_info.lights.size;
+ 
+        constexpr size_t write_cnt = 3;
         constexpr size_t vp_write = 0;
         constexpr size_t instance_write = 1;
+        constexpr size_t lights_write = 2;
         vk::WriteDescriptorSet writes[write_cnt];
         writes[vp_write].descriptorCount = 1;
         writes[vp_write].descriptorType = vk::DescriptorType::eUniformBuffer;
         writes[vp_write].dstSet = frame_info.fixed_descriptor_set;
-        writes[vp_write].dstBinding = 0;
+        writes[vp_write].dstBinding = meta::bindings::generic::camera;
         writes[vp_write].dstArrayElement = 0;
         writes[vp_write].pBufferInfo = &vp_buffer_write;
 
         writes[instance_write].descriptorCount = 1;
         writes[instance_write].descriptorType = vk::DescriptorType::eStorageBuffer;
         writes[instance_write].dstSet = frame_info.fixed_descriptor_set;
-        writes[instance_write].dstBinding = 1;
+        writes[instance_write].dstBinding = meta::bindings::generic::instance_data;
         writes[instance_write].dstArrayElement = 0;
         writes[instance_write].pBufferInfo = &instance_buffer_write;
+
+        writes[lights_write].descriptorCount = 1;
+        writes[lights_write].descriptorType = vk::DescriptorType::eUniformBuffer;
+        writes[lights_write].dstSet = frame_info.fixed_descriptor_set;
+        writes[lights_write].dstBinding = meta::bindings::generic::lights;
+        writes[lights_write].dstArrayElement = 0;
+        writes[lights_write].pBufferInfo = &lights_buffer_write;
 
         ctx.device.updateDescriptorSets(write_cnt, writes, 0, nullptr);
     }
@@ -188,8 +215,14 @@ void PresentManager::present_frame(FrameInfo& frame) {
 void PresentManager::wait_for_available_frame() {
     context.device.waitForFences(frames[frame_index].fence, true, std::numeric_limits<uint32_t>::max());
     // Get image
-    image_index = context.device.acquireNextImageKHR(context.swapchain.handle, 
-                                    std::numeric_limits<uint32_t>::max(), frames[frame_index].image_available, nullptr).value;
+    vk::ResultValue<uint32_t> image_index_result = context.device.acquireNextImageKHR(context.swapchain.handle, 
+                                    std::numeric_limits<uint32_t>::max(), frames[frame_index].image_available, nullptr);
+    if (image_index_result.result == vk::Result::eSuboptimalKHR || 
+        image_index_result.result == vk::Result::eErrorOutOfDateKHR) {
+        context.event_dispatcher.fire_event(
+            WindowResizeEvent{context.window_ctx, (int32_t)context.window_ctx->width, (int32_t)context.window_ctx->height});
+    }
+    image_index = image_index_result.value;
     // Make sure its available
     if (image_in_flight_fences[image_index]) {
         context.device.waitForFences(image_in_flight_fences[image_index], true, std::numeric_limits<uint32_t>::max());
@@ -203,6 +236,9 @@ void PresentManager::wait_for_available_frame() {
 void PresentManager::destroy() {
     context.device.destroySampler(default_sampler);
     for (auto& frame : frames) {
+        context.device.destroyBuffer(frame.lights.buffer);
+        context.device.unmapMemory(frame.lights.memory);
+        context.device.freeMemory(frame.lights.memory);
         frame.instance_ssbo.destroy();
         context.device.destroyFence(frame.fence);
         context.device.destroySemaphore(frame.image_available);
@@ -241,7 +277,7 @@ void PresentManager::on_event(WindowResizeEvent const& evt) {
     context.device.freeMemory(context.swapchain.depth_image_memory);
 
     // Recreate the swapchain
-    auto new_swapchain = create_swapchain(context.device, *context.window_ctx, context.physical_device);
+    auto new_swapchain = create_swapchain(context.device, *context.window_ctx, context.physical_device, context.swapchain.handle);
     context.device.destroySwapchainKHR(context.swapchain.handle);
     context.swapchain = std::move(new_swapchain);
 

@@ -1,6 +1,7 @@
 #include <phobos/renderer/renderer.hpp>
 
 #include <glm/gtc/type_ptr.hpp>
+#include <phobos/renderer/meta.hpp>
 
 namespace ph {
 
@@ -37,8 +38,23 @@ void Renderer::render_frame(FrameInfo& info, RenderGraph const& graph) {
     auto const& pipeline_layout = ctx.pipeline_layouts.get_layout(PipelineLayoutID::eDefault);
     cmd_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout.handle, 0, info.fixed_descriptor_set, nullptr);
 
-    update_pv_matrix(info, graph);
+    update_camera_data(info, graph);
     update_materials(info, graph);
+    update_lights(info, graph);
+
+    vk::Viewport viewport;
+    viewport.x = 0;
+    viewport.y = 0;
+    viewport.width = ctx.swapchain.extent.width;
+    viewport.height = ctx.swapchain.extent.height;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    cmd_buffer.setViewport(0, viewport);
+
+    vk::Rect2D scissor;
+    scissor.offset = vk::Offset2D{0, 0};
+    scissor.extent = ctx.swapchain.extent;
+    cmd_buffer.setScissor(0, scissor);
 
     for (auto& draw : graph.draw_commands) {
         Mesh* mesh = graph.asset_manager->get_mesh(draw.mesh);
@@ -84,10 +100,11 @@ void Renderer::on_event(InstancingBufferResizeEvent const& e) {
     ctx.device.updateDescriptorSets(write, nullptr);
 }
 
-void Renderer::update_pv_matrix(FrameInfo& info, RenderGraph const& graph) {
+void Renderer::update_camera_data(FrameInfo& info, RenderGraph const& graph) {
     glm::mat4 pv = graph.projection * graph.view;
     float* data_ptr = reinterpret_cast<float*>(info.vp_ubo.ptr);
-    std::memcpy(data_ptr, &pv[0][0], 16 * sizeof(float)); 
+    std::memcpy(data_ptr, &pv[0][0], 16 * sizeof(float));  
+    std::memcpy(data_ptr + 16, &graph.camera_pos.x, sizeof(glm::vec3));
 }
 
 void Renderer::update_model_matrices(FrameInfo& info, RenderGraph::DrawCommand const& draw) {
@@ -106,13 +123,23 @@ void Renderer::update_materials(FrameInfo& info, RenderGraph const& graph) {
 
     vk::WriteDescriptorSet write;
     write.dstSet = info.fixed_descriptor_set;
-    write.dstBinding = 2;
+    write.dstBinding = meta::bindings::generic::textures;
     write.descriptorCount = graph.materials.size();
     write.dstArrayElement = 0;
     write.descriptorType = vk::DescriptorType::eCombinedImageSampler;
     write.pImageInfo = img_info.data();
 
     ctx.device.updateDescriptorSets(write, nullptr);
+}
+
+void Renderer::update_lights(FrameInfo& info, RenderGraph const& graph) {
+    // Update point lights
+    std::memcpy(info.lights.ptr, &graph.point_lights[0].position.x, sizeof(PointLight) * graph.point_lights.size());
+    // Update point light count. For this, we first need to calculate the offset into the UBO
+    size_t const counts_offset = meta::max_lights_per_type * sizeof(PointLight);
+    uint32_t point_light_count = graph.point_lights.size();
+    // Write data
+    std::memcpy(reinterpret_cast<unsigned char*>(info.lights.ptr) + counts_offset, &point_light_count, sizeof(uint32_t));
 }
 
 }

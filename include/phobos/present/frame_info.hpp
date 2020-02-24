@@ -29,6 +29,7 @@ struct FrameInfo {
     // Other resources
     MappedUBO vp_ubo;
     InstancingBuffer instance_ssbo;
+    MappedUBO lights;
     vk::Sampler default_sampler;
 
     // Descriptors

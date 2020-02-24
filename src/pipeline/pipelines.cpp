@@ -9,22 +9,22 @@ namespace ph {
 namespace generic_pipeline {
 
 static vk::VertexInputBindingDescription const& vertex_input_binding() {
-    static vk::VertexInputBindingDescription binding(0, 5 * sizeof(float), vk::VertexInputRate::eVertex);
+    static vk::VertexInputBindingDescription binding(0, 8 * sizeof(float), vk::VertexInputRate::eVertex);
     return binding;
 }
 
-static std::array<vk::VertexInputAttributeDescription, 2> const& vertex_input_attributes() {
-    static std::array<vk::VertexInputAttributeDescription, 2> attributes {{
+static std::array<vk::VertexInputAttributeDescription, 3> const& vertex_input_attributes() {
+    static std::array<vk::VertexInputAttributeDescription, 3> attributes {{
         // Position
         vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32B32Sfloat, 0),
+        // Normal
+        vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, 3 * sizeof(float)),
         // TexCoords
-        vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32Sfloat, 3 * sizeof(float))
+        vk::VertexInputAttributeDescription(2, 0, vk::Format::eR32G32Sfloat, 6 * sizeof(float))
     }};
     return attributes;
 }
 
-// The generic pipeline expects vertices in the format
-// vec3 Position        vec2 TexCoords
 static vk::PipelineVertexInputStateCreateInfo vertex_input() {
     vk::PipelineVertexInputStateCreateInfo info;
     info.vertexBindingDescriptionCount = 1;
@@ -145,6 +145,14 @@ static void create_generic_pipeline(VulkanContext& ctx, PipelineManager& pipelin
     viewport_info.scissorCount = 1;
     viewport_info.pScissors = &scissor;
 
+    vk::PipelineDynamicStateCreateInfo dynamic_state;
+    vk::DynamicState states[] = { 
+        vk::DynamicState::eViewport,
+        vk::DynamicState::eScissor
+    };
+    dynamic_state.dynamicStateCount = 2;
+    dynamic_state.pDynamicStates = states;
+
     vk::PipelineRasterizationStateCreateInfo rasterizer = generic_pipeline::rasterizer();
     vk::PipelineMultisampleStateCreateInfo multisample_info = generic_pipeline::multisample();
     vk::PipelineColorBlendStateCreateInfo blending = generic_pipeline::color_blending();
@@ -159,6 +167,7 @@ static void create_generic_pipeline(VulkanContext& ctx, PipelineManager& pipelin
     info.pMultisampleState = &multisample_info;
     info.pColorBlendState = &blending;
     info.pDepthStencilState = &depth_stencil;
+    info.pDynamicState = &dynamic_state;
 
     info.renderPass = ctx.default_render_pass;
     info.subpass = 0;

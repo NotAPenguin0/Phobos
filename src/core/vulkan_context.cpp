@@ -182,6 +182,7 @@ void VulkanContext::on_event(SwapchainRecreateEvent const& evt) {
 VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterface* logger, AppSettings settings) {
     VulkanContext* context = new VulkanContext;
     context->window_ctx = &window_ctx;
+    context->event_dispatcher.add_listener(context);
 
     mimas_set_window_resize_callback(window_ctx.handle, window_resize_callback, context);
 

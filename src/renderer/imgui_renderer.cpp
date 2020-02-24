@@ -98,7 +98,7 @@ static vk::RenderPass create_imgui_renderpass(VulkanContext& ctx) {
 
 ImGuiRenderer::ImGuiRenderer(WindowContext& window_ctx, VulkanContext& context) : ctx(context) {
     auto& io = ImGui::GetIO();
-    
+    context.event_dispatcher.add_listener(this);
     descriptor_pool = create_imgui_descriptor_pool(context);
 
     // Create command pool
