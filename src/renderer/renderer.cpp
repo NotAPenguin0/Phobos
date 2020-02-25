@@ -113,6 +113,8 @@ void Renderer::update_model_matrices(FrameInfo& info, RenderGraph::DrawCommand c
 }
 
 void Renderer::update_materials(FrameInfo& info, RenderGraph const& graph) {
+    if (graph.materials.empty()) return;
+
     std::vector<vk::DescriptorImageInfo> img_info(graph.materials.size());
     for (size_t i = 0; i < graph.materials.size(); ++i) {
         Texture* texture = graph.asset_manager->get_texture(graph.materials[i]->texture);
@@ -133,6 +135,7 @@ void Renderer::update_materials(FrameInfo& info, RenderGraph const& graph) {
 }
 
 void Renderer::update_lights(FrameInfo& info, RenderGraph const& graph) {
+    if (graph.point_lights.empty()) return;
     // Update point lights
     std::memcpy(info.lights.ptr, &graph.point_lights[0].position.x, sizeof(PointLight) * graph.point_lights.size());
     // Update point light count. For this, we first need to calculate the offset into the UBO
