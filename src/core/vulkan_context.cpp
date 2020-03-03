@@ -11,9 +11,8 @@
 
 namespace ph {
 
-static const char** get_required_window_extensions() {
-    uint32_t count;
-    const char** extensions = mimas_get_vk_extensions();
+static const char** get_required_window_extensions(mimas_i32* count) {
+    const char** extensions = mimas_get_vk_extensions(count);
 
     return extensions;
 }
@@ -45,13 +44,9 @@ static vk::Instance create_vulkan_instance(vk::ApplicationInfo const& app_info, 
     vk::InstanceCreateInfo info;
     info.pApplicationInfo = &app_info;
 
-    const char** extensions_c = get_required_window_extensions();
-    std::vector<const char*> extensions;
-    const char** ptr = extensions_c;
-    while(*ptr) {
-        extensions.push_back(*ptr);
-        ++ptr;
-    }
+    mimas_i32 extension_count;
+    const char** extensions_c = get_required_window_extensions(&extension_count);
+    std::vector<const char*> extensions(extensions_c, extensions_c + extension_count);
     std::vector<const char*> const layers = {
         "VK_LAYER_KHRONOS_validation"
     };
