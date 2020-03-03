@@ -25,6 +25,12 @@ struct WindowContext;
 struct VulkanContext;
 struct AppSettings;
 
+class Mesh;
+class Texture;
+
+struct Material;
+struct PointLight;
+
 } // namespace ph
 
 
