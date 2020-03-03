@@ -1,13 +1,13 @@
 #ifndef PHOBOS_ASSET_HANDLE_HPP_
 #define PHOBOS_ASSET_HANDLE_HPP_
 
-#include <cstddef>
+#include <cstdint>
 
 namespace ph {
 
 template<typename T>
 struct Handle {
-    uint64_t id;
+    std::uint64_t id;
 };
 
 }
