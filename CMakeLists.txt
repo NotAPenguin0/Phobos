@@ -19,8 +19,6 @@ set(PHOBOS_LINK_LIBRARIES ${PHOBOS_LINK_LIBRARIES}
     ${Vulkan_LIBRARY}
 )
 
-set(PHOBOS_TEST_APP_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_app.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/imgui_style.cpp")
-set(PHOBOS_TEST_APP_INCLUDE_DIRS "")
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/src")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/external")
@@ -42,6 +40,7 @@ foreach(SHADER ${PHOBOS_SHADERS})
         COMMAND echo Compiling shader ${SHADER_FNAME} && 
                 glslc ${SHADER} "-o${CMAKE_BINARY_DIR}/data/shaders/${SHADER_FNAME}.spv"
     )
+
 endforeach()
 
 # Test Application

@@ -21,13 +21,13 @@ set(PHOBOS_LINK_LIBRARIES ${PHOBOS_LINK_LIBRARIES}
 )
 
 # Add imgui
-set(PHOBOS_TEST_APP_SOURCES
-    ${PHOBOS_TEST_APP_SOURCES}
+set(PHOBOS_SOURCES
+    ${PHOBOS_SOURCES}
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_draw.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_demo.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_widgets.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui.cpp"
-    # GLFW + Vulkan
+    # Mimas + Vulkan
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_mimas.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_vulkan.cpp"
     PARENT_SCOPE
