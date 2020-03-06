@@ -19,6 +19,7 @@ set(PHOBOS_LINK_LIBRARIES ${PHOBOS_LINK_LIBRARIES}
     ${Vulkan_LIBRARY}
 )
 
+OPTION(PHOBOS_ENABLE_TEST_APP CACHE OFF)
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/src")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/external")
@@ -45,6 +46,8 @@ endforeach()
 
 # Test Application
 
-#add_executable(App ${PHOBOS_TEST_APP_SOURCES})
-#target_link_libraries(App PUBLIC Phobos)
-#target_include_directories(App PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" "${Vulkan_INCLUDE_DIR}" ${PHOBOS_TEST_APP_INCLUDE_DIRS})
+if (PHOBOS_ENABLE_TEST_APP)
+    add_executable(App "test_app.cpp" "imgui_style.cpp")
+    target_link_libraries(App PUBLIC Phobos)
+    target_include_directories(App PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" "${Vulkan_INCLUDE_DIR}" ${PHOBOS_TEST_APP_INCLUDE_DIRS})
+endif()
