@@ -95,9 +95,9 @@ void RenderAttachment::destroy() {
         ctx->device.freeMemory(memory);
         ctx->device.destroyImageView(view);
         ImGui_ImplVulkan_RemoveTexture(imgui_tex_id);
+        owning = false;
+        ctx = nullptr;
     }
-
-    ctx = nullptr;
 }
 
 }

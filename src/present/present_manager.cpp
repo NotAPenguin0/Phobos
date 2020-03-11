@@ -268,6 +268,7 @@ void PresentManager::destroy() {
     for (auto&[name, attachment] : attachments) {
         attachment.destroy();
     }
+    attachments.clear();
     context.device.destroyDescriptorPool(fixed_descriptor_pool);
     context.device.destroyCommandPool(command_pool);
 }
