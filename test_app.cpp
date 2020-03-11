@@ -263,8 +263,8 @@ int main() {
     // Deallocate resources
     asset_manager.destroy_all();
     renderer.destroy();
-    imgui_renderer.destroy();
     present_manager.destroy();
+    imgui_renderer.destroy();
     vulkan_context->destroy();
     mimas_destroy_window(window_context->handle);
     mimas_terminate();

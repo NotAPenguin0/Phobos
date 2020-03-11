@@ -12,7 +12,7 @@ RenderAttachment::RenderAttachment(VulkanContext* ctx, vk::Image image, vk::Devi
     vk::ImageView view, uint32_t w, uint32_t h) : ctx(ctx), owning(true), image(image), memory(memory), view(view),
     width(w), height(h) {
 
-    imgui_tex_id = ImGui_ImplVulkan_AddTexture(view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    imgui_tex_id = ImGui_ImplVulkan_AddTexture(view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 RenderAttachment::RenderAttachment(RenderAttachment const& rhs) :
