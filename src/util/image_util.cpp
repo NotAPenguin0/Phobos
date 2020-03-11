@@ -82,6 +82,18 @@ void transition_image_layout(vk::CommandBuffer cmd_buf, vk::Image image, vk::For
 
         src_stage = vk::PipelineStageFlagBits::eTransfer;
         dst_stage = vk::PipelineStageFlagBits::eFragmentShader;
+    } else if (initial_layout == vk::ImageLayout::ePresentSrcKHR && final_layout == vk::ImageLayout::eColorAttachmentOptimal) {
+        barrier.srcAccessMask = {};
+        barrier.dstAccessMask = vk::AccessFlagBits::eShaderWrite;
+
+        src_stage = vk::PipelineStageFlagBits::eTopOfPipe;
+        dst_stage = vk::PipelineStageFlagBits::eFragmentShader;
+    } else if (initial_layout == vk::ImageLayout::eColorAttachmentOptimal && final_layout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+        barrier.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+        barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+
+        src_stage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+        dst_stage = vk::PipelineStageFlagBits::eFragmentShader;
     } else {
         throw std::invalid_argument("Unsupported image layout transition");
     }

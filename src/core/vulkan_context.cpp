@@ -90,7 +90,7 @@ static vk::RenderPass create_default_render_pass(VulkanContext& ctx) {
     color_attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
     color_attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
     color_attachment.initialLayout = vk::ImageLayout::eUndefined;
-    color_attachment.finalLayout = vk::ImageLayout::eColorAttachmentOptimal;
+    color_attachment.finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
     vk::AttachmentReference color_attachment_ref;
     color_attachment_ref.attachment = 0;

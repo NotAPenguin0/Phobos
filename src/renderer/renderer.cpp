@@ -2,6 +2,8 @@
 
 #include <glm/gtc/type_ptr.hpp>
 #include <phobos/renderer/meta.hpp>
+#include <phobos/util/image_util.hpp>
+#include <phobos/present/present_manager.hpp>
 
 namespace ph {
 
@@ -20,7 +22,7 @@ void Renderer::render_frame(FrameInfo& info, RenderGraph const& graph) {
     // Start render pass
     vk::RenderPassBeginInfo render_pass_info;
     render_pass_info.renderPass = ctx.default_render_pass;
-    render_pass_info.framebuffer = info.framebuffer;
+    render_pass_info.framebuffer = info.offscreen_target.get_framebuf();
     render_pass_info.renderArea.offset = vk::Offset2D{0, 0};
     render_pass_info.renderArea.extent = ctx.swapchain.extent;
 
@@ -78,6 +80,10 @@ void Renderer::render_frame(FrameInfo& info, RenderGraph const& graph) {
     }
     
     cmd_buffer.endRenderPass();
+//   transition_image_layout(
+//       cmd_buffer, info.present_manager->get_attachment(info, "color1").image_handle(), vk::Format::eB8G8R8A8Unorm, 
+//       vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal
+//    );
     cmd_buffer.end();
 }
 

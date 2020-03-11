@@ -1,5 +1,8 @@
 #include <phobos/renderer/imgui_renderer.hpp>
 
+#include <phobos/present/present_manager.hpp>
+#include <phobos/util/image_util.hpp>
+
 #include <imgui/imgui.h>
 #include <imgui_impl_vulkan.h>
 #include <imgui_impl_mimas.h>
@@ -60,11 +63,11 @@ static vk::RenderPass create_imgui_renderpass(VulkanContext& ctx) {
     vk::AttachmentDescription color_attachment;
     color_attachment.format = ctx.swapchain.format.format;
     color_attachment.samples = vk::SampleCountFlagBits::e1;
-    color_attachment.loadOp = vk::AttachmentLoadOp::eLoad;
+    color_attachment.loadOp = vk::AttachmentLoadOp::eClear;
     color_attachment.storeOp = vk::AttachmentStoreOp::eStore;
     color_attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
     color_attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-    color_attachment.initialLayout = vk::ImageLayout::eColorAttachmentOptimal;
+    color_attachment.initialLayout = vk::ImageLayout::eUndefined;
     color_attachment.finalLayout = vk::ImageLayout::ePresentSrcKHR;
 
     vk::AttachmentReference color_attachment_ref;
@@ -123,6 +126,7 @@ ImGuiRenderer::ImGuiRenderer(WindowContext& window_ctx, VulkanContext& context) 
     info.PipelineCache = VK_NULL_HANDLE;
     info.ImageCount = context.swapchain.images.size();
     info.CheckVkResultFn = nullptr;
+    info.pfnVkGetInstanceProcAddr = &vkGetInstanceProcAddr;
     ImGui_ImplVulkan_Init(&info, render_pass);
 
     // Initialize fonts
@@ -178,30 +182,21 @@ void ImGuiRenderer::render_frame(FrameInfo& info) {
     begin_info.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
     cmd_buffer.begin(begin_info);
 
-    // Add a barrier to make sure the regular rendering is completed before we start imgui rendering
-    vk::ImageMemoryBarrier barrier;
-    barrier.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-    barrier.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead;
-    barrier.image = info.image;
-    barrier.oldLayout = vk::ImageLayout::eColorAttachmentOptimal;
-    barrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.layerCount = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-
-    cmd_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput, 
-                               vk::DependencyFlagBits::eByRegion, nullptr, nullptr, barrier);
+//    transition_image_layout(cmd_buffer, info.present_manager->get_attachment(info, "color1").image_handle(), vk::Format::eB8G8R8A8Unorm,
+//        vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
 
     // Start render pass
     vk::RenderPassBeginInfo render_pass_info;
     render_pass_info.renderPass = render_pass;
+
     render_pass_info.framebuffer = framebuffers[info.image_index];
     render_pass_info.renderArea.offset = vk::Offset2D{0, 0};
     render_pass_info.renderArea.extent = ctx.swapchain.extent;
+
+    render_pass_info.clearValueCount = 1;
+    vk::ClearValue clear_values[1];
+    clear_values[0].color = vk::ClearColorValue{std::array<float, 4>{{0.0f, 0.0f, 0.0f, 1.0f}}};
+    render_pass_info.pClearValues = clear_values;
 
     cmd_buffer.beginRenderPass(render_pass_info, vk::SubpassContents::eInline);
 
@@ -210,6 +205,10 @@ void ImGuiRenderer::render_frame(FrameInfo& info) {
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd_buffer);
     
     cmd_buffer.endRenderPass();
+
+//    transition_image_layout(cmd_buffer, info.present_manager->get_attachment(info, "color1").image_handle(), vk::Format::eB8G8R8A8Unorm,
+//        vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal);
+
     cmd_buffer.end();
 
     // Add the command buffer to the list of command buffers to submit

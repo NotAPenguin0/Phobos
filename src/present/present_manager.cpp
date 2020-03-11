@@ -4,6 +4,8 @@
 #include <phobos/renderer/instancing_buffer.hpp>
 #include <phobos/renderer/render_graph.hpp>
 #include <phobos/renderer/meta.hpp>
+#include <phobos/util/image_util.hpp>
+#include <phobos/util/cmdbuf_util.hpp>
 
 #undef min
 #undef max
@@ -77,6 +79,7 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
     // Initialize frame info data
     for (auto& frame_info : frames) {
         frame_info.default_sampler = default_sampler;
+        frame_info.present_manager = this;
 
         vk::FenceCreateInfo fence_info;
         fence_info.flags = vk::FenceCreateFlagBits::eSignaled;
@@ -85,6 +88,8 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         vk::SemaphoreCreateInfo semaphore_info;
         frame_info.image_available = ctx.device.createSemaphore(semaphore_info);
         frame_info.render_finished = ctx.device.createSemaphore(semaphore_info);
+
+        frame_info.swapchain_target = RenderTarget(&context);
 
         // Create camera UBO for this frame
         // Note that the camera position is a vec3, but it is aligned to a vec4
@@ -171,6 +176,17 @@ FrameInfo& PresentManager::get_frame_info() {
     frame.frame_index = frame_index;
     frame.image_index = image_index;
     frame.image = context.swapchain.images[image_index];
+    // Set default image attachments
+    frame.color_attachment = RenderAttachment::from_ref(&context, 
+        context.swapchain.images[image_index], nullptr, context.swapchain.image_views[image_index],
+        context.swapchain.extent.width, context.swapchain.extent.height);
+    frame.depth_attachment = RenderAttachment::from_ref(&context,
+        context.swapchain.depth_image, context.swapchain.depth_image_memory, context.swapchain.depth_image_view,
+        context.swapchain.extent.width, context.swapchain.extent.height);
+    // Create main render target
+    frame.swapchain_target = 
+        std::move(RenderTarget(&context, context.default_render_pass, {frame.color_attachment, frame.depth_attachment}));
+    // Clear previous draw data
     frame.extra_command_buffers.clear();
     frame.draw_calls = 0;
     return frame;
@@ -246,9 +262,41 @@ void PresentManager::destroy() {
         context.device.destroyBuffer(frame.vp_ubo.buffer);
         context.device.unmapMemory(frame.vp_ubo.memory);
         context.device.freeMemory(frame.vp_ubo.memory);
+        frame.swapchain_target.destroy();
+        frame.offscreen_target.destroy();
+    }
+    for (auto&[name, attachment] : attachments) {
+        attachment.destroy();
     }
     context.device.destroyDescriptorPool(fixed_descriptor_pool);
     context.device.destroyCommandPool(command_pool);
+}
+
+RenderAttachment PresentManager::add_color_attachment(std::string const& name) {
+    vk::Image image;
+    vk::DeviceMemory memory;
+    create_image(context, context.swapchain.extent.width, context.swapchain.extent.height,
+        context.swapchain.format.format, vk::ImageTiling::eOptimal, 
+        vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc |
+        vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled, 
+        vk::MemoryPropertyFlagBits::eDeviceLocal,
+        image, memory);
+    vk::CommandBuffer cmd_buf = begin_single_time_command_buffer(context);
+//    transition_image_layout(cmd_buf, image, context.swapchain.format.format, 
+//        vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eColorAttachmentOptimal);
+    end_single_time_command_buffer(context, cmd_buf);
+    vk::ImageView view = create_image_view(context.device, image, context.swapchain.format.format);
+    return attachments[name] = std::move(RenderAttachment(&context, image, memory, view, 
+                context.swapchain.extent.width, context.swapchain.extent.height));
+}
+
+RenderAttachment PresentManager::get_attachment(FrameInfo& frame, std::string const& name) {
+    if (name == "swapchain") {
+        return RenderAttachment::from_ref(&context, context.swapchain.images[frame.image_index],
+            nullptr, context.swapchain.image_views[frame.image_index], 
+            context.swapchain.extent.width, context.swapchain.extent.height);
+    }
+    return attachments.at(name);
 }
 
 void PresentManager::on_event(WindowResizeEvent const& evt) {

@@ -6,10 +6,16 @@
 
 #include <phobos/renderer/mapped_ubo.hpp>
 #include <phobos/renderer/instancing_buffer.hpp>
+#include <phobos/renderer/render_attachment.hpp>
+#include <phobos/renderer/render_target.hpp>
 
 namespace ph {
 
+class PresentManager;
+
 struct FrameInfo {
+    PresentManager* present_manager;
+
     size_t frame_index;
     size_t image_index;
 
@@ -19,6 +25,14 @@ struct FrameInfo {
     // Render target
     vk::Framebuffer framebuffer;
     vk::Image image;
+
+    // Main attachments for rendering
+    RenderAttachment color_attachment;
+    RenderAttachment depth_attachment;
+
+    RenderTarget swapchain_target;
+
+    RenderTarget offscreen_target;
 
     // Synchronization
     vk::Fence fence;

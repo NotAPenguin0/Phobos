@@ -27,7 +27,7 @@ struct Scene {
     ph::PointLight light;
 };
 
-void make_ui(int draw_calls, Scene& scene) {
+void make_ui(int draw_calls, Scene& scene, ph::FrameInfo& info) {
     ImGuiWindowFlags flags =
         ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
     ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -60,8 +60,8 @@ void make_ui(int draw_calls, Scene& scene) {
 
     ImGui::End();
 
-    static bool show_scene = true;
-    if (ImGui::Begin("Scene", &show_scene)) {
+    static bool show_scene_info = true;
+    if (ImGui::Begin("Scene Info", &show_scene_info)) {
         ImGui::DragFloat3("light_pos", &scene.light.position.x);
         ImGui::ColorEdit3("light_ambient", &scene.light.ambient.x);
         ImGui::ColorEdit3("light_diffuse", &scene.light.diffuse.x);
@@ -70,7 +70,13 @@ void make_ui(int draw_calls, Scene& scene) {
 
     ImGui::End();
 
-    // End dockspace
+    static bool show_scene;
+    if (ImGui::Begin("Scene", &show_scene)) {
+        auto img = info.present_manager->get_attachment(info, "color1");
+        ImGui::Image(img.get_imgui_tex_id(), ImVec2(img.get_width(), img.get_height()));
+    }
+
+    ImGui::End();
 }
 
 class DefaultLogger : public ph::log::LogInterface {
@@ -182,6 +188,8 @@ int main() {
 
     float rotation = 0;
 
+    auto offscreen_attachment = present_manager.add_color_attachment("color1");
+
     while(window_context->is_open()) {
         window_context->poll_events();
 
@@ -202,9 +210,11 @@ int main() {
         imgui_renderer.begin_frame();
 
         ph::FrameInfo& frame_info = present_manager.get_frame_info();
+        frame_info.offscreen_target = 
+            ph::RenderTarget(vulkan_context, vulkan_context->default_render_pass, {offscreen_attachment, frame_info.depth_attachment});
 
         // Imgui
-        make_ui(draw_calls, scene);
+        make_ui(draw_calls, scene, frame_info);
 
         ph::RenderGraph render_graph;
 
@@ -256,7 +266,7 @@ int main() {
     imgui_renderer.destroy();
     present_manager.destroy();
     vulkan_context->destroy();
-    delete vulkan_context;
     mimas_destroy_window(window_context->handle);
     mimas_terminate();
+    delete vulkan_context;
 }

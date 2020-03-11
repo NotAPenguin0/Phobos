@@ -4,9 +4,11 @@
 #include <phobos/core/vulkan_context.hpp>
 #include <phobos/present/frame_info.hpp>
 #include <phobos/events/event_dispatcher.hpp>
+#include <phobos/renderer/render_target.hpp>
+#include <phobos/renderer/render_attachment.hpp>
 
+#include <unordered_map>
 #include <vector>
-
 
 namespace ph {
 
@@ -24,6 +26,9 @@ public:
     void wait_for_available_frame();
 
     void destroy();
+
+    RenderAttachment add_color_attachment(std::string const& name);
+    RenderAttachment get_attachment(FrameInfo& frame, std::string const& name);
 
 protected:
     void on_event(WindowResizeEvent const& evt) override;
@@ -44,6 +49,8 @@ private:
 
     // Samplers
     vk::Sampler default_sampler;
+
+    std::unordered_map<std::string, RenderAttachment> attachments;
 };
 
 }
