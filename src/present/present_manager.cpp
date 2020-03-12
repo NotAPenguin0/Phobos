@@ -300,7 +300,7 @@ RenderAttachment PresentManager::add_depth_attachment(std::string const& name) {
     info.arrayLayers = 1;
     info.format = vk::Format::eD32Sfloat;
     info.tiling = vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
+    info.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
     info.sharingMode = vk::SharingMode::eExclusive;
     info.samples = vk::SampleCountFlagBits::e1;
     vk::Image depth_image = context.device.createImage(info);
