@@ -47,15 +47,15 @@ void Renderer::render_frame(FrameInfo& info, RenderGraph const& graph) {
     vk::Viewport viewport;
     viewport.x = 0;
     viewport.y = 0;
-    viewport.width = ctx.swapchain.extent.width;
-    viewport.height = ctx.swapchain.extent.height;
+    viewport.width = info.offscreen_target.get_width();
+    viewport.height = info.offscreen_target.get_height();
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
     cmd_buffer.setViewport(0, viewport);
 
     vk::Rect2D scissor;
     scissor.offset = vk::Offset2D{0, 0};
-    scissor.extent = ctx.swapchain.extent;
+    scissor.extent = vk::Extent2D{ info.offscreen_target.get_width(), info.offscreen_target.get_height() };
     cmd_buffer.setScissor(0, scissor);
 
     for (auto& draw : graph.draw_commands) {

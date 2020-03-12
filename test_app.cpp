@@ -194,12 +194,7 @@ int main() {
     while(window_context->is_open()) {
         window_context->poll_events();
 
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)window_context->width / (float)window_context->height, 
-        0.1f, 100.0f);
-        projection[1][1] *= -1;
-        glm::vec3 cam_pos = glm::vec3(2, 2, 2);
-        glm::mat4 view = glm::lookAt(cam_pos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
-
+       
         float rotation_speed = 20.0f;
         static float time = 0.0f;
         time += ImGui::GetIO().DeltaTime;
@@ -215,6 +210,14 @@ int main() {
         auto depth_attachment = present_manager.get_attachment(frame_info, "depth1");
         frame_info.offscreen_target = 
             ph::RenderTarget(vulkan_context, vulkan_context->default_render_pass, {offscreen_attachment, depth_attachment});
+
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 
+            (float)frame_info.offscreen_target.get_width() / (float)frame_info.offscreen_target.get_height(), 
+            0.1f, 100.0f);
+        projection[1][1] *= -1;
+        glm::vec3 cam_pos = glm::vec3(2, 2, 2);
+        glm::mat4 view = glm::lookAt(cam_pos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+
 
         // Imgui
         make_ui(draw_calls, scene, frame_info);
