@@ -39,8 +39,8 @@ RenderAttachment::RenderAttachment(RenderAttachment&& rhs) :
 RenderAttachment& RenderAttachment::operator=(RenderAttachment const& rhs) {
     if (this != &rhs) {
         destroy();
-        ctx->event_dispatcher.add_listener(this);
         ctx = rhs.ctx;
+        ctx->event_dispatcher.add_listener(this);
         owning = false;
         image = rhs.image;
         memory = rhs.memory;
@@ -117,8 +117,9 @@ void RenderAttachment::destroy() {
         ctx->device.destroyImageView(view);
         ImGui_ImplVulkan_RemoveTexture(imgui_tex_id);
         owning = false;
-        ctx = nullptr;
     }
+
+    ctx = nullptr;
 }
 
 }

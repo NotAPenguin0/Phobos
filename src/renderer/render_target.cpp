@@ -26,13 +26,19 @@ RenderTarget::RenderTarget(VulkanContext* ctx, vk::RenderPass render_pass, std::
     info.pAttachments = views.data();
     info.layers = 1;
     framebuffer = ctx->device.createFramebuffer(info);
+    width = info.width;
+    height = info.height;
 }
 
 RenderTarget::RenderTarget(RenderTarget&& rhs) {
     destroy();
     ctx = rhs.ctx;
     framebuffer = rhs.framebuffer;
+    width = rhs.width;
+    height = rhs.height;
     rhs.framebuffer = nullptr;
+    rhs.width = 0;
+    rhs.height = 0;
 }
 
 RenderTarget& RenderTarget::operator=(RenderTarget&& rhs) {
@@ -40,7 +46,11 @@ RenderTarget& RenderTarget::operator=(RenderTarget&& rhs) {
         destroy();
         ctx = rhs.ctx;
         framebuffer = rhs.framebuffer;
+        width = rhs.width;
+        height = rhs.height;
         rhs.framebuffer = nullptr;
+        rhs.width = 0;
+        rhs.height = 0;
     }
     return *this;
 }

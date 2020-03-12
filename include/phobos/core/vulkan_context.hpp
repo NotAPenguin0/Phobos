@@ -37,6 +37,8 @@ struct VulkanContext : public EventListener<SwapchainRecreateEvent> {
     PipelineManager pipelines;
 
     vk::RenderPass default_render_pass;
+    // Renderpass that only has a color attachment
+    vk::RenderPass swapchain_render_pass;
     // A command pool that can be used to allocate various command buffers for various operations. 
     // This command pool is marked with the eTransient flag
     vk::CommandPool command_pool;

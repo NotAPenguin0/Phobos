@@ -138,14 +138,55 @@ static vk::RenderPass create_default_render_pass(VulkanContext& ctx) {
     return ctx.device.createRenderPass(info);
 }
 
+static vk::RenderPass create_swapchain_renderpass(VulkanContext& ctx) {
+    // Create attachment
+    vk::AttachmentDescription color_attachment;
+    color_attachment.format = ctx.swapchain.format.format;
+    color_attachment.samples = vk::SampleCountFlagBits::e1;
+    color_attachment.loadOp = vk::AttachmentLoadOp::eClear;
+    color_attachment.storeOp = vk::AttachmentStoreOp::eStore;
+    color_attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+    color_attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+    color_attachment.initialLayout = vk::ImageLayout::eUndefined;
+    color_attachment.finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+    vk::AttachmentReference color_attachment_ref;
+    color_attachment_ref.attachment = 0;
+    color_attachment_ref.layout = vk::ImageLayout::eColorAttachmentOptimal;
+
+    // Create subpass
+    vk::SubpassDescription subpass;
+    subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &color_attachment_ref;
+    subpass.pDepthStencilAttachment = nullptr;
+
+    // Setup subpass dependencies
+    vk::SubpassDependency dependency;
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+    dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+    dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite;
+
+    vk::AttachmentDescription attachments[1] = { color_attachment };
+
+    vk::RenderPassCreateInfo info;
+    info.attachmentCount = 1;
+    info.pAttachments = attachments;
+    info.subpassCount = 1;
+    info.pSubpasses = &subpass;
+    info.dependencyCount = 1;
+    info.pDependencies = &dependency;
+
+    return ctx.device.createRenderPass(info);
+}
+
 void VulkanContext::destroy() { 
     pipelines.destroy_all(device);
     pipeline_layouts.destroy_all(device);
     device.destroyRenderPass(default_render_pass);
-
-    device.destroyImage(swapchain.depth_image);
-    device.destroyImageView(swapchain.depth_image_view);
-    device.freeMemory(swapchain.depth_image_memory);
+    device.destroyRenderPass(swapchain_render_pass);
 
     for (auto const& framebuf : swapchain.framebuffers) {
         device.destroyFramebuffer(framebuf);
@@ -171,7 +212,9 @@ void VulkanContext::destroy() {
 void VulkanContext::on_event(SwapchainRecreateEvent const& evt) {
     if (evt.window_ctx != window_ctx) return;
 
-    default_render_pass = create_default_render_pass(*this);
+//    default_render_pass = create_default_render_pass(*this);
+    device.destroyRenderPass(swapchain_render_pass);
+    swapchain_render_pass = create_swapchain_renderpass(*this);
 }
 
 VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterface* logger, AppSettings settings) {
@@ -236,6 +279,7 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
 
     // We have to create the renderpass before creating the pipeline. 
     context->default_render_pass = create_default_render_pass(*context);
+    context->swapchain_render_pass = create_swapchain_renderpass(*context);
 
     logger->write_fmt(log::Severity::Info, "Created renderpass");
 

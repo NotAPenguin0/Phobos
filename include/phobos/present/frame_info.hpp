@@ -26,9 +26,10 @@ struct FrameInfo {
     vk::Framebuffer framebuffer;
     vk::Image image;
 
+    vk::Extent2D render_target_extent;
+
     // Main attachments for rendering
     RenderAttachment color_attachment;
-    RenderAttachment depth_attachment;
 
     RenderTarget swapchain_target;
 

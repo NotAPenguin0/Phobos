@@ -189,6 +189,7 @@ int main() {
     float rotation = 0;
 
     present_manager.add_color_attachment("color1");
+    present_manager.add_depth_attachment("depth1");
 
     while(window_context->is_open()) {
         window_context->poll_events();
@@ -211,8 +212,9 @@ int main() {
 
         ph::FrameInfo& frame_info = present_manager.get_frame_info();
         auto offscreen_attachment = present_manager.get_attachment(frame_info, "color1");
+        auto depth_attachment = present_manager.get_attachment(frame_info, "depth1");
         frame_info.offscreen_target = 
-            ph::RenderTarget(vulkan_context, vulkan_context->default_render_pass, {offscreen_attachment, frame_info.depth_attachment});
+            ph::RenderTarget(vulkan_context, vulkan_context->default_render_pass, {offscreen_attachment, depth_attachment});
 
         // Imgui
         make_ui(draw_calls, scene, frame_info);

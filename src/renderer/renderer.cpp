@@ -23,8 +23,8 @@ void Renderer::render_frame(FrameInfo& info, RenderGraph const& graph) {
     vk::RenderPassBeginInfo render_pass_info;
     render_pass_info.renderPass = ctx.default_render_pass;
     render_pass_info.framebuffer = info.offscreen_target.get_framebuf();
-    render_pass_info.renderArea.offset = vk::Offset2D{0, 0};
-    render_pass_info.renderArea.extent = ctx.swapchain.extent;
+    render_pass_info.renderArea.offset = vk::Offset2D{ 0, 0 };
+    render_pass_info.renderArea.extent = vk::Extent2D{ info.offscreen_target.get_width(), info.offscreen_target.get_height() };
 
     render_pass_info.clearValueCount = 2;
     vk::ClearValue clear_values[2];

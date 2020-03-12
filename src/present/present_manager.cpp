@@ -6,6 +6,7 @@
 #include <phobos/renderer/meta.hpp>
 #include <phobos/util/image_util.hpp>
 #include <phobos/util/cmdbuf_util.hpp>
+#include <phobos/util/memory_util.hpp>
 
 #undef min
 #undef max
@@ -171,6 +172,7 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
 
 FrameInfo& PresentManager::get_frame_info() {
     FrameInfo& frame = frames[frame_index];
+
     frame.framebuffer = context.swapchain.framebuffers[image_index];
     frame.command_buffer = command_buffers[image_index];
     frame.frame_index = frame_index;
@@ -180,12 +182,11 @@ FrameInfo& PresentManager::get_frame_info() {
     frame.color_attachment = RenderAttachment::from_ref(&context, 
         context.swapchain.images[image_index], nullptr, context.swapchain.image_views[image_index],
         context.swapchain.extent.width, context.swapchain.extent.height);
-    frame.depth_attachment = RenderAttachment::from_ref(&context,
-        context.swapchain.depth_image, context.swapchain.depth_image_memory, context.swapchain.depth_image_view,
-        context.swapchain.extent.width, context.swapchain.extent.height);
-    // Create main render target
+    // Temporary: Fix when we have more flexible VP system
+    static auto const depth_size = context.swapchain.extent;
+    frame.render_target_extent = depth_size;
     frame.swapchain_target = 
-        std::move(RenderTarget(&context, context.default_render_pass, {frame.color_attachment, frame.depth_attachment}));
+        std::move(RenderTarget(&context, context.swapchain_render_pass, { frame.color_attachment }));
     // Clear previous draw data
     frame.extra_command_buffers.clear();
     frame.draw_calls = 0;
@@ -264,6 +265,7 @@ void PresentManager::destroy() {
         context.device.freeMemory(frame.vp_ubo.memory);
         frame.swapchain_target.destroy();
         frame.offscreen_target.destroy();
+        frame.color_attachment.destroy();
     }
     for (auto&[name, attachment] : attachments) {
         attachment.destroy();
@@ -282,13 +284,39 @@ RenderAttachment PresentManager::add_color_attachment(std::string const& name) {
         vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled, 
         vk::MemoryPropertyFlagBits::eDeviceLocal,
         image, memory);
-    vk::CommandBuffer cmd_buf = begin_single_time_command_buffer(context);
-//    transition_image_layout(cmd_buf, image, context.swapchain.format.format, 
-//        vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eColorAttachmentOptimal);
-    end_single_time_command_buffer(context, cmd_buf);
     vk::ImageView view = create_image_view(context.device, image, context.swapchain.format.format);
     return attachments[name] = std::move(RenderAttachment(&context, image, memory, view, 
                 context.swapchain.extent.width, context.swapchain.extent.height));
+}
+
+RenderAttachment PresentManager::add_depth_attachment(std::string const& name) {
+    vk::ImageCreateInfo info;
+    info.imageType = vk::ImageType::e2D;
+    info.extent.width = context.swapchain.extent.width;
+    info.extent.height = context.swapchain.extent.height;
+    info.extent.depth = 1;
+    info.initialLayout = vk::ImageLayout::eUndefined;
+    info.mipLevels = 1;
+    info.arrayLayers = 1;
+    info.format = vk::Format::eD32Sfloat;
+    info.tiling = vk::ImageTiling::eOptimal;
+    info.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
+    info.sharingMode = vk::SharingMode::eExclusive;
+    info.samples = vk::SampleCountFlagBits::e1;
+    vk::Image depth_image = context.device.createImage(info);
+
+    vk::MemoryRequirements mem_requirements = context.device.getImageMemoryRequirements(depth_image);
+    vk::MemoryAllocateInfo alloc_info;
+    alloc_info.allocationSize = mem_requirements.size;
+    alloc_info.memoryTypeIndex = memory_util::find_memory_type(context.physical_device, mem_requirements.memoryTypeBits,
+        vk::MemoryPropertyFlagBits::eDeviceLocal);
+    vk::DeviceMemory memory = context.device.allocateMemory(alloc_info);;
+    context.device.bindImageMemory(depth_image, memory, 0);
+
+    vk::ImageView depth_image_view = create_image_view(context.device, depth_image,
+        vk::Format::eD32Sfloat, vk::ImageAspectFlagBits::eDepth);
+    return attachments[name] = std::move(RenderAttachment(&context, depth_image, memory, depth_image_view,
+        context.swapchain.extent.width, context.swapchain.extent.height));
 }
 
 RenderAttachment PresentManager::get_attachment(FrameInfo& frame, std::string const& name) {
@@ -313,17 +341,11 @@ void PresentManager::on_event(WindowResizeEvent const& evt) {
 
     context.swapchain.framebuffers.clear();
 
-    context.device.destroyRenderPass(context.default_render_pass);
-
     for (auto view : context.swapchain.image_views) {
         context.device.destroyImageView(view);
     }
 
     context.swapchain.image_views.clear();
-
-    context.device.destroyImageView(context.swapchain.depth_image_view);
-    context.device.destroyImage(context.swapchain.depth_image);
-    context.device.freeMemory(context.swapchain.depth_image_memory);
 
     // Recreate the swapchain
     auto new_swapchain = create_swapchain(context.device, *context.window_ctx, context.physical_device, context.swapchain.handle);

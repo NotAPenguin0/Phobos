@@ -25,9 +25,18 @@ public:
         return framebuffer;
     }
 
+    std::uint32_t get_width() const {
+        return width;
+    }
+
+    std::uint32_t get_height() const {
+        return height;
+    }
+
 private:
     VulkanContext* ctx;
     vk::Framebuffer framebuffer = nullptr;
+    std::uint32_t width = 0, height = 0;
 };
 
 } // namespace ph 
