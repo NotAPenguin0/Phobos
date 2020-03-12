@@ -52,6 +52,7 @@ RenderTarget::~RenderTarget() {
 void RenderTarget::destroy() {
     if (framebuffer) {
         ctx->device.destroyFramebuffer(framebuffer);
+        framebuffer = nullptr;
     }
 }
 
