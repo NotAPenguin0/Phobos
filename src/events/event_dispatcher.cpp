@@ -13,8 +13,9 @@ namespace ph {
         EvtName##_listeners.push_back(listener); \
     } \
     void EventDispatcher::remove_listener(EventListener<EvtType>* listener) { \
-        EvtName##_listeners.erase( \
-            std::find(EvtName##_listeners.begin(), EvtName##_listeners.end(), listener)); \
+        auto it = std::find(EvtName##_listeners.begin(), EvtName##_listeners.end(), listener); \
+        if (it != EvtName##_listeners.end()) \
+            EvtName##_listeners.erase(it); \
     }
 
 

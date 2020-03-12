@@ -188,7 +188,7 @@ int main() {
 
     float rotation = 0;
 
-    auto offscreen_attachment = present_manager.add_color_attachment("color1");
+    present_manager.add_color_attachment("color1");
 
     while(window_context->is_open()) {
         window_context->poll_events();
@@ -210,6 +210,7 @@ int main() {
         imgui_renderer.begin_frame();
 
         ph::FrameInfo& frame_info = present_manager.get_frame_info();
+        auto offscreen_attachment = present_manager.get_attachment(frame_info, "color1");
         frame_info.offscreen_target = 
             ph::RenderTarget(vulkan_context, vulkan_context->default_render_pass, {offscreen_attachment, frame_info.depth_attachment});
 

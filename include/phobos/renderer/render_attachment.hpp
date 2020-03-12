@@ -2,10 +2,11 @@
 #define PHOBOS_RENDER_ATTACHMENT_HPP_
 
 #include <phobos/core/vulkan_context.hpp>
+#include <phobos/events/event_dispatcher.hpp>
 
 namespace ph {
 
-class RenderAttachment {
+class RenderAttachment : public EventListener<SwapchainRecreateEvent> {
 public: 
     RenderAttachment() = default;
     RenderAttachment(VulkanContext* ctx);
@@ -47,6 +48,8 @@ public:
         return imgui_tex_id;
     }
 
+protected:
+    void on_event(SwapchainRecreateEvent const& evt) override;
 private:
     VulkanContext* ctx = nullptr;
 
