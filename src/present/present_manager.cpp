@@ -182,7 +182,8 @@ FrameInfo& PresentManager::get_frame_info() {
     frame.color_attachment = RenderAttachment::from_ref(&context, 
         context.swapchain.images[image_index], nullptr, context.swapchain.image_views[image_index],
         context.swapchain.extent.width, context.swapchain.extent.height);
-    // Temporary: Fix when we have more flexible VP system
+    // Temporary: Fix when we have more flexible VP system.
+    // Note that this isn't used anymore and should be deleted
     static auto const depth_size = context.swapchain.extent;
     frame.render_target_extent = depth_size;
     frame.swapchain_target = 
@@ -278,54 +279,43 @@ void PresentManager::destroy() {
 RenderAttachment PresentManager::add_color_attachment(std::string const& name) {
     vk::Image image;
     vk::DeviceMemory memory;
+    vk::ImageUsageFlags const usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc |
+        vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
     create_image(context, context.swapchain.extent.width, context.swapchain.extent.height,
         context.swapchain.format.format, vk::ImageTiling::eOptimal, 
-        vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc |
-        vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled, 
-        vk::MemoryPropertyFlagBits::eDeviceLocal,
+        usage, vk::MemoryPropertyFlagBits::eDeviceLocal,
         image, memory);
     vk::ImageView view = create_image_view(context.device, image, context.swapchain.format.format);
     return attachments[name] = std::move(RenderAttachment(&context, image, memory, view, 
-                context.swapchain.extent.width, context.swapchain.extent.height));
+                context.swapchain.extent.width, context.swapchain.extent.height,
+                context.swapchain.format.format, usage,
+                vk::ImageAspectFlagBits::eColor));
 }
 
 RenderAttachment PresentManager::add_depth_attachment(std::string const& name) {
-    vk::ImageCreateInfo info;
-    info.imageType = vk::ImageType::e2D;
-    info.extent.width = context.swapchain.extent.width;
-    info.extent.height = context.swapchain.extent.height;
-    info.extent.depth = 1;
-    info.initialLayout = vk::ImageLayout::eUndefined;
-    info.mipLevels = 1;
-    info.arrayLayers = 1;
-    info.format = vk::Format::eD32Sfloat;
-    info.tiling = vk::ImageTiling::eOptimal;
-    info.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
-    info.sharingMode = vk::SharingMode::eExclusive;
-    info.samples = vk::SampleCountFlagBits::e1;
-    vk::Image depth_image = context.device.createImage(info);
+    vk::Image image;
+    vk::DeviceMemory memory;
+    vk::ImageUsageFlags const usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eTransferSrc |
+        vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
+    create_image(context, context.swapchain.extent.width, context.swapchain.extent.height,
+        vk::Format::eD32Sfloat, vk::ImageTiling::eOptimal, 
+        usage, vk::MemoryPropertyFlagBits::eDeviceLocal,
+        image, memory);
+    vk::ImageView view = create_image_view(context.device, image, vk::Format::eD32Sfloat, vk::ImageAspectFlagBits::eDepth);
 
-    vk::MemoryRequirements mem_requirements = context.device.getImageMemoryRequirements(depth_image);
-    vk::MemoryAllocateInfo alloc_info;
-    alloc_info.allocationSize = mem_requirements.size;
-    alloc_info.memoryTypeIndex = memory_util::find_memory_type(context.physical_device, mem_requirements.memoryTypeBits,
-        vk::MemoryPropertyFlagBits::eDeviceLocal);
-    vk::DeviceMemory memory = context.device.allocateMemory(alloc_info);;
-    context.device.bindImageMemory(depth_image, memory, 0);
-
-    vk::ImageView depth_image_view = create_image_view(context.device, depth_image,
-        vk::Format::eD32Sfloat, vk::ImageAspectFlagBits::eDepth);
-    return attachments[name] = std::move(RenderAttachment(&context, depth_image, memory, depth_image_view,
-        context.swapchain.extent.width, context.swapchain.extent.height));
+    return attachments[name] = std::move(RenderAttachment(&context, image, memory, view,
+        context.swapchain.extent.width, context.swapchain.extent.height, vk::Format::eD32Sfloat, usage, 
+        vk::ImageAspectFlagBits::eDepth));
 }
 
-RenderAttachment PresentManager::get_attachment(FrameInfo& frame, std::string const& name) {
-    if (name == "swapchain") {
-        return RenderAttachment::from_ref(&context, context.swapchain.images[frame.image_index],
-            nullptr, context.swapchain.image_views[frame.image_index], 
-            context.swapchain.extent.width, context.swapchain.extent.height);
-    }
+RenderAttachment& PresentManager::get_attachment(std::string const& name) {
     return attachments.at(name);
+}
+
+RenderAttachment PresentManager::get_swapchain_attachment(FrameInfo& frame) {
+    return RenderAttachment::from_ref(&context, context.swapchain.images[frame.image_index],
+        nullptr, context.swapchain.image_views[frame.image_index], 
+        context.swapchain.extent.width, context.swapchain.extent.height);
 }
 
 void PresentManager::on_event(WindowResizeEvent const& evt) {

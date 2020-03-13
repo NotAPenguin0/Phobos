@@ -10,7 +10,8 @@ class RenderAttachment : public EventListener<SwapchainRecreateEvent> {
 public: 
     RenderAttachment() = default;
     RenderAttachment(VulkanContext* ctx);
-    RenderAttachment(VulkanContext* ctx, vk::Image image, vk::DeviceMemory memory, vk::ImageView view, uint32_t w, uint32_t h);
+    RenderAttachment(VulkanContext* ctx, vk::Image image, vk::DeviceMemory memory, vk::ImageView view, uint32_t w, uint32_t h,
+        vk::Format format, vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect);
     RenderAttachment(RenderAttachment const& rhs);
     RenderAttachment(RenderAttachment&& rhs);
 
@@ -23,6 +24,8 @@ public:
         uint32_t w, uint32_t h);
 
     void destroy();
+
+    void resize(uint32_t new_width, uint32_t new_height);
 
     vk::Image image_handle() const {
         return image;
@@ -59,6 +62,10 @@ private:
     vk::Image image = nullptr;
     vk::DeviceMemory memory = nullptr;
     vk::ImageView view = nullptr;
+
+    vk::Format format = vk::Format::eUndefined;
+    vk::ImageUsageFlags usage = {};
+    vk::ImageAspectFlags aspect = {};
 
     uint32_t width, height;
 

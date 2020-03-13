@@ -72,7 +72,11 @@ void make_ui(int draw_calls, Scene& scene, ph::FrameInfo& info) {
 
     static bool show_scene;
     if (ImGui::Begin("Scene", &show_scene)) {
-        auto img = info.present_manager->get_attachment(info, "color1");
+        auto& img = info.present_manager->get_attachment("color1");
+        auto& depth = info.present_manager->get_attachment("depth1");
+        auto sz = ImGui::GetWindowSize();
+        img.resize(sz.x, sz.y);
+        depth.resize(sz.x, sz.y);
         ImGui::Image(img.get_imgui_tex_id(), ImVec2(img.get_width(), img.get_height()));
     }
 
@@ -206,8 +210,12 @@ int main() {
         imgui_renderer.begin_frame();
 
         ph::FrameInfo& frame_info = present_manager.get_frame_info();
-        auto offscreen_attachment = present_manager.get_attachment(frame_info, "color1");
-        auto depth_attachment = present_manager.get_attachment(frame_info, "depth1");
+
+        // Imgui
+
+        make_ui(draw_calls, scene, frame_info);
+        auto& offscreen_attachment = present_manager.get_attachment("color1");
+        auto& depth_attachment = present_manager.get_attachment("depth1");
         frame_info.offscreen_target = 
             ph::RenderTarget(vulkan_context, vulkan_context->default_render_pass, {offscreen_attachment, depth_attachment});
 
@@ -217,10 +225,6 @@ int main() {
         projection[1][1] *= -1;
         glm::vec3 cam_pos = glm::vec3(2, 2, 2);
         glm::mat4 view = glm::lookAt(cam_pos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
-
-
-        // Imgui
-        make_ui(draw_calls, scene, frame_info);
 
         ph::RenderGraph render_graph;
 

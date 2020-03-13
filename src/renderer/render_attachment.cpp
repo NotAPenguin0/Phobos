@@ -1,6 +1,7 @@
 #include <phobos/renderer/render_attachment.hpp>
 
 #include <imgui/imgui_impl_vulkan.h>
+#include <phobos/util/image_util.hpp>
 
 namespace ph {
 
@@ -9,8 +10,9 @@ RenderAttachment::RenderAttachment(VulkanContext* ctx) : ctx(ctx) {
 }
 
 RenderAttachment::RenderAttachment(VulkanContext* ctx, vk::Image image, vk::DeviceMemory memory, 
-    vk::ImageView view, uint32_t w, uint32_t h) : ctx(ctx), owning(true), image(image), memory(memory), view(view),
-    width(w), height(h) {
+    vk::ImageView view, uint32_t w, uint32_t h, vk::Format format, vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect) 
+        : ctx(ctx), owning(true), image(image), memory(memory), view(view),
+    width(w), height(h), format(format), usage(usage), aspect(aspect) {
 
     ctx->event_dispatcher.add_listener(this);
     imgui_tex_id = ImGui_ImplVulkan_AddTexture(view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -18,13 +20,15 @@ RenderAttachment::RenderAttachment(VulkanContext* ctx, vk::Image image, vk::Devi
 
 RenderAttachment::RenderAttachment(RenderAttachment const& rhs) :
     ctx(rhs.ctx), owning(false), image(rhs.image), memory(rhs.memory), view(rhs.view),
-    width(rhs.width), height(rhs.height), imgui_tex_id(rhs.imgui_tex_id) {
+    width(rhs.width), height(rhs.height), imgui_tex_id(rhs.imgui_tex_id), format(rhs.format), usage(rhs.usage),
+    aspect(rhs.aspect) {
     ctx->event_dispatcher.add_listener(this);
 }
 
 RenderAttachment::RenderAttachment(RenderAttachment&& rhs) : 
     ctx(rhs.ctx), owning(rhs.owning), image(rhs.image), memory(rhs.memory), view(rhs.view),
-    width(rhs.width), height(rhs.height), imgui_tex_id(rhs.imgui_tex_id) {
+    width(rhs.width), height(rhs.height), imgui_tex_id(rhs.imgui_tex_id), format(rhs.format), usage(rhs.usage),
+    aspect(rhs.aspect) {
     ctx->event_dispatcher.add_listener(this);
     ctx->event_dispatcher.remove_listener(&rhs);
     rhs.owning = false;
@@ -34,6 +38,9 @@ RenderAttachment::RenderAttachment(RenderAttachment&& rhs) :
     rhs.width = 0;
     rhs.height = 0;
     rhs.imgui_tex_id = nullptr;
+    rhs.format = vk::Format::eUndefined;
+    rhs.usage = {};
+    rhs.aspect = {};
 }
 
 RenderAttachment& RenderAttachment::operator=(RenderAttachment const& rhs) {
@@ -48,6 +55,9 @@ RenderAttachment& RenderAttachment::operator=(RenderAttachment const& rhs) {
         width = rhs.width;
         height = rhs.height;
         imgui_tex_id = rhs.imgui_tex_id;
+        format = rhs.format;
+        usage = rhs.usage;
+        aspect = rhs.aspect;
     }
     return *this;
 }
@@ -63,6 +73,9 @@ RenderAttachment& RenderAttachment::operator=(RenderAttachment&& rhs) {
         width = rhs.width;
         height = rhs.height;
         imgui_tex_id = rhs.imgui_tex_id;
+        format = rhs.format;
+        usage = rhs.usage;
+        aspect = rhs.aspect;
 
         ctx->event_dispatcher.add_listener(this);
 
@@ -73,6 +86,9 @@ RenderAttachment& RenderAttachment::operator=(RenderAttachment&& rhs) {
         rhs.width = 0;
         rhs.height = 0;
         rhs.imgui_tex_id = nullptr;
+        rhs.format = vk::Format::eUndefined;
+        rhs.usage = {};
+        rhs.aspect = {};
         ctx->event_dispatcher.remove_listener(&rhs);
     }
     return *this;
@@ -120,6 +136,29 @@ void RenderAttachment::destroy() {
     }
 
     ctx = nullptr;
+}
+
+void RenderAttachment::resize(uint32_t new_width, uint32_t new_height) {
+    if (!owning) { return; }
+    // Don't resize if the attachment already has the correct size
+    if (new_width == width && new_height == height) { return; }
+
+    VulkanContext* ctx_backup = ctx;
+    destroy();
+    ctx = ctx_backup;
+
+    ctx->event_dispatcher.add_listener(this);
+
+    create_image(*ctx, new_width, new_height, format, vk::ImageTiling::eOptimal, 
+        usage, vk::MemoryPropertyFlagBits::eDeviceLocal, image, memory);
+    view = create_image_view(ctx->device, image, format, aspect);
+
+    imgui_tex_id = ImGui_ImplVulkan_AddTexture(view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    owning = true;
+
+    width = new_width;
+    height = new_height;
 }
 
 }
