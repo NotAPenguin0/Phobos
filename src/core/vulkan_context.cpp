@@ -104,7 +104,7 @@ static vk::RenderPass create_default_render_pass(VulkanContext& ctx) {
     depth_attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
     depth_attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
     depth_attachment.initialLayout = vk::ImageLayout::eUndefined;
-    depth_attachment.finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+    depth_attachment.finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
     vk::AttachmentReference depth_attachment_ref;
     depth_attachment_ref.attachment = 1;
