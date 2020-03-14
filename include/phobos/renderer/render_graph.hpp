@@ -8,8 +8,6 @@
 #include <phobos/renderer/material.hpp>
 #include <phobos/renderer/light.hpp>
 
-#include <phobos/assets/asset_manager.hpp>
-
 namespace ph {
 
 struct RenderGraph {
@@ -20,8 +18,6 @@ struct RenderGraph {
     glm::mat4 view;
     glm::vec3 camera_pos;
 
-    AssetManager* asset_manager;
-
     std::vector<Material*> materials;
     std::vector<PointLight> point_lights; 
 
@@ -30,7 +26,7 @@ struct RenderGraph {
     };
 
     struct DrawCommand {
-        Handle<Mesh> mesh;
+        Mesh* mesh;
         uint32_t material_index;
         std::vector<Instance> instances;
     };

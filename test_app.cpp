@@ -157,14 +157,14 @@ int main() {
 
     ph::AssetManager asset_manager;
 
-    ph::Mesh::CreateInfo triangle_info;
-    triangle_info.ctx = vulkan_context;
-    triangle_info.vertices = vertices;
-    triangle_info.vertex_count = 36;
-    triangle_info.vertex_size = 8;
-    triangle_info.indices = indices;
-    triangle_info.index_count = 36;
-    ph::Handle<ph::Mesh> cube = asset_manager.add_mesh(triangle_info);
+    ph::Mesh::CreateInfo cube_info;
+    cube_info.ctx = vulkan_context;
+    cube_info.vertices = vertices;
+    cube_info.vertex_count = 36;
+    cube_info.vertex_size = 8;
+    cube_info.indices = indices;
+    cube_info.index_count = 36;
+    ph::Mesh cube(cube_info);
 
     int w, h, channels;
     uint8_t* img = stbi_load("data/textures/blank.png", &w, &h, &channels, STBI_rgb_alpha);
@@ -175,11 +175,11 @@ int main() {
     tex_info.width = w;
     tex_info.height = h;
     tex_info.data = img;
-    ph::Handle<ph::Texture> pengu = asset_manager.add_texture(tex_info);
+    ph::Texture pengu(tex_info);
     stbi_image_free(img);
 
     ph::Material default_material;
-    default_material.texture = pengu;
+    default_material.texture = &pengu;
 
     logger.write_fmt(ph::log::Severity::Info, "Loaded assets");
 
@@ -240,7 +240,7 @@ int main() {
 
         // Add a draw command for our cube
         ph::RenderGraph::DrawCommand draw;
-        draw.mesh = cube;
+        draw.mesh = &cube;
         draw.material_index = 0;
         glm::mat4 cube_scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f, 0.5f, 0.5f));
         draw.instances = { 

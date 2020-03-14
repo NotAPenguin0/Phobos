@@ -1,6 +1,5 @@
 set(PHOBOS_SOURCES
     ${PHOBOS_SOURCES}
-    "${CMAKE_CURRENT_SOURCE_DIR}/assets/asset_manager.cpp"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/core/vulkan_context.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/window_context.cpp"
