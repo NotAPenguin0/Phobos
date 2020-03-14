@@ -60,7 +60,7 @@ void Renderer::render_frame(FrameInfo& info, RenderGraph const& graph) {
 
     for (auto& draw : graph.draw_commands) {
         Mesh* mesh = draw.mesh;
-        Material* material = graph.materials[draw.material_index];
+        Material material = graph.materials[draw.material_index];
 
         update_model_matrices(info, draw);
 
@@ -123,7 +123,7 @@ void Renderer::update_materials(FrameInfo& info, RenderGraph const& graph) {
 
     std::vector<vk::DescriptorImageInfo> img_info(graph.materials.size());
     for (size_t i = 0; i < graph.materials.size(); ++i) {
-        Texture* texture = graph.materials[i]->texture;
+        Texture* texture = graph.materials[i].texture;
         img_info[i].imageView = texture->view_handle();
         img_info[i].imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
         img_info[i].sampler = info.default_sampler;

@@ -18,7 +18,7 @@ struct RenderGraph {
     glm::mat4 view;
     glm::vec3 camera_pos;
 
-    std::vector<Material*> materials;
+    std::vector<Material> materials;
     std::vector<PointLight> point_lights; 
 
     struct Instance {
