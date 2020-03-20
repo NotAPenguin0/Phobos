@@ -23,9 +23,12 @@ static bool g_MouseJustPressed[3] = {false, false, false};
 // Old user callbacks
 static mimas_window_key_callback g_PrevUserCallbackKey = nullptr;
 static mimas_window_mouse_button_callback g_PrevUserCallbackMouseButton = nullptr;
+static mimas_window_scroll_callback g_PrevUserCallbackScroll = nullptr;
+
 
 static void* g_PrevUserCallbackKeyData = nullptr;
 static void* g_PrevUserCallbackMouseButtonData = nullptr;
+static void* g_PrevUserCallbackScrollData = nullptr;
 
 static void ImGui_ImplMimas_KeyCallback(Mimas_Window* window, Mimas_Key key, 
     Mimas_Key_Action action, void* user_data) {
@@ -67,6 +70,16 @@ static void ImGui_ImplMimas_MouseButtonCallback(Mimas_Window* window, Mimas_Key 
     }
 }
 
+static void ImGui_ImplMimas_ScrollCallback(Mimas_Window* window, mimas_i32 x, mimas_i32 y, void*) {
+    if (g_PrevUserCallbackScroll) {
+        g_PrevUserCallbackScroll(window, x, y, g_PrevUserCallbackScrollData);
+    }
+
+    ImGuiIO& io = ImGui::GetIO();
+    io.MouseWheelH += (float)x;
+    io.MouseWheel += (float)y;
+}
+
 bool ImGui_ImplMimas_InitForVulkan(Mimas_Window* window) {
     g_Window = window;
     g_Time = 0;
@@ -101,14 +114,18 @@ bool ImGui_ImplMimas_InitForVulkan(Mimas_Window* window) {
 
     Mimas_Callback prev_key_cb = mimas_get_window_key_callback(window);
     Mimas_Callback prev_mouse_button_cb = mimas_get_window_mouse_button_callback(window);
+    Mimas_Callback prev_scroll_cb = mimas_get_window_scroll_callback(window);
 
     g_PrevUserCallbackKey = (mimas_window_key_callback)prev_key_cb.callback;
     g_PrevUserCallbackKeyData = prev_key_cb.user_data;
     g_PrevUserCallbackMouseButton = (mimas_window_mouse_button_callback)prev_mouse_button_cb.callback;
     g_PrevUserCallbackMouseButtonData = prev_mouse_button_cb.user_data;
+    g_PrevUserCallbackScroll = (mimas_window_scroll_callback)prev_scroll_cb.callback;
+    g_PrevUserCallbackScrollData = prev_scroll_cb.user_data;
 
     mimas_set_window_key_callback(window, ImGui_ImplMimas_KeyCallback, nullptr);
     mimas_set_window_mouse_button_callback(window, ImGui_ImplMimas_MouseButtonCallback, nullptr);
+    mimas_set_window_scroll_callback(window, ImGui_ImplMimas_ScrollCallback, nullptr);
     
     return true;
 }
@@ -185,4 +202,5 @@ void ImGui_ImplMimas_Shutdown() {
     // Reinstall old callbacks
     mimas_set_window_key_callback(g_Window, g_PrevUserCallbackKey, g_PrevUserCallbackKeyData);
     mimas_set_window_mouse_button_callback(g_Window, g_PrevUserCallbackMouseButton, g_PrevUserCallbackMouseButtonData);
+    mimas_set_window_scroll_callback(g_Window, g_PrevUserCallbackScroll, g_PrevUserCallbackScrollData);
 }
