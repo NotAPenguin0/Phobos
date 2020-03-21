@@ -14,7 +14,7 @@ class Renderer : public EventListener<InstancingBufferResizeEvent> {
 public:
     Renderer(VulkanContext& context);
 
-    void render_frame(FrameInfo& info, RenderGraph const& graph);
+    void render_frame(FrameInfo& info, RenderGraph& graph);
 
     void destroy();
 
@@ -24,7 +24,7 @@ private:
     VulkanContext& ctx;
 
     void update_camera_data(FrameInfo& info, RenderGraph const& graph);
-    void update_model_matrices(FrameInfo& info, RenderGraph::DrawCommand const& model);
+    void update_model_matrices(FrameInfo& info, RenderGraph const& graph);
     void update_materials(FrameInfo& info, RenderGraph const& graph);
     void update_lights(FrameInfo& info, RenderGraph const& graph);
 };

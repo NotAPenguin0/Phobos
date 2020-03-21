@@ -8,6 +8,8 @@
 #include <phobos/renderer/material.hpp>
 #include <phobos/renderer/light.hpp>
 
+#include <stl/vector.hpp>
+
 namespace ph {
 
 struct RenderGraph {
@@ -18,20 +20,17 @@ struct RenderGraph {
     glm::mat4 view;
     glm::vec3 camera_pos;
 
-    std::vector<Material> materials;
-    std::vector<PointLight> point_lights; 
-
-    struct Instance {
-        glm::mat4 transform;
-    };
+    stl::vector<Material> materials;
+    stl::vector<PointLight> point_lights; 
+    // Must have the same size as draw_commands
+    stl::vector<glm::mat4> transforms;
 
     struct DrawCommand {
         Mesh* mesh;
         uint32_t material_index;
-        std::vector<Instance> instances;
     };
 
-    std::vector<DrawCommand> draw_commands;
+    stl::vector<DrawCommand> draw_commands;
 };
 
 }

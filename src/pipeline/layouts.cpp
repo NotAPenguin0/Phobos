@@ -61,13 +61,13 @@ static void create_default_layout(vk::Device device, PipelineLayouts& layouts) {
     info.setLayoutCount = 1;
     info.pSetLayouts = &set_layout;
     
-    vk::PushConstantRange material_push_constant;
-    material_push_constant.offset = 0;
-    material_push_constant.size = sizeof(uint32_t);
-    material_push_constant.stageFlags = vk::ShaderStageFlagBits::eFragment;
+    vk::PushConstantRange indices_push_constant;
+    indices_push_constant.offset = 0;
+    indices_push_constant.size = 2 * sizeof(uint32_t);
+    indices_push_constant.stageFlags = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment;
 
     info.pushConstantRangeCount = 1;
-    info.pPushConstantRanges = &material_push_constant;
+    info.pPushConstantRanges = &indices_push_constant;
 
     layouts.create_layout(device, PipelineLayoutID::eDefault, info);
 }

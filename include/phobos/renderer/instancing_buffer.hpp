@@ -26,7 +26,7 @@ public:
 
     size_t size() const;
 
-    void write_data(vk::DescriptorSet descriptor_set, void const* data, size_t size);
+    void write_data(vk::DescriptorSet descriptor_set, void const* data, size_t size, size_t offset = 0);
 
 private:
     VulkanContext* ctx;

@@ -106,7 +106,7 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         // Create instance data SSBO for this frame
         frame_info.instance_ssbo = InstancingBuffer(ctx);
         // Start with 32 instances (arbitrary number)
-        frame_info.instance_ssbo.create(32 * sizeof(RenderGraph::Instance));
+        frame_info.instance_ssbo.create(32 * sizeof(glm::mat4));
 
         // Create descriptor sets for this frame
         PipelineLayout vp_layout = ctx.pipeline_layouts.get_layout(PipelineLayoutID::eDefault);

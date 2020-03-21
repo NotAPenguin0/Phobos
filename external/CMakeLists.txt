@@ -1,5 +1,6 @@
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/mimas")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/fmt")
+add_subdirectory("stl")
 
 target_compile_options(mimas PUBLIC "-w")
 target_compile_options(fmt PUBLIC "-w")
@@ -11,12 +12,14 @@ set(PHOBOS_INCLUDE_DIRECTORIES ${PHOBOS_INCLUDE_DIRECTORIES}
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/examples"
     "${CMAKE_CURRENT_SOURCE_DIR}/glm/"
     "${CMAKE_CURRENT_SOURCE_DIR}/fmt/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/stl/include"
     PARENT_SCOPE   
 )
 
 set(PHOBOS_LINK_LIBRARIES ${PHOBOS_LINK_LIBRARIES} 
     mimas
     fmt
+    stl
     PARENT_SCOPE
 )
 

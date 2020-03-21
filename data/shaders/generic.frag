@@ -27,9 +27,10 @@ layout(set = 0, binding = 2) uniform Lights {
 
 layout(set = 0, binding = 3) uniform sampler2D textures[];
 
-layout(push_constant) uniform TextureIndex {
-    uint index;
-} texture_index;
+layout(push_constant) uniform Indices {
+    uint texture_index;
+    uint transform_indices;
+} indices;
 
 vec3 apply_point_light(vec3 in_color, PointLight light) {
     vec3 ambient = in_color * light.ambient;
@@ -47,7 +48,7 @@ vec3 apply_point_light(vec3 in_color, PointLight light) {
 }
 
 void main() {
-    vec3 color = texture(textures[texture_index.index], TexCoords).rgb;
+    vec3 color = texture(textures[indices.texture_index], TexCoords).rgb;
     for (uint i = 0; i < lights.point_light_count; ++i) {
         color = apply_point_light(color, lights.point_lights[i]);
     }

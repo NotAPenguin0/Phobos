@@ -5,13 +5,15 @@
 #include <phobos/util/image_util.hpp>
 #include <phobos/present/present_manager.hpp>
 
+#include <stl/enumerate.hpp>
+
 namespace ph {
 
 Renderer::Renderer(VulkanContext& context) : ctx(context) {
     ctx.event_dispatcher.add_listener(this);
 } 
 
-void Renderer::render_frame(FrameInfo& info, RenderGraph const& graph) {
+void Renderer::render_frame(FrameInfo& info, RenderGraph& graph) {
     // https://discordapp.com/channels/427551838099996672/427951526967902218/680723607831314527
     vk::CommandBuffer cmd_buffer = info.command_buffer;
     // Record command buffer
@@ -58,32 +60,29 @@ void Renderer::render_frame(FrameInfo& info, RenderGraph const& graph) {
     scissor.extent = vk::Extent2D{ info.offscreen_target.get_width(), info.offscreen_target.get_height() };
     cmd_buffer.setScissor(0, scissor);
 
-    for (auto& draw : graph.draw_commands) {
+    update_model_matrices(info, graph);
+
+    for (auto[draw, idx] : stl::enumerate(graph.draw_commands.begin(), graph.draw_commands.end())) {
         Mesh* mesh = draw.mesh;
         Material material = graph.materials[draw.material_index];
-
-        update_model_matrices(info, draw);
-
         // Bind draw data
         vk::DeviceSize const offset = 0;
         cmd_buffer.bindVertexBuffers(0, mesh->get_vertices(), offset);
         cmd_buffer.bindIndexBuffer(mesh->get_indices(), 0, vk::IndexType::eUint32);
 
-        // Bind material
-        uint32_t material_data[1] { draw.material_index };
-        cmd_buffer.pushConstants(pipeline_layout.handle, vk::ShaderStageFlagBits::eFragment, 0, 1 * sizeof(uint32_t), material_data);
+        // update push constant ranges
+        uint32_t push_indices[2] { draw.material_index, static_cast<uint32_t>(idx) };
+        cmd_buffer.pushConstants(pipeline_layout.handle, 
+            vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eVertex, 0, 2 * sizeof(uint32_t), push_indices);
 
         // Execute drawcall
-        cmd_buffer.drawIndexed(mesh->get_index_count(), draw.instances.size(), 0, 0, 0);
+        cmd_buffer.drawIndexed(mesh->get_index_count(), 1, 0, 0, 0);
 
         info.draw_calls++;
     }
     
     cmd_buffer.endRenderPass();
-//   transition_image_layout(
-//       cmd_buffer, info.present_manager->get_attachment(info, "color1").image_handle(), vk::Format::eB8G8R8A8Unorm, 
-//       vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal
-//    );
+
     cmd_buffer.end();
 }
 
@@ -113,9 +112,9 @@ void Renderer::update_camera_data(FrameInfo& info, RenderGraph const& graph) {
     std::memcpy(data_ptr + 16, &graph.camera_pos.x, sizeof(glm::vec3));
 }
 
-void Renderer::update_model_matrices(FrameInfo& info, RenderGraph::DrawCommand const& draw) {
+void Renderer::update_model_matrices(FrameInfo& info, RenderGraph const& graph) {
     info.instance_ssbo.write_data(info.fixed_descriptor_set, 
-        &draw.instances[0], draw.instances.size() * sizeof(draw.instances[0]));
+        &graph.transforms[0], graph.transforms.size() * sizeof(graph.transforms[0]));
 }
 
 void Renderer::update_materials(FrameInfo& info, RenderGraph const& graph) {
