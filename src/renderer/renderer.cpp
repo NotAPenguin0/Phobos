@@ -45,7 +45,7 @@ void Renderer::render_frame(FrameInfo& info, RenderGraph& graph) {
     update_camera_data(info, graph);
     update_materials(info, graph);
     update_lights(info, graph);
-
+ 
     vk::Viewport viewport;
     viewport.x = 0;
     viewport.y = 0;
