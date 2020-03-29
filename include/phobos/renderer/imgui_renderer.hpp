@@ -3,6 +3,7 @@
 
 #include <phobos/core/vulkan_context.hpp>
 #include <phobos/present/frame_info.hpp>
+#include <phobos/renderer/render_pass.hpp>
 
 #include <stl/vector.hpp>
 
@@ -16,7 +17,7 @@ public:
     // Must be called at the start of each frame
     void begin_frame();
     // Records command buffers and writes them to the FrameInfo struct
-    void render_frame(FrameInfo& info);
+    void render_frame(RenderPass& pass, FrameInfo& info);
 protected:
     void on_event(SwapchainRecreateEvent const& evt) override;
 private:

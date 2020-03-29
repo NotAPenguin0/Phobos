@@ -6,6 +6,8 @@
 #include <phobos/renderer/texture.hpp>
 #include <phobos/util/log_interface.hpp>
 
+#include <phobos/renderer/render_pass.hpp>
+
 #include <stb/stb_image.h>
 
 #include <mimas/mimas.h>
@@ -194,7 +196,6 @@ int main() {
     while(window_context->is_open()) {
         window_context->poll_events();
 
-       
         float rotation_speed = 20.0f;
         static float time = 0.0f;
         time += ImGui::GetIO().DeltaTime;
@@ -208,12 +209,8 @@ int main() {
         ph::FrameInfo& frame_info = present_manager.get_frame_info();
 
         // Imgui
-
         make_ui(draw_calls, scene, frame_info);
-        auto& offscreen_attachment = present_manager.get_attachment("color1");
-        auto& depth_attachment = present_manager.get_attachment("depth1");
-        frame_info.offscreen_target = 
-            ph::RenderTarget(vulkan_context, vulkan_context->default_render_pass, {offscreen_attachment, depth_attachment});
+
 
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), 
             (float)frame_info.offscreen_target.get_width() / (float)frame_info.offscreen_target.get_height(), 
@@ -222,34 +219,69 @@ int main() {
         glm::vec3 cam_pos = glm::vec3(2, 2, 2);
         glm::mat4 view = glm::lookAt(cam_pos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 
-        ph::RenderGraph render_graph;
-
-        // Set materials
-        render_graph.materials.push_back(default_material);
-
-        // Add lights
         scene.light.position.x = std::sin(time) * 2.0f;
         scene.light.position.y = 1.0f;
         scene.light.position.z = std::cos(time) * 2.0f;
-        render_graph.point_lights.push_back(scene.light);
 
-        // Add a draw command for our cube
-        ph::RenderGraph::DrawCommand draw;
+        // Create RenderGraph
+        ph::RenderGraph* render_graph = new ph::RenderGraph(vulkan_context);
+
+        // Setup render target for the main renderpass
+        auto& offscreen_attachment = present_manager.get_attachment("color1");
+        auto& depth_attachment = present_manager.get_attachment("depth1");
+        stl::vector<ph::RenderAttachment> offscreen_attachments;
+        offscreen_attachments.push_back(offscreen_attachment);
+        offscreen_attachments.push_back(depth_attachment);
+        frame_info.offscreen_target = 
+            ph::RenderTarget(vulkan_context, vulkan_context->default_render_pass, offscreen_attachments);
+
+        // Main render pass. This render pass renders the scene to an offscreen texture
+        ph::RenderPass main_pass;
+        main_pass.sampled_attachments = {};
+        main_pass.outputs.push_back(offscreen_attachment);
+        main_pass.outputs.push_back(depth_attachment);
+    
+        // Add materials
+        main_pass.materials.push_back(default_material);
+
+        // Add lights
+        main_pass.point_lights.push_back(scene.light);
+
+        // Add a draw command for the cube
+        ph::RenderPass::DrawCommand draw;
         draw.mesh = &cube;
         draw.material_index = 0;
-        glm::mat4 cube_scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f, 0.5f, 0.5f));
-        render_graph.transforms.push_back(cube_scale);
-
-        render_graph.draw_commands.push_back(draw);
+        glm::mat4 cube_transform = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f, 0.5f, 0.5f));
+        main_pass.transforms.push_back(cube_transform);
+        main_pass.draw_commands.push_back(draw);
 
         // Setup camera data
-        render_graph.projection = projection;
-        render_graph.view = view;
-        render_graph.camera_pos = cam_pos;
+        main_pass.projection = projection;
+        main_pass.view = view;
+        main_pass.camera_pos = cam_pos;
+
+        // Send the renderpass to the graph
+        render_graph->add_pass(stl::move(main_pass));
+
+        // Create ImGui renderpass. This renderpass will sample from the scene color attachment and output to the swapchain.
+        ph::RenderPass imgui_pass;
+        imgui_pass.sampled_attachments.push_back(offscreen_attachment);
+        imgui_pass.outputs.push_back(frame_info.swapchain_color);
+
+        // Right now we just call the imgui_renderer callback in the imgui renderpass. Next up is making the imgui renderer
+        // use the draw commands api provided in ph::RenderPass
+        imgui_pass.callback = [&imgui_renderer, &frame_info](ph::RenderPass& pass) {
+            imgui_renderer.render_frame(pass, frame_info);
+        };
+        // Submit ImGui renderpass
+        render_graph->add_pass(stl::move(imgui_pass));
+
+        // Build the rendergraph. This creates resources like vkFramebuffers and a vkRenderPass for each ph::RenderPass
+        render_graph->build(frame_info);
 
         // Render frame
-        renderer.render_frame(frame_info, render_graph);
-        imgui_renderer.render_frame(frame_info);
+        frame_info.render_graph = render_graph;
+        renderer.render_frame(frame_info);
 
         present_manager.present_frame(frame_info);
 

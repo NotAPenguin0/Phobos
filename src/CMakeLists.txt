@@ -22,6 +22,7 @@ set(PHOBOS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/instancing_buffer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/texture.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/render_attachment.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/renderer/render_graph.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/render_target.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/stb_image.cpp"
 

@@ -99,7 +99,7 @@ RenderAttachment::~RenderAttachment() {
 }
 
 RenderAttachment RenderAttachment::from_ref(VulkanContext* ctx, vk::Image image, vk::DeviceMemory memory, vk::ImageView view,
-    uint32_t w, uint32_t h) {
+    uint32_t w, uint32_t h, vk::Format fmt) {
 
     RenderAttachment attachment(ctx);
     ctx->event_dispatcher.add_listener(&attachment);
@@ -109,6 +109,7 @@ RenderAttachment RenderAttachment::from_ref(VulkanContext* ctx, vk::Image image,
     attachment.view = view;
     attachment.width = w;
     attachment.height = h;
+    attachment.format = fmt;
 
     return attachment;
 }

@@ -12,9 +12,11 @@
 namespace ph {
 
 class PresentManager;
+class RenderGraph;
 
 struct FrameInfo {
     PresentManager* present_manager;
+    RenderGraph* render_graph;
 
     size_t frame_index;
     size_t image_index;
@@ -29,7 +31,7 @@ struct FrameInfo {
     vk::Extent2D render_target_extent;
 
     // Main attachments for rendering
-    RenderAttachment color_attachment;
+    RenderAttachment swapchain_color;
 
     RenderTarget swapchain_target;
 

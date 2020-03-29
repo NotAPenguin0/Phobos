@@ -181,13 +181,13 @@ FrameInfo& PresentManager::get_frame_info() {
     frame.frame_index = frame_index;
     frame.image_index = image_index;
     frame.image = context.swapchain.images[image_index];
-    // Set default image attachments
-    frame.color_attachment = RenderAttachment::from_ref(&context, 
-        context.swapchain.images[image_index], nullptr, context.swapchain.image_views[image_index],
-        context.swapchain.extent.width, context.swapchain.extent.height);
+    // Make sure frame_index and image_index are set here!
+    frame.swapchain_color = get_swapchain_attachment(frame);
 
+    stl::vector<RenderAttachment> swapchain_attachments;
+    swapchain_attachments.push_back(frame.swapchain_color);
     frame.swapchain_target = 
-        std::move(RenderTarget(&context, context.swapchain_render_pass, { frame.color_attachment }));
+        std::move(RenderTarget(&context, context.swapchain_render_pass, swapchain_attachments));
     // Clear previous draw data
     frame.extra_command_buffers.clear();
     frame.draw_calls = 0;
@@ -232,6 +232,12 @@ void PresentManager::present_frame(FrameInfo& frame) {
 
 void PresentManager::wait_for_available_frame() {
     context.device.waitForFences(frames[frame_index].fence, true, std::numeric_limits<uint32_t>::max());
+
+    // When this frame is done we can deallocate the RenderGraph owned by it.
+    // Note that we might have to change this when caching vkRenderPass and vkFramebuffer creation
+    delete frames[frame_index].render_graph;
+    frames[frame_index].render_graph = nullptr;
+
     // Get image
     vk::ResultValue<uint32_t> image_index_result = context.device.acquireNextImageKHR(context.swapchain.handle, 
                                     std::numeric_limits<uint32_t>::max(), frames[frame_index].image_available, nullptr);
@@ -266,7 +272,8 @@ void PresentManager::destroy() {
         context.device.freeMemory(frame.vp_ubo.memory);
         frame.swapchain_target.destroy();
         frame.offscreen_target.destroy();
-        frame.color_attachment.destroy();
+        frame.swapchain_color.destroy();
+        delete frame.render_graph;
     }
     for (auto&[name, attachment] : attachments) {
         attachment.destroy();
@@ -315,7 +322,7 @@ RenderAttachment& PresentManager::get_attachment(std::string const& name) {
 RenderAttachment PresentManager::get_swapchain_attachment(FrameInfo& frame) {
     return RenderAttachment::from_ref(&context, context.swapchain.images[frame.image_index],
         nullptr, context.swapchain.image_views[frame.image_index], 
-        context.swapchain.extent.width, context.swapchain.extent.height);
+        context.swapchain.extent.width, context.swapchain.extent.height, context.swapchain.format.format);
 }
 
 void PresentManager::on_event(WindowResizeEvent const& evt) {

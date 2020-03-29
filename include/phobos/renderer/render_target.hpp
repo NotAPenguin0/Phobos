@@ -4,7 +4,7 @@
 #include <phobos/core/vulkan_context.hpp>
 #include <phobos/renderer/render_attachment.hpp>
 
-#include <vector>
+#include <stl/vector.hpp>
 
 namespace ph {
 
@@ -12,7 +12,7 @@ class RenderTarget {
 public:
     RenderTarget() = default;
     RenderTarget(VulkanContext* ctx);
-    RenderTarget(VulkanContext* ctx, vk::RenderPass render_pass, std::vector<RenderAttachment> const& attachments);
+    RenderTarget(VulkanContext* ctx, vk::RenderPass render_pass, stl::vector<RenderAttachment> const& attachments);
 
     RenderTarget(RenderTarget&& rhs);
     RenderTarget& operator=(RenderTarget&& rhs);

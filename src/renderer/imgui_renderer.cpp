@@ -59,7 +59,6 @@ static void load_imgui_fonts(ph::VulkanContext& ctx, vk::CommandPool command_poo
     ctx.device.freeCommandBuffers(command_pool, command_buffer);
 }
 
-// an imgui renderpass doesn't clear on load
 static vk::RenderPass create_imgui_renderpass(VulkanContext& ctx) {
     // Create attachment
     vk::AttachmentDescription color_attachment;
@@ -177,7 +176,7 @@ void ImGuiRenderer::begin_frame() {
     ImGui::NewFrame();
 }
 
-void ImGuiRenderer::render_frame(FrameInfo& info) {
+void ImGuiRenderer::render_frame(RenderPass& pass, FrameInfo& info) {
     vk::CommandBuffer cmd_buffer = cmd_buffers[info.image_index]; 
 
     vk::CommandBufferBeginInfo begin_info;
@@ -186,12 +185,13 @@ void ImGuiRenderer::render_frame(FrameInfo& info) {
 
     // Start render pass
     vk::RenderPassBeginInfo render_pass_info;
-    render_pass_info.renderPass = render_pass;
+    render_pass_info.renderPass = pass.render_pass;
 
-    render_pass_info.framebuffer = framebuffers[info.image_index];
+//    render_pass_info.framebuffer = framebuffers[info.image_index];
+    render_pass_info.framebuffer = pass.target.get_framebuf();
     render_pass_info.renderArea.offset = vk::Offset2D{0, 0};
-    render_pass_info.renderArea.extent = ctx.swapchain.extent;
-
+    render_pass_info.renderArea.extent = vk::Extent2D { pass.target.get_width(), pass.target.get_height() };
+    
     render_pass_info.clearValueCount = 1;
     vk::ClearValue clear_values[1];
     clear_values[0].color = vk::ClearColorValue{std::array<float, 4>{{0.0f, 0.0f, 0.0f, 1.0f}}};

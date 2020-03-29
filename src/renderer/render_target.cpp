@@ -12,7 +12,7 @@ RenderTarget::RenderTarget(VulkanContext* ctx) : ctx(ctx) {
 
 }
 
-RenderTarget::RenderTarget(VulkanContext* ctx, vk::RenderPass render_pass, std::vector<RenderAttachment> const& attachments) :
+RenderTarget::RenderTarget(VulkanContext* ctx, vk::RenderPass render_pass, stl::vector<RenderAttachment> const& attachments) :
     ctx(ctx) {
 
     vk::FramebufferCreateInfo info;

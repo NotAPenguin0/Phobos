@@ -21,7 +21,7 @@ public:
     ~RenderAttachment();
 
     static RenderAttachment from_ref(VulkanContext* ctx, vk::Image image, vk::DeviceMemory memory, vk::ImageView view, 
-        uint32_t w, uint32_t h);
+        uint32_t w, uint32_t h, vk::Format fmt = vk::Format::eUndefined);
 
     void destroy();
 
@@ -49,6 +49,10 @@ public:
 
     void* get_imgui_tex_id() const {
         return imgui_tex_id;
+    }
+
+    vk::Format get_format() const {
+        return format;
     }
 
 protected:
