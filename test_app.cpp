@@ -212,13 +212,6 @@ int main() {
         make_ui(draw_calls, scene, frame_info);
 
 
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 
-            (float)frame_info.offscreen_target.get_width() / (float)frame_info.offscreen_target.get_height(), 
-            0.1f, 100.0f);
-        projection[1][1] *= -1;
-        glm::vec3 cam_pos = glm::vec3(2, 2, 2);
-        glm::mat4 view = glm::lookAt(cam_pos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
-
         scene.light.position.x = std::sin(time) * 2.0f;
         scene.light.position.y = 1.0f;
         scene.light.position.z = std::cos(time) * 2.0f;
@@ -254,6 +247,13 @@ int main() {
         glm::mat4 cube_transform = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f, 0.5f, 0.5f));
         main_pass.transforms.push_back(cube_transform);
         main_pass.draw_commands.push_back(draw);
+
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 
+            (float)frame_info.offscreen_target.get_width() / (float)frame_info.offscreen_target.get_height(), 
+            0.1f, 100.0f);
+        projection[1][1] *= -1;
+        glm::vec3 cam_pos = glm::vec3(2, 2, 2);
+        glm::mat4 view = glm::lookAt(cam_pos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 
         // Setup camera data
         main_pass.projection = projection;

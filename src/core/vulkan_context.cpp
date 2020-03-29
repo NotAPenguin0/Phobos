@@ -230,7 +230,7 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
 
     static constexpr Version version = PHOBOS_VERSION;
     app_info.engineVersion = VK_MAKE_VERSION(version.major, version.minor, version.patch);
-    app_info.apiVersion = VK_VERSION_1_2;
+    app_info.apiVersion = VK_API_VERSION_1_2;
 
     context->logger = logger;
     context->instance = create_vulkan_instance(app_info, settings);
