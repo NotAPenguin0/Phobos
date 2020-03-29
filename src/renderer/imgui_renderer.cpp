@@ -7,6 +7,8 @@
 #include <imgui_impl_vulkan.h>
 #include <imgui_impl_mimas.h>
 
+#include <stl/enumerate.hpp>
+
 namespace ph {
 
 static vk::DescriptorPool create_imgui_descriptor_pool(ph::VulkanContext& ctx) {
@@ -142,17 +144,17 @@ ImGuiRenderer::ImGuiRenderer(WindowContext& window_ctx, VulkanContext& context) 
 
     // Create framebuffers
     framebuffers.resize(context.swapchain.images.size());
-    for (size_t i = 0; i < context.swapchain.images.size(); ++i) {
+    for (auto[index, framebuffer] : stl::enumerate(framebuffers.begin(), framebuffers.end())) {
         vk::FramebufferCreateInfo framebuf_info;
         framebuf_info.renderPass = render_pass;
         framebuf_info.attachmentCount = 1;
-        vk::ImageView attachments[1] = { context.swapchain.image_views[i]};
+        vk::ImageView attachments[1] = { context.swapchain.image_views[index]};
         framebuf_info.pAttachments = attachments;
         framebuf_info.width = context.swapchain.extent.width;
         framebuf_info.height = context.swapchain.extent.height;
         framebuf_info.layers = 1;
 
-        framebuffers[i] = context.device.createFramebuffer(framebuf_info);
+        framebuffer = context.device.createFramebuffer(framebuf_info);
     }
 }
 
@@ -182,9 +184,6 @@ void ImGuiRenderer::render_frame(FrameInfo& info) {
     begin_info.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
     cmd_buffer.begin(begin_info);
 
-//    transition_image_layout(cmd_buffer, info.present_manager->get_attachment(info, "color1").image_handle(), vk::Format::eB8G8R8A8Unorm,
-//        vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
-
     // Start render pass
     vk::RenderPassBeginInfo render_pass_info;
     render_pass_info.renderPass = render_pass;
@@ -206,9 +205,6 @@ void ImGuiRenderer::render_frame(FrameInfo& info) {
     
     cmd_buffer.endRenderPass();
 
-//    transition_image_layout(cmd_buffer, info.present_manager->get_attachment(info, "color1").image_handle(), vk::Format::eB8G8R8A8Unorm,
-//        vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal);
-
     cmd_buffer.end();
 
     // Add the command buffer to the list of command buffers to submit
@@ -228,17 +224,17 @@ void ImGuiRenderer::on_event(SwapchainRecreateEvent const& evt) {
 
     // Recreate framebuffer
     framebuffers.resize(ctx.swapchain.images.size());
-    for (size_t i = 0; i < ctx.swapchain.images.size(); ++i) {
+    for (auto[index, framebuffer] : stl::enumerate(framebuffers.begin(), framebuffers.end())) {
         vk::FramebufferCreateInfo framebuf_info;
         framebuf_info.renderPass = render_pass;
         framebuf_info.attachmentCount = 1;
-        vk::ImageView attachments[1] = { ctx.swapchain.image_views[i]};
+        vk::ImageView attachments[1] = { ctx.swapchain.image_views[index]};
         framebuf_info.pAttachments = attachments;
         framebuf_info.width = ctx.swapchain.extent.width;
         framebuf_info.height = ctx.swapchain.extent.height;
         framebuf_info.layers = 1;
 
-        framebuffers[i] = ctx.device.createFramebuffer(framebuf_info);
+        framebuffer = ctx.device.createFramebuffer(framebuf_info);
     }
 }
 

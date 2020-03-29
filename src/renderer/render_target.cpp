@@ -1,5 +1,7 @@
 #include <phobos/renderer/render_target.hpp>
 
+#include <stl/vector.hpp>
+
 #undef max
 #undef min
 
@@ -14,7 +16,7 @@ RenderTarget::RenderTarget(VulkanContext* ctx, vk::RenderPass render_pass, std::
     ctx(ctx) {
 
     vk::FramebufferCreateInfo info;
-    std::vector<vk::ImageView> views;
+    stl::vector<vk::ImageView> views;
     views.reserve(attachments.size());
     for (auto const& attachment : attachments) {
         views.push_back(attachment.image_view());

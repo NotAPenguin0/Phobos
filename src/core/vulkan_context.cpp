@@ -212,7 +212,6 @@ void VulkanContext::destroy() {
 void VulkanContext::on_event(SwapchainRecreateEvent const& evt) {
     if (evt.window_ctx != window_ctx) return;
 
-//    default_render_pass = create_default_render_pass(*this);
     device.destroyRenderPass(swapchain_render_pass);
     swapchain_render_pass = create_swapchain_renderpass(*this);
 }

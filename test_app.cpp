@@ -6,8 +6,6 @@
 #include <phobos/renderer/texture.hpp>
 #include <phobos/util/log_interface.hpp>
 
-#include <phobos/assets/asset_manager.hpp>
-
 #include <stb/stb_image.h>
 
 #include <mimas/mimas.h>
@@ -155,8 +153,6 @@ int main() {
     uint32_t indices[36];
     std::iota(indices, indices + 36, 0);
 
-    ph::AssetManager asset_manager;
-
     ph::Mesh::CreateInfo cube_info;
     cube_info.ctx = vulkan_context;
     cube_info.vertices = vertices;
@@ -229,8 +225,7 @@ int main() {
         ph::RenderGraph render_graph;
 
         // Set materials
-        render_graph.asset_manager = &asset_manager;
-        render_graph.materials.push_back(&default_material);
+        render_graph.materials.push_back(default_material);
 
         // Add lights
         scene.light.position.x = std::sin(time) * 2.0f;
@@ -243,10 +238,8 @@ int main() {
         draw.mesh = &cube;
         draw.material_index = 0;
         glm::mat4 cube_scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f, 0.5f, 0.5f));
-        draw.instances = { 
-            { cube_scale }, 
-//            { glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)) }
-        };
+        render_graph.transforms.push_back(cube_scale);
+
         render_graph.draw_commands.push_back(draw);
 
         // Setup camera data
@@ -271,7 +264,8 @@ int main() {
     vulkan_context->device.waitIdle();
 
     // Deallocate resources
-    asset_manager.destroy_all();
+    pengu.destroy();
+    cube.destroy();
     renderer.destroy();
     present_manager.destroy();
     imgui_renderer.destroy();

@@ -4,6 +4,8 @@
 #include <phobos/core/vulkan_context.hpp>
 #include <phobos/present/frame_info.hpp>
 
+#include <stl/vector.hpp>
+
 namespace ph {
 
 class ImGuiRenderer : public EventListener<SwapchainRecreateEvent> {
@@ -25,7 +27,7 @@ private:
     std::vector<vk::CommandBuffer> cmd_buffers;
     vk::RenderPass render_pass;
 
-    std::vector<vk::Framebuffer> framebuffers;
+    stl::vector<vk::Framebuffer> framebuffers;
 };
 
 }

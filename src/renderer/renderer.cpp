@@ -62,7 +62,7 @@ void Renderer::render_frame(FrameInfo& info, RenderGraph& graph) {
 
     update_model_matrices(info, graph);
 
-    for (auto[draw, idx] : stl::enumerate(graph.draw_commands.begin(), graph.draw_commands.end())) {
+    for (auto[idx, draw] : stl::enumerate(graph.draw_commands.begin(), graph.draw_commands.end())) {
         Mesh* mesh = draw.mesh;
         Material material = graph.materials[draw.material_index];
         // Bind draw data

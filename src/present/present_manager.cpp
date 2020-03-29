@@ -26,7 +26,7 @@ static void create_lights_ubo(VulkanContext& ctx, MappedUBO& ubo) {
 PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight) 
     : context(ctx), max_frames_in_flight(max_frames_in_flight) {
 
-    context.event_dispatcher.add_listener((EventListener<WindowResizeEvent>*)this);
+    context.event_dispatcher.add_listener(static_cast<EventListener<WindowResizeEvent>*>(this));
 
     vk::CommandPoolCreateInfo command_pool_info;
     command_pool_info.queueFamilyIndex = ctx.physical_device.queue_families.graphics_family.value();
@@ -61,10 +61,12 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
     sampler_info.mipLodBias = 0.0;
     default_sampler = ctx.device.createSampler(sampler_info);
 
+
+
     vk::DescriptorPoolSize sizes[] = {
         vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2 * swapchain_image_count),
         vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, swapchain_image_count),
-        vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 64 * swapchain_image_count)
+        vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, meta::max_textures_bound * swapchain_image_count)
     };
      
     vk::DescriptorPoolCreateInfo fixed_descriptor_pool_info;
@@ -75,7 +77,7 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
 
     fixed_descriptor_pool = ctx.device.createDescriptorPool(fixed_descriptor_pool_info);
 
-    image_in_flight_fences = std::vector<vk::Fence>(swapchain_image_count, nullptr);
+    image_in_flight_fences = stl::vector<vk::Fence>(swapchain_image_count, nullptr);
     frames.resize(max_frames_in_flight);
     // Initialize frame info data
     for (auto& frame_info : frames) {
@@ -106,7 +108,8 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         // Create instance data SSBO for this frame
         frame_info.instance_ssbo = InstancingBuffer(ctx);
         // Start with 32 instances (arbitrary number)
-        frame_info.instance_ssbo.create(32 * sizeof(glm::mat4));
+        static constexpr stl::size_t transforms_begin_size = 32;
+        frame_info.instance_ssbo.create(transforms_begin_size * sizeof(glm::mat4));
 
         // Create descriptor sets for this frame
         PipelineLayout vp_layout = ctx.pipeline_layouts.get_layout(PipelineLayoutID::eDefault);
@@ -116,7 +119,7 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         descriptor_set_info.pSetLayouts = &vp_layout.descriptor_set_layout;
 
         vk::DescriptorSetVariableDescriptorCountAllocateInfo variable_count_info;
-        uint32_t counts[1] { 64 };
+        uint32_t counts[1] { meta::max_textures_bound };
         variable_count_info.descriptorSetCount = 1;
         variable_count_info.pDescriptorCounts = counts;
 
@@ -182,10 +185,7 @@ FrameInfo& PresentManager::get_frame_info() {
     frame.color_attachment = RenderAttachment::from_ref(&context, 
         context.swapchain.images[image_index], nullptr, context.swapchain.image_views[image_index],
         context.swapchain.extent.width, context.swapchain.extent.height);
-    // Temporary: Fix when we have more flexible VP system.
-    // Note that this isn't used anymore and should be deleted
-    static auto const depth_size = context.swapchain.extent;
-    frame.render_target_extent = depth_size;
+
     frame.swapchain_target = 
         std::move(RenderTarget(&context, context.swapchain_render_pass, { frame.color_attachment }));
     // Clear previous draw data

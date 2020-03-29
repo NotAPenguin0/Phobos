@@ -1,6 +1,8 @@
 #include <phobos/core/physical_device.hpp>
 
 #include <vector>
+#include <stl/vector.hpp>
+#include <stl/enumerate.hpp>
 
 namespace ph {
 
@@ -53,7 +55,7 @@ SurfaceDetails get_surface_details(vk::PhysicalDevice device, vk::SurfaceKHR sur
 
 PhysicalDeviceDetails get_physical_device(vk::Instance instance, vk::SurfaceKHR surface, 
                                           PhysicalDeviceRequirements const& requirements) {
-    std::vector<PhysicalDeviceDetails> devices;
+    stl::vector<PhysicalDeviceDetails> devices;
     // Find all available devices
     std::vector<vk::PhysicalDevice> available_devices = instance.enumeratePhysicalDevices();
     devices.reserve(available_devices.size());
@@ -68,9 +70,8 @@ PhysicalDeviceDetails get_physical_device(vk::Instance instance, vk::SurfaceKHR 
 
     int best_device_index = -1;
     size_t max_device_score = 0;
-    for (size_t i = 0; i < devices.size(); ++i) {
+    for (auto[index, device] : stl::enumerate(devices.begin(), devices.end())) {
 
-        auto& device = devices[i];
         bool discard_device = false;
         size_t device_score = 0;
 
@@ -113,7 +114,7 @@ PhysicalDeviceDetails get_physical_device(vk::Instance instance, vk::SurfaceKHR 
         if (!discard_device) {
             // Add one to all device scores (temp)
             if (device_score > max_device_score) {
-                best_device_index  = i;
+                best_device_index  = index;
                 max_device_score = device_score;
             }
         }

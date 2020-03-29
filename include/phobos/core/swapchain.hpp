@@ -7,6 +7,8 @@
 #include <phobos/core/window_context.hpp>
 #include <phobos/core/physical_device.hpp>
 
+#include <stl/vector.hpp>
+
 namespace ph {
 
 struct SwapchainDetails {
@@ -17,9 +19,9 @@ struct SwapchainDetails {
     vk::Extent2D extent;
 
     std::vector<vk::Image> images;
-    std::vector<vk::ImageView> image_views;
+    stl::vector<vk::ImageView> image_views;
 
-    std::vector<vk::Framebuffer> framebuffers;
+    stl::vector<vk::Framebuffer> framebuffers;
 };
 
 SwapchainDetails create_swapchain(vk::Device device, WindowContext const& window_ctx, 

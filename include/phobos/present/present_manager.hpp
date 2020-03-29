@@ -8,7 +8,7 @@
 #include <phobos/renderer/render_attachment.hpp>
 
 #include <unordered_map>
-#include <vector>
+#include <stl/vector.hpp>
 
 namespace ph {
 
@@ -40,8 +40,8 @@ private:
     size_t max_frames_in_flight;
     size_t frame_index = 0;
     uint32_t image_index = 0;
-    std::vector<vk::Fence> image_in_flight_fences;
-    std::vector<FrameInfo> frames;
+    stl::vector<vk::Fence> image_in_flight_fences;
+    stl::vector<FrameInfo> frames;
 
     vk::CommandPool command_pool;
     std::vector<vk::CommandBuffer> command_buffers;

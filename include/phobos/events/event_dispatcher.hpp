@@ -4,7 +4,7 @@
 #include <phobos/events/events.hpp>
 #include <phobos/events/event_listener.hpp>
 
-#include <vector>
+#include <stl/vector.hpp>
 
 namespace ph {
 
@@ -14,7 +14,7 @@ namespace ph {
     void remove_listener(EventListener<EvtType>* listener)
 
 #define EVENT_LISTENERS(EvtType, EvtName) \
-    std::vector<EventListener<EvtType>*> EvtName##_listeners
+    stl::vector<EventListener<EvtType>*> EvtName##_listeners
 
 class EventDispatcher {
 public:

@@ -6,6 +6,7 @@ namespace ph {
 namespace meta {
 
 constexpr size_t max_lights_per_type = 32;
+constexpr size_t max_textures_bound = 64;
 
 namespace bindings {
 
