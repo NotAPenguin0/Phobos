@@ -21,6 +21,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <imgui/imgui.h>
 
+#include <imgui/imgui_impl_mimas.h>
+#include <imgui/imgui_impl_phobos.h>
+
 #include "imgui_style.hpp"
 
 struct Scene {
@@ -45,14 +48,16 @@ void make_ui(int draw_calls, Scene& scene, ph::FrameInfo& info) {
 
     // DockSpace
     ImGuiIO& io = ImGui::GetIO();
+
     if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable) {
-        ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
-        ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f),
-                         ImGuiDockNodeFlags_None);
+//        ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
+//        ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f),
+//                         ImGuiDockNodeFlags_None);
     }
 
     static bool show_stats = true;
     if (ImGui::Begin("Renderer stats", &show_stats)) {
+//        ImGui::PushFont(io.FontDefault);
         ImGui::Text("Frametime: %f ms", ImGui::GetIO().DeltaTime * 1000);
         ImGui::Text("FPS: %i", (int)ImGui::GetIO().Framerate);
         ImGui::Text("Draw calls (ImGui excluded): %i", draw_calls);
@@ -71,12 +76,21 @@ void make_ui(int draw_calls, Scene& scene, ph::FrameInfo& info) {
     ImGui::End();
 
     static bool show_scene;
+    ImVec2 size;
     if (ImGui::Begin("Scene", &show_scene)) {
         auto& img = info.present_manager->get_attachment("color1");
         auto& depth = info.present_manager->get_attachment("depth1");
-        auto sz = ImGui::GetWindowSize();
-        img.resize(sz.x, sz.y);
-        depth.resize(sz.x, sz.y);
+        size = ImGui::GetWindowSize();
+        img.resize(size.x, size.y);
+        depth.resize(size.x, size.y);
+        ImGui::Image(img.get_imgui_tex_id(), ImVec2(img.get_width(), img.get_height()));
+    }
+
+    ImGui::End();
+
+    if (ImGui::Begin("Color2", &show_scene)) {
+        auto& img = info.present_manager->get_attachment("color2");
+        img.resize(size.x, size.y);
         ImGui::Image(img.get_imgui_tex_id(), ImVec2(img.get_width(), img.get_height()));
     }
 
@@ -98,6 +112,31 @@ void mouse_button_callback(Mimas_Window* win, Mimas_Key button, Mimas_Mouse_Butt
     if (action == MIMAS_MOUSE_BUTTON_PRESS) {
 
     }
+}
+
+static void load_imgui_fonts(ph::VulkanContext& ctx, vk::CommandPool command_pool) {
+    vk::CommandBufferAllocateInfo buf_info;
+    buf_info.commandBufferCount = 1;
+    buf_info.commandPool = command_pool;
+    buf_info.level = vk::CommandBufferLevel::ePrimary;
+    vk::CommandBuffer command_buffer = ctx.device.allocateCommandBuffers(buf_info)[0];
+
+    vk::CommandBufferBeginInfo begin_info = {};
+    begin_info.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
+    command_buffer.begin(begin_info);
+    
+    ImGui_ImplPhobos_CreateFontsTexture(command_buffer);
+
+    vk::SubmitInfo end_info = {};
+    end_info.commandBufferCount = 1;
+    end_info.pCommandBuffers = &command_buffer;
+    command_buffer.end();
+
+    ctx.graphics_queue.submit(end_info, nullptr);
+
+    ctx.device.waitIdle();
+    ImGui_ImplPhobos_DestroyFontUploadObjects();
+    ctx.device.freeCommandBuffers(command_pool, command_buffer);
 }
 
 int main() {
@@ -126,7 +165,20 @@ int main() {
     // Create present manager (required for presenting to the screen).
     ph::PresentManager present_manager(*vulkan_context);
     ph::Renderer renderer(*vulkan_context);
-    ph::ImGuiRenderer imgui_renderer(*window_context, *vulkan_context);
+//    ph::ImGuiRenderer imgui_renderer(*window_context, *vulkan_context);
+    ImGui_ImplMimas_InitForVulkan(window_context->handle);
+    ImGui_ImplPhobos_InitInfo init_info;
+    init_info.context = vulkan_context;
+    init_info.max_frames_in_flight = 2; // TODO: better
+    ImGui_ImplPhobos_Init(&init_info);
+    io.Fonts->AddFontDefault();
+    vk::CommandPoolCreateInfo command_pool_info;
+    command_pool_info.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
+    vk::CommandPool command_pool = vulkan_context->device.createCommandPool(command_pool_info);
+    load_imgui_fonts(*vulkan_context, command_pool);
+    vulkan_context->device.destroyCommandPool(command_pool);
+    ImGui_ImplPhobos_DestroyFontUploadObjects();
+
 
     logger.write_fmt(ph::log::Severity::Info, "Created renderers");
 
@@ -191,6 +243,7 @@ int main() {
     float rotation = 0;
 
     present_manager.add_color_attachment("color1");
+    present_manager.add_color_attachment("color2");
     present_manager.add_depth_attachment("depth1");
 
     while(window_context->is_open()) {
@@ -204,13 +257,15 @@ int main() {
         present_manager.wait_for_available_frame();
 
         ///// FRAME START
-        imgui_renderer.begin_frame();
+//        imgui_renderer.begin_frame();
+        ImGui_ImplPhobos_NewFrame();
+        ImGui_ImplMimas_NewFrame();
+        ImGui::NewFrame();
 
         ph::FrameInfo& frame_info = present_manager.get_frame_info();
 
         // Imgui
         make_ui(draw_calls, scene, frame_info);
-
 
         scene.light.position.x = std::sin(time) * 2.0f;
         scene.light.position.y = 1.0f;
@@ -219,27 +274,33 @@ int main() {
         // Create RenderGraph
         ph::RenderGraph* render_graph = new ph::RenderGraph(vulkan_context);
 
-        // Setup render target for the main renderpass
         auto& offscreen_attachment = present_manager.get_attachment("color1");
+        auto& color_attachment2 = present_manager.get_attachment("color2");
         auto& depth_attachment = present_manager.get_attachment("depth1");
-        stl::vector<ph::RenderAttachment> offscreen_attachments;
-        offscreen_attachments.push_back(offscreen_attachment);
-        offscreen_attachments.push_back(depth_attachment);
-        frame_info.offscreen_target = 
-            ph::RenderTarget(vulkan_context, vulkan_context->default_render_pass, offscreen_attachments);
+
+        // Add materials
+        render_graph->materials.push_back(default_material);
+        // Add lights
+        render_graph->point_lights.push_back(scene.light);
+
+        // Setup camera data
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 
+            (float)offscreen_attachment.get_width() / (float)offscreen_attachment.get_height(), 
+            0.1f, 100.0f);
+        projection[1][1] *= -1;
+        glm::vec3 cam_pos = glm::vec3(2, 2, 2);
+        glm::mat4 view = glm::lookAt(cam_pos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+        render_graph->projection = projection;
+        render_graph->view = view;
+        render_graph->camera_pos = cam_pos;
 
         // Main render pass. This render pass renders the scene to an offscreen texture
         ph::RenderPass main_pass;
+        main_pass.pipeline_name = "generic";
         main_pass.sampled_attachments = {};
         main_pass.outputs.push_back(offscreen_attachment);
         main_pass.outputs.push_back(depth_attachment);
     
-        // Add materials
-        main_pass.materials.push_back(default_material);
-
-        // Add lights
-        main_pass.point_lights.push_back(scene.light);
-
         // Add a draw command for the cube
         ph::RenderPass::DrawCommand draw;
         draw.mesh = &cube;
@@ -248,33 +309,49 @@ int main() {
         main_pass.transforms.push_back(cube_transform);
         main_pass.draw_commands.push_back(draw);
 
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 
-            (float)frame_info.offscreen_target.get_width() / (float)frame_info.offscreen_target.get_height(), 
-            0.1f, 100.0f);
-        projection[1][1] *= -1;
-        glm::vec3 cam_pos = glm::vec3(2, 2, 2);
-        glm::mat4 view = glm::lookAt(cam_pos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
-
-        // Setup camera data
-        main_pass.projection = projection;
-        main_pass.view = view;
-        main_pass.camera_pos = cam_pos;
+        // This is the most basic callback to get something rendered.
+        main_pass.callback = [&frame_info, &renderer](ph::RenderPass& pass, vk::CommandBuffer& cmd_buf) {
+            renderer.execute_draw_commands(frame_info, pass, cmd_buf);
+        };
 
         // Send the renderpass to the graph
         render_graph->add_pass(stl::move(main_pass));
 
+        ph::RenderPass second_pass;
+        second_pass.pipeline_name = "generic";
+        second_pass.sampled_attachments = {};
+        second_pass.outputs.push_back(color_attachment2);
+        second_pass.outputs.push_back(depth_attachment);
+
+        ph::RenderPass::DrawCommand draw2;
+        draw2.mesh = &cube;
+        draw2.material_index = 0;
+        glm::mat4 transform_2 = glm::scale(glm::mat4(1.0), glm::vec3(1, 1, 1));
+        second_pass.transforms.push_back(transform_2);
+        second_pass.draw_commands.push_back(draw2);
+        second_pass.callback = [&frame_info, &renderer](ph::RenderPass& pass, vk::CommandBuffer& cmd_buf) {
+            renderer.execute_draw_commands(frame_info, pass, cmd_buf);
+        };
+
+        render_graph->add_pass(stl::move(second_pass));
+
         // Create ImGui renderpass. This renderpass will sample from the scene color attachment and output to the swapchain.
-        ph::RenderPass imgui_pass;
-        imgui_pass.sampled_attachments.push_back(offscreen_attachment);
-        imgui_pass.outputs.push_back(frame_info.swapchain_color);
+//        ph::RenderPass imgui_pass;
+//        imgui_pass.pipeline_name = "generic";
+//        imgui_pass.sampled_attachments.push_back(offscreen_attachment);
+//        imgui_pass.sampled_attachments.push_back(color_attachment2);
+//        imgui_pass.outputs.push_back(frame_info.swapchain_color);
 
         // Right now we just call the imgui_renderer callback in the imgui renderpass. Next up is making the imgui renderer
         // use the draw commands api provided in ph::RenderPass
-        imgui_pass.callback = [&imgui_renderer, &frame_info](ph::RenderPass& pass) {
-            imgui_renderer.render_frame(pass, frame_info);
-        };
+//        imgui_pass.callback = [&imgui_renderer, &frame_info](ph::RenderPass& pass, vk::CommandBuffer& cmd_buf) {
+//            imgui_renderer.render_frame(pass, frame_info);
+//        };
         // Submit ImGui renderpass
-        render_graph->add_pass(stl::move(imgui_pass));
+//        render_graph->add_pass(stl::move(imgui_pass));
+
+        ImGui::Render();
+        ImGui_ImplPhobos_RenderDrawData(ImGui::GetDrawData(), &frame_info, render_graph);
 
         // Build the rendergraph. This creates resources like vkFramebuffers and a vkRenderPass for each ph::RenderPass
         render_graph->build(frame_info);
@@ -300,7 +377,8 @@ int main() {
     cube.destroy();
     renderer.destroy();
     present_manager.destroy();
-    imgui_renderer.destroy();
+    ImGui_ImplPhobos_Shutdown();
+//    imgui_renderer.destroy();
     vulkan_context->destroy();
     mimas_destroy_window(window_context->handle);
     mimas_terminate();

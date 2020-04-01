@@ -187,7 +187,6 @@ void ImGuiRenderer::render_frame(RenderPass& pass, FrameInfo& info) {
     vk::RenderPassBeginInfo render_pass_info;
     render_pass_info.renderPass = pass.render_pass;
 
-//    render_pass_info.framebuffer = framebuffers[info.image_index];
     render_pass_info.framebuffer = pass.target.get_framebuf();
     render_pass_info.renderArea.offset = vk::Offset2D{0, 0};
     render_pass_info.renderArea.extent = vk::Extent2D { pass.target.get_width(), pass.target.get_height() };

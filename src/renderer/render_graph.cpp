@@ -21,12 +21,6 @@ RenderGraph::RenderGraph(VulkanContext* ctx) : ctx(ctx) {
 
 }
 
-RenderGraph::~RenderGraph() {
-    for (auto const& pass : passes) {
-        ctx->device.destroyRenderPass(pass.render_pass);
-        // Framebuffer destruction is taken care of by ph::RenderPass -> ph::RenderTarget destruction
-    }
-}
 
 void RenderGraph::add_pass(RenderPass&& pass) {
     passes.push_back(stl::move(pass));
@@ -177,6 +171,7 @@ static std::optional<vk::AttachmentReference> get_depth_reference(stl::span<vk::
 
 
 void RenderGraph::create_render_passes(FrameInfo& frame) {
+    stl::size_t current_transform_offset = 0;
     for (auto it = passes.begin(); it != passes.end(); ++it) {
         auto attachments = get_attachment_descriptions(frame, passes, it);
         auto color_refs = get_color_references(attachments);
@@ -209,10 +204,40 @@ void RenderGraph::create_render_passes(FrameInfo& frame) {
         info.dependencyCount = 1;
         info.pDependencies = &dependency;
 
-        it->render_pass = ctx->device.createRenderPass(info);
+        // Now we have all the info to look up this renderpass in the renderpass cache
+        auto pass = ctx->renderpass_cache.get(info);
+        if (pass) { it->render_pass = *pass; }
+        else { 
+            // Create the renderpass and insert it into the caches
+            vk::RenderPass render_pass = ctx->device.createRenderPass(info);
+            it->render_pass = render_pass;
+            ctx->renderpass_cache.insert(info, stl::move(render_pass));
+        }
 
         // Next we have to create the vkFramebuffer for this renderpass. This is abstracted away in the RenderTarget class
         it->target = RenderTarget(ctx, it->render_pass, it->outputs);
+
+        // Now that we have the renderpass, we can create the VkPipeline (or get it from the cache)
+        PipelineCreateInfo const* pci = ctx->pipelines.get_named_pipeline(it->pipeline_name);
+        PipelineCreateInfo pci_copy = *pci;
+        pci_copy.finalize();
+        pci_copy.render_pass = it->render_pass;
+        pci_copy.subpass = 0; // #Tag(Subpass)
+
+        it->pipeline_layout = pci->layout;
+        
+        auto pipeline = ctx->pipeline_cache.get(pci_copy);
+        if (pipeline) { it->pipeline = *pipeline; }
+        else {
+            vk::Pipeline ppl = ctx->device.createGraphicsPipeline(nullptr, pci_copy.vk_info());
+            it->pipeline = ppl;
+            ctx->pipeline_cache.insert(pci_copy, stl::move(ppl));
+        }
+        
+
+        // Set correct offset for transforms
+        it->transforms_offset = current_transform_offset;
+        current_transform_offset += it->transforms.size();
     }
 }
 

@@ -31,6 +31,9 @@ class Texture;
 struct Material;
 struct PointLight;
 
+class RenderGraph;
+struct FrameInfo;
+
 } // namespace ph
 
 

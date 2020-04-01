@@ -17,18 +17,16 @@
 namespace ph {
 
 struct RenderPass {
+    // TODO: Multiple pipelines
+    std::string pipeline_name;
+
     stl::vector<RenderAttachment> sampled_attachments;
     stl::vector<RenderAttachment> outputs;
 
     vk::ClearColorValue clear_color = vk::ClearColorValue{std::array<float, 4>{{0.0f, 0.0f, 0.0f, 1.0f}}};
 
     // Camera data
-    glm::mat4 projection;
-    glm::mat4 view;
-    glm::vec3 camera_pos;
 
-    stl::vector<Material> materials;
-    stl::vector<PointLight> point_lights; 
     // Must have the same size as draw_commands
     stl::vector<glm::mat4> transforms;
 
@@ -40,11 +38,14 @@ struct RenderPass {
     stl::vector<DrawCommand> draw_commands;
 
     // This callback is called right before executing the renderpass' draw commands
-    std::function<void(RenderPass&)> callback = [](RenderPass& pass) {};
+    std::function<void(RenderPass&, vk::CommandBuffer&)> callback = [](RenderPass&, vk::CommandBuffer&) {};
 
-    // These will be created by the rendergraph
+    // These are all modified by the render graph. Don't manually set these fields.
     vk::RenderPass render_pass;
     RenderTarget target;
+    stl::uint32_t transforms_offset = 0;
+    vk::Pipeline pipeline;
+    vk::PipelineLayout pipeline_layout;
 };
 
 }

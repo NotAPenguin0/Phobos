@@ -27,7 +27,7 @@ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/external")
 
 add_library(Phobos STATIC ${PHOBOS_SOURCES})
 if (CMAKE_CXX_COMPILER_ID MATCHES Clang)
-    target_compile_options(Phobos PRIVATE "-Wall -Werror")
+    target_compile_options(Phobos PRIVATE "-Wall" "-Werror")
 endif()
 
 target_include_directories(Phobos PUBLIC ${PHOBOS_INCLUDE_DIRECTORIES})

@@ -32,6 +32,8 @@ public:
     RenderAttachment& get_attachment(std::string const& name);
     RenderAttachment get_swapchain_attachment(FrameInfo& frame);
 
+    std::unordered_map<std::string, RenderAttachment> const& get_all_attachments() const { return attachments; }
+
 protected:
     void on_event(WindowResizeEvent const& evt) override;
 private:

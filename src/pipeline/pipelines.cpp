@@ -4,183 +4,67 @@
 #include <phobos/core/vulkan_context.hpp>
 #include <phobos/util/shader_util.hpp>
 
+#include <stl/literals.hpp>
+
 namespace ph {
 
-namespace generic_pipeline {
+static void create_generic_pipeline2(VulkanContext& ctx) {
+    using namespace stl::literals;
 
-static vk::VertexInputBindingDescription const& vertex_input_binding() {
-    static vk::VertexInputBindingDescription binding(0, 8 * sizeof(float), vk::VertexInputRate::eVertex);
-    return binding;
-}
+    PipelineCreateInfo info;
+    info.layout = ctx.pipeline_layouts.get_layout(PipelineLayoutID::eDefault).handle;
 
-static std::array<vk::VertexInputAttributeDescription, 3> const& vertex_input_attributes() {
-    static std::array<vk::VertexInputAttributeDescription, 3> attributes {{
-        // Position
-        vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32B32Sfloat, 0),
-        // Normal
-        vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, 3 * sizeof(float)),
-        // TexCoords
-        vk::VertexInputAttributeDescription(2, 0, vk::Format::eR32G32Sfloat, 6 * sizeof(float))
-    }};
-    return attributes;
-}
+    info.vertex_input_binding = vk::VertexInputBindingDescription(0, 8 * sizeof(float), vk::VertexInputRate::eVertex);
+    info.vertex_attributes.emplace_back(0_u32, 0_u32, vk::Format::eR32G32B32Sfloat, 0_u32);
+    info.vertex_attributes.emplace_back(1_u32, 0_u32, vk::Format::eR32G32B32Sfloat, 3 * (stl::uint32_t)sizeof(float));
+    info.vertex_attributes.emplace_back(2_u32, 0_u32, vk::Format::eR32G32Sfloat, 6 * (stl::uint32_t)sizeof(float));
 
-static vk::PipelineVertexInputStateCreateInfo vertex_input() {
-    vk::PipelineVertexInputStateCreateInfo info;
-    info.vertexBindingDescriptionCount = 1;
-    // Taking these addresses is safe since it's all static data
-    info.pVertexBindingDescriptions = &vertex_input_binding();
-    info.vertexAttributeDescriptionCount = vertex_input_attributes().size();
-    info.pVertexAttributeDescriptions = vertex_input_attributes().data();
-    
-
-    return info;
-}
-
-static std::array<vk::PipelineShaderStageCreateInfo, 2> shaders(VulkanContext& ctx) {
     vk::ShaderModule vertex_shader = load_shader(ctx.device, "data/shaders/generic.vert.spv");
     vk::ShaderModule fragment_shader = load_shader(ctx.device, "data/shaders/generic.frag.spv");
 
-    std::array<vk::PipelineShaderStageCreateInfo, 2> info;
-    info[0].module = vertex_shader;
-    info[0].pName = "main";
-    info[0].stage = vk::ShaderStageFlagBits::eVertex;
-    
-    info[1].module = fragment_shader;
-    info[1].pName = "main";
-    info[1].stage = vk::ShaderStageFlagBits::eFragment;
+    info.shaders.emplace_back(vk::PipelineShaderStageCreateFlags{}, vk::ShaderStageFlagBits::eVertex, vertex_shader, "main");
+    info.shaders.emplace_back(vk::PipelineShaderStageCreateFlags{}, vk::ShaderStageFlagBits::eFragment, fragment_shader, "main");   
 
-    return info;
-}
+    info.input_assembly.primitiveRestartEnable = false;
+    info.input_assembly.topology = vk::PrimitiveTopology::eTriangleList;
 
-static vk::PipelineInputAssemblyStateCreateInfo input_assembly() {
-    vk::PipelineInputAssemblyStateCreateInfo info;
-    info.primitiveRestartEnable = false;
-    info.topology = vk::PrimitiveTopology::eTriangleList;
-    return info;
-}
+    info.depth_stencil.depthTestEnable = true;
+    info.depth_stencil.depthWriteEnable = true;
+    info.depth_stencil.depthCompareOp = vk::CompareOp::eLess;
+    info.depth_stencil.depthBoundsTestEnable = false;
+    info.depth_stencil.stencilTestEnable = false;
 
-static vk::Viewport viewport(VulkanContext& ctx) {
-    vk::Viewport vp;
-    vp.x = 0.0f;
-    vp.y = 0.0f;
-    vp.width = ctx.swapchain.extent.width;
-    vp.height = ctx.swapchain.extent.height;
-    vp.minDepth = 0.0f;
-    vp.maxDepth = 1.0f;
+    info.dynamic_states.push_back(vk::DynamicState::eViewport);
+    info.dynamic_states.push_back(vk::DynamicState::eScissor);
 
-    return vp;
-}
+    // Note that these are dynamic state so we don't need to fill in the fields
+    info.viewports.emplace_back();
+    info.scissors.emplace_back();
 
-static vk::Rect2D scissor(VulkanContext& ctx) {
-    vk::Rect2D s;
-    s.offset = vk::Offset2D{0, 0};
-    s.extent = ctx.swapchain.extent;
-    return s;
-}
+    info.rasterizer.depthClampEnable = false;
+    info.rasterizer.polygonMode = vk::PolygonMode::eFill;
+    info.rasterizer.lineWidth = 1.0f;
+    info.rasterizer.cullMode = vk::CullModeFlagBits::eBack;
+    info.rasterizer.frontFace = vk::FrontFace::eCounterClockwise;
+    info.rasterizer.rasterizerDiscardEnable = false;
+    info.rasterizer.depthBiasEnable = false;
 
-static vk::PipelineRasterizationStateCreateInfo rasterizer() {
-    vk::PipelineRasterizationStateCreateInfo info;
-    info.depthClampEnable = false;
-    info.polygonMode = vk::PolygonMode::eFill;
-    info.lineWidth = 1.0f;
-    info.cullMode = vk::CullModeFlagBits::eBack;
-    info.frontFace = vk::FrontFace::eCounterClockwise;
-    info.rasterizerDiscardEnable = false;
-    info.depthBiasEnable = false;
+    info.multisample.sampleShadingEnable = false;
+    info.multisample.rasterizationSamples = vk::SampleCountFlagBits::e1;
 
-    return info;
-}
+    info.blend_logic_op_enable = false;
+    vk::PipelineColorBlendAttachmentState blend_attachment;
+    blend_attachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+        vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+    blend_attachment.blendEnable = false;
+    info.blend_attachments.push_back(blend_attachment);
+    info.finalize();
 
-static vk::PipelineMultisampleStateCreateInfo multisample() {
-    vk::PipelineMultisampleStateCreateInfo info;
-    // Do not enable multisampling for now
-    info.sampleShadingEnable = false;
-    info.rasterizationSamples = vk::SampleCountFlagBits::e1;
-    return info;
-}
-
-static vk::PipelineColorBlendStateCreateInfo color_blending() {
-    // static so this variable doesn't go out of scope
-    static vk::PipelineColorBlendAttachmentState attachment;
-    attachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                                vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
-    // Alpha blending is disabled for this pipeline
-    attachment.blendEnable = false;
-
-    vk::PipelineColorBlendStateCreateInfo info;
-    info.attachmentCount = 1;
-    info.pAttachments = &attachment;
-    info.logicOpEnable = false;
-
-    return info;
-}
-
-static vk::PipelineDepthStencilStateCreateInfo depth_stencil() {
-    static vk::PipelineDepthStencilStateCreateInfo info;
-    info.depthTestEnable = true;
-    info.depthWriteEnable = true;
-    info.depthCompareOp = vk::CompareOp::eLess;
-    info.depthBoundsTestEnable = false;
-    info.stencilTestEnable = false;
-    return info;
-}
-
-} // namespace generic_pipeline
-
-static void create_generic_pipeline(VulkanContext& ctx, PipelineManager& pipelines) {
-    vk::GraphicsPipelineCreateInfo info;
-
-    // Get all required components for this grahics pipeline
-    vk::PipelineVertexInputStateCreateInfo vertex_input_info = generic_pipeline::vertex_input();
-    std::array<vk::PipelineShaderStageCreateInfo, 2> shader_info = generic_pipeline::shaders(ctx);
-    vk::PipelineInputAssemblyStateCreateInfo input_assembly = generic_pipeline::input_assembly();
-    vk::Viewport viewport = generic_pipeline::viewport(ctx);
-    vk::Rect2D scissor = generic_pipeline::scissor(ctx);
-    vk::PipelineDepthStencilStateCreateInfo depth_stencil = generic_pipeline::depth_stencil();
-
-    vk::PipelineViewportStateCreateInfo viewport_info;
-    viewport_info.viewportCount = 1;
-    viewport_info.pViewports = &viewport;
-    viewport_info.scissorCount = 1;
-    viewport_info.pScissors = &scissor;
-
-    vk::PipelineDynamicStateCreateInfo dynamic_state;
-    vk::DynamicState states[] = { 
-        vk::DynamicState::eViewport,
-        vk::DynamicState::eScissor
-    };
-    dynamic_state.dynamicStateCount = 2;
-    dynamic_state.pDynamicStates = states;
-
-    vk::PipelineRasterizationStateCreateInfo rasterizer = generic_pipeline::rasterizer();
-    vk::PipelineMultisampleStateCreateInfo multisample_info = generic_pipeline::multisample();
-    vk::PipelineColorBlendStateCreateInfo blending = generic_pipeline::color_blending();
-
-    info.stageCount = shader_info.size();
-    info.pStages = shader_info.data();
-    info.layout = ctx.pipeline_layouts.get_layout(PipelineLayoutID::eDefault).handle;
-    info.pVertexInputState = &vertex_input_info;
-    info.pInputAssemblyState = &input_assembly;
-    info.pViewportState = &viewport_info;
-    info.pRasterizationState = &rasterizer;
-    info.pMultisampleState = &multisample_info;
-    info.pColorBlendState = &blending;
-    info.pDepthStencilState = &depth_stencil;
-    info.pDynamicState = &dynamic_state;
-
-    info.renderPass = ctx.default_render_pass;
-    info.subpass = 0;
-    
-    pipelines.create_pipeline(ctx.device, PipelineID::eGeneric, info);
-
-    // We don't need the shader modules anymore
-    ctx.device.destroyShaderModule(shader_info[0].module);
-    ctx.device.destroyShaderModule(shader_info[1].module);
+    ctx.pipelines.create_named_pipeline("generic", stl::move(info));
 }
 
 void create_pipelines(VulkanContext& ctx, PipelineManager& pipelines) {
-    create_generic_pipeline(ctx, pipelines);
+    create_generic_pipeline2(ctx);
 }
 
 }

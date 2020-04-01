@@ -27,7 +27,15 @@ RenderTarget::RenderTarget(VulkanContext* ctx, vk::RenderPass render_pass, stl::
     info.attachmentCount = views.size();
     info.pAttachments = views.data();
     info.layers = 1;
-    framebuffer = ctx->device.createFramebuffer(info);
+
+    auto framebuf = ctx->framebuffer_cache.get(info);
+    if (framebuf) {
+        framebuffer = *framebuf;
+    } else {
+        framebuffer = ctx->device.createFramebuffer(info);
+        ctx->framebuffer_cache.insert(info, stl::move(framebuffer));
+    }
+    
     width = info.width;
     height = info.height;
 }
@@ -62,10 +70,7 @@ RenderTarget::~RenderTarget() {
 }
 
 void RenderTarget::destroy() {
-    if (framebuffer) {
-        ctx->device.destroyFramebuffer(framebuffer);
-        framebuffer = nullptr;
-    }
+    // No longer destroy, as created framebuffers are now owned by the cache
 }
 
 }

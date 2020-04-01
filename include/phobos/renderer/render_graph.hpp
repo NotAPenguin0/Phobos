@@ -11,8 +11,14 @@ class RenderGraph {
 public:
     friend class Renderer;
 
+    glm::mat4 projection;
+    glm::mat4 view;
+    glm::vec3 camera_pos;
+
+    stl::vector<Material> materials;
+    stl::vector<PointLight> point_lights; 
+
     RenderGraph(VulkanContext* ctx);
-    ~RenderGraph();
 
     void add_pass(RenderPass&& pass);
     void build(FrameInfo& frame);

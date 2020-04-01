@@ -1,6 +1,6 @@
 #include <phobos/renderer/render_attachment.hpp>
 
-#include <imgui/imgui_impl_vulkan.h>
+#include <imgui/imgui_impl_phobos.h>
 #include <phobos/util/image_util.hpp>
 
 namespace ph {
@@ -15,7 +15,7 @@ RenderAttachment::RenderAttachment(VulkanContext* ctx, vk::Image image, vk::Devi
     width(w), height(h), format(format), usage(usage), aspect(aspect) {
 
     ctx->event_dispatcher.add_listener(this);
-    imgui_tex_id = ImGui_ImplVulkan_AddTexture(view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    imgui_tex_id = ImGui_ImplPhobos_AddTexture(view, vk::ImageLayout::eShaderReadOnlyOptimal);
 }
 
 RenderAttachment::RenderAttachment(RenderAttachment const& rhs) :
@@ -132,7 +132,7 @@ void RenderAttachment::destroy() {
         ctx->device.destroyImage(image);
         ctx->device.freeMemory(memory);
         ctx->device.destroyImageView(view);
-        ImGui_ImplVulkan_RemoveTexture(imgui_tex_id);
+        ImGui_ImplPhobos_RemoveTexture(imgui_tex_id);
         owning = false;
     }
 
@@ -154,7 +154,7 @@ void RenderAttachment::resize(uint32_t new_width, uint32_t new_height) {
         usage, vk::MemoryPropertyFlagBits::eDeviceLocal, image, memory);
     view = create_image_view(ctx->device, image, format, aspect);
 
-    imgui_tex_id = ImGui_ImplVulkan_AddTexture(view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    imgui_tex_id = ImGui_ImplPhobos_AddTexture(view, vk::ImageLayout::eShaderReadOnlyOptimal);
 
     owning = true;
 

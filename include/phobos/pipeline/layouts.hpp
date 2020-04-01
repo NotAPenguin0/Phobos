@@ -9,6 +9,8 @@ namespace ph {
 enum class PipelineLayoutID : uint32_t {
     eEmpty = 0,
     eDefault = 1,
+    // TODO: Similar API to pipeline API for this
+    eImgui = 2,
     eCount
 };
 

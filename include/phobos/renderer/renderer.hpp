@@ -15,6 +15,9 @@ public:
     Renderer(VulkanContext& context);
 
     void render_frame(FrameInfo& info);
+    // Execute the draw commands in the pass::draw_commands array with the default fixed rendering pipeline.
+    // Typically you want to call this function when you simply want to render the submitted draws without any special processing
+    void execute_draw_commands(FrameInfo& frame, RenderPass& pass, vk::CommandBuffer& cmd_buffer);
 
     void destroy();
 
@@ -23,10 +26,10 @@ protected:
 private:
     VulkanContext& ctx;
 
-    void update_camera_data(FrameInfo& info, RenderPass const& pass);
-    void update_model_matrices(FrameInfo& info, RenderPass const& graph);
-    void update_materials(FrameInfo& info, RenderPass const& pass);
-    void update_lights(FrameInfo& info, RenderPass const& pass);
+    void update_camera_data(FrameInfo& info, RenderGraph const* graph);
+    void update_model_matrices(FrameInfo& info, RenderGraph const* graph);
+    void update_materials(FrameInfo& info, RenderGraph const* graph);
+    void update_lights(FrameInfo& info, RenderGraph const* graph);
 };
 
 }

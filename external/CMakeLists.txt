@@ -2,6 +2,7 @@ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/mimas")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/fmt")
 add_subdirectory("stl")
 
+target_compile_options(stl PUBLIC "-w")
 target_compile_options(mimas PUBLIC "-w")
 target_compile_options(fmt PUBLIC "-w")
 
@@ -33,6 +34,7 @@ set(PHOBOS_SOURCES
     # Mimas + Vulkan
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_mimas.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_vulkan.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_phobos.cpp"
     PARENT_SCOPE
 )
 

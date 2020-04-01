@@ -15,6 +15,8 @@
 
 #include <phobos/events/event_dispatcher.hpp>
 
+#include <phobos/util/cache.hpp>
+
 namespace ph {
 
 struct VulkanContext : public EventListener<SwapchainRecreateEvent> {
@@ -46,6 +48,10 @@ struct VulkanContext : public EventListener<SwapchainRecreateEvent> {
     log::LogInterface* logger = nullptr;
 
     EventDispatcher event_dispatcher;
+
+    Cache<vk::RenderPass, vk::RenderPassCreateInfo> renderpass_cache;
+    Cache<vk::Framebuffer, vk::FramebufferCreateInfo> framebuffer_cache;
+    Cache<vk::Pipeline, PipelineCreateInfo> pipeline_cache;
 
     void destroy();
 

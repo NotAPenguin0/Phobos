@@ -188,6 +188,21 @@ void VulkanContext::destroy() {
     device.destroyRenderPass(default_render_pass);
     device.destroyRenderPass(swapchain_render_pass);
 
+    for (auto&[info, pass] : renderpass_cache.get_all()) {
+        device.destroyRenderPass(pass);
+    }
+    renderpass_cache.get_all().clear();
+
+    for (auto&[info, framebuf] : framebuffer_cache.get_all()) {
+        device.destroyFramebuffer(framebuf);
+    }
+    framebuffer_cache.get_all().clear();
+
+    for (auto&[info, pipeline] : pipeline_cache.get_all()) {
+        device.destroyPipeline(pipeline);
+    }
+    pipeline_cache.get_all().clear();
+
     for (auto const& framebuf : swapchain.framebuffers) {
         device.destroyFramebuffer(framebuf);
     }
