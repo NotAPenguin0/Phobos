@@ -33,6 +33,7 @@ struct PointLight;
 
 class RenderGraph;
 struct FrameInfo;
+class Renderer;
 
 } // namespace ph
 

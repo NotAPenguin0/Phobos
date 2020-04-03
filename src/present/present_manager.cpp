@@ -61,8 +61,7 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
     sampler_info.mipLodBias = 0.0;
     default_sampler = ctx.device.createSampler(sampler_info);
 
-
-
+    // TODO: Allow for more descriptors
     vk::DescriptorPoolSize sizes[] = {
         vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2 * swapchain_image_count),
         vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, swapchain_image_count),
@@ -83,6 +82,7 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
     for (auto& frame_info : frames) {
         frame_info.default_sampler = default_sampler;
         frame_info.present_manager = this;
+        frame_info.descriptor_pool = fixed_descriptor_pool;
 
         vk::FenceCreateInfo fence_info;
         fence_info.flags = vk::FenceCreateFlagBits::eSignaled;
@@ -106,70 +106,10 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         create_lights_ubo(ctx, frame_info.lights);
 
         // Create instance data SSBO for this frame
-        frame_info.instance_ssbo = InstancingBuffer(ctx);
+        frame_info.transform_ssbo = InstancingBuffer(ctx);
         // Start with 32 instances (arbitrary number)
         static constexpr stl::size_t transforms_begin_size = 32;
-        frame_info.instance_ssbo.create(transforms_begin_size * sizeof(glm::mat4));
-
-        // Create descriptor sets for this frame
-        PipelineLayout vp_layout = ctx.pipeline_layouts.get_layout(PipelineLayoutID::eDefault);
-        vk::DescriptorSetAllocateInfo descriptor_set_info;
-        descriptor_set_info.descriptorPool = fixed_descriptor_pool;
-        descriptor_set_info.descriptorSetCount = 1;
-        descriptor_set_info.pSetLayouts = &vp_layout.descriptor_set_layout;
-
-        vk::DescriptorSetVariableDescriptorCountAllocateInfo variable_count_info;
-        uint32_t counts[1] { meta::max_textures_bound };
-        variable_count_info.descriptorSetCount = 1;
-        variable_count_info.pDescriptorCounts = counts;
-
-        descriptor_set_info.pNext = &variable_count_info;
-
-        frame_info.fixed_descriptor_set = ctx.device.allocateDescriptorSets(descriptor_set_info)[0];
-
-        // Setup descriptor set to point to right VP UBO
-        vk::DescriptorBufferInfo vp_buffer_write;
-        vp_buffer_write.buffer = frame_info.vp_ubo.buffer;
-        vp_buffer_write.offset = 0;
-        vp_buffer_write.range = frame_info.vp_ubo.size;
-        
-        vk::DescriptorBufferInfo instance_buffer_write;
-        instance_buffer_write.buffer = frame_info.instance_ssbo.buffer_handle();
-        instance_buffer_write.offset = 0;
-        instance_buffer_write.range = frame_info.instance_ssbo.size();
-
-        vk::DescriptorBufferInfo lights_buffer_write;
-        lights_buffer_write.buffer = frame_info.lights.buffer;
-        lights_buffer_write.offset = 0;
-        lights_buffer_write.range = frame_info.lights.size;
- 
-        constexpr size_t write_cnt = 3;
-        constexpr size_t vp_write = 0;
-        constexpr size_t instance_write = 1;
-        constexpr size_t lights_write = 2;
-        vk::WriteDescriptorSet writes[write_cnt];
-        writes[vp_write].descriptorCount = 1;
-        writes[vp_write].descriptorType = vk::DescriptorType::eUniformBuffer;
-        writes[vp_write].dstSet = frame_info.fixed_descriptor_set;
-        writes[vp_write].dstBinding = meta::bindings::generic::camera;
-        writes[vp_write].dstArrayElement = 0;
-        writes[vp_write].pBufferInfo = &vp_buffer_write;
-
-        writes[instance_write].descriptorCount = 1;
-        writes[instance_write].descriptorType = vk::DescriptorType::eStorageBuffer;
-        writes[instance_write].dstSet = frame_info.fixed_descriptor_set;
-        writes[instance_write].dstBinding = meta::bindings::generic::instance_data;
-        writes[instance_write].dstArrayElement = 0;
-        writes[instance_write].pBufferInfo = &instance_buffer_write;
-
-        writes[lights_write].descriptorCount = 1;
-        writes[lights_write].descriptorType = vk::DescriptorType::eUniformBuffer;
-        writes[lights_write].dstSet = frame_info.fixed_descriptor_set;
-        writes[lights_write].dstBinding = meta::bindings::generic::lights;
-        writes[lights_write].dstArrayElement = 0;
-        writes[lights_write].pBufferInfo = &lights_buffer_write;
-
-        ctx.device.updateDescriptorSets(write_cnt, writes, 0, nullptr);
+        frame_info.transform_ssbo.create(transforms_begin_size * sizeof(glm::mat4));
     }
 }
 
@@ -260,7 +200,7 @@ void PresentManager::destroy() {
         context.device.destroyBuffer(frame.lights.buffer);
         context.device.unmapMemory(frame.lights.memory);
         context.device.freeMemory(frame.lights.memory);
-        frame.instance_ssbo.destroy();
+        frame.transform_ssbo.destroy();
         context.device.destroyFence(frame.fence);
         context.device.destroySemaphore(frame.image_available);
         context.device.destroySemaphore(frame.render_finished);
@@ -270,6 +210,8 @@ void PresentManager::destroy() {
         frame.swapchain_target.destroy();
         frame.offscreen_target.destroy();
         frame.swapchain_color.destroy();
+        frame.descriptor_cache.get_keys().clear();
+        frame.descriptor_cache.get_all().clear();
         delete frame.render_graph;
     }
     for (auto&[name, attachment] : attachments) {

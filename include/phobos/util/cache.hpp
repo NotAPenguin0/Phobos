@@ -285,6 +285,106 @@ struct hash<vk::PipelineViewportStateCreateInfo> {
 };
 
 template<>
+struct hash<vk::PushConstantRange> {
+    size_t operator()(vk::PushConstantRange const& x) const noexcept {
+        size_t h = 0;
+        ph::hash_combine(h, x.size, x.offset, x.stageFlags);
+        return h;
+    }
+};
+
+template<>
+struct hash<vk::Sampler> {
+    size_t operator()(vk::Sampler const& x) const noexcept {
+        size_t h = 0;
+        ph::hash_combine(h, reinterpret_cast<uint64_t>(static_cast<VkSampler>(x)));
+        return h;
+    }
+};
+
+template<>
+struct hash<vk::DescriptorImageInfo> {
+    size_t operator()(vk::DescriptorImageInfo const& x) const noexcept {
+        size_t h = 0;
+        ph::hash_combine(h, x.imageView, x.sampler, ph::to_integral(x.imageLayout));
+        return h;
+    }
+};
+
+template<>
+struct hash<vk::Buffer> {
+    size_t operator()(vk::Buffer const& x) const noexcept {
+        size_t h = 0;
+        ph::hash_combine(h, reinterpret_cast<uint64_t>((VkBuffer)x));
+        return h;
+    }
+};
+
+template<>
+struct hash<vk::DescriptorBufferInfo> {
+    size_t operator()(vk::DescriptorBufferInfo const& x) const noexcept {
+        size_t h = 0;
+        ph::hash_combine(h, x.buffer, (size_t)x.offset, (size_t)x.range);
+        return h;
+    }
+};
+
+template<>
+struct hash<ph::DescriptorBinding> {
+    size_t operator()(ph::DescriptorBinding const& x) const noexcept {
+        size_t h = 0;
+        ph::hash_combine(h, x.binding, ph::to_integral(x.type));
+        for (auto const& d : x.descriptors) {
+            if (x.type == vk::DescriptorType::eCombinedImageSampler 
+                || x.type == vk::DescriptorType::eSampledImage) {
+                ph::hash_combine(h, d.image); 
+            } else { ph::hash_combine(h, d.buffer); }
+        }
+        return h;
+    }
+};
+
+template<>
+struct hash<ph::DescriptorSetBinding> {
+    size_t operator()(ph::DescriptorSetBinding const& x) const noexcept {
+        size_t h = 0;
+        ph::hash_combine(h, x.bindings, x.set_layout);
+        return h;
+    }
+};
+
+template<>
+struct hash<vk::DescriptorSetLayoutBinding> {
+    size_t operator()(vk::DescriptorSetLayoutBinding const& x) const noexcept {
+        size_t h = 0;
+        ph::hash_combine(h, x.binding, x.descriptorCount, x.descriptorType, x.stageFlags);
+        // Make sure to only do this when there are immmutable samplers
+        for (size_t i = 0; x.pImmutableSamplers && i < x.descriptorCount; ++i) {
+            ph::hash_combine(h, x.pImmutableSamplers[i]);
+        }
+        return h;
+    }
+};
+
+template<>
+struct hash<ph::DescriptorSetLayoutCreateInfo> {
+    size_t operator()(ph::DescriptorSetLayoutCreateInfo const& info) const noexcept {
+        size_t h = 0;
+        ph::hash_combine(h, info.bindings, info.flags);
+        return h;
+    }
+};
+
+template<>
+struct hash<ph::PipelineLayoutCreateInfo> {
+    size_t operator()(ph::PipelineLayoutCreateInfo const& info) const noexcept {
+        size_t h = 0;
+        ph::hash_combine(h, info.push_constants, info.set_layout);
+        return h;
+    }
+};
+
+template<>
 struct hash<ph::PipelineCreateInfo> {
     size_t operator()(ph::PipelineCreateInfo const& info) const noexcept {
         size_t h = 0;
@@ -306,10 +406,12 @@ class Cache {
 public:
     // Useful for cleanup
     auto& get_all() { return cache; }
+    auto& get_keys() { return keys; }
     
     void insert(LookupT const& key, T&& val) {
         size_t hash = std::hash<LookupT>()(key);
         cache[hash] = stl::move(val);
+        keys[hash] = key;
     }
 
     T* get(LookupT const& key) {
@@ -326,8 +428,13 @@ public:
         else return nullptr;
     }
 
+    LookupT* get_key(size_t hash) {
+        return &keys.at(hash);
+    }
+
 private:
     std::unordered_map<size_t, T> cache;
+    std::unordered_map<size_t, LookupT> keys;
 };
 
 }

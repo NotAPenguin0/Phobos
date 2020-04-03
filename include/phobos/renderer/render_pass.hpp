@@ -45,7 +45,7 @@ struct RenderPass {
     RenderTarget target;
     stl::uint32_t transforms_offset = 0;
     vk::Pipeline pipeline;
-    vk::PipelineLayout pipeline_layout;
+    PipelineLayout pipeline_layout;
 };
 
 }

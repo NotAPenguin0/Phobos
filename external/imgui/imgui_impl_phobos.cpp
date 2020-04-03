@@ -42,10 +42,6 @@ struct ImGui_ImplPhobos_Buffer {
 static stl::vector<ImGui_ImplPhobos_Buffer> g_VertexBuffers;
 static stl::vector<ImGui_ImplPhobos_Buffer> g_IndexBuffers;
 
-static std::mutex g_ImGui_descrSetLock{};
-// We start at 1 becuase we want 0 to be an error.
-static std::uint32_t imgui_imgID = 1;
-static std::unordered_map<std::uint32_t, vk::DescriptorSet> imgui_descrSets{};
 
 // glsl_shader.vert, compiled with:
 // # glslangValidator -V -x -o glsl_shader.vert.u32 glsl_shader.vert
@@ -167,20 +163,6 @@ static void ImGui_ImplPhobos_CreateSampler(ph::VulkanContext* ctx) {
     g_FontSampler = ctx->device.createSampler(info);
 }
 
-static void ImGui_ImplPhobos_CreateDescriptorSetLayout(ph::VulkanContext* ctx) {
-    vk::Sampler sampler[1] = { g_FontSampler };
-    vk::DescriptorSetLayoutBinding binding[1] = {};
-    binding[0].descriptorType = vk::DescriptorType::eCombinedImageSampler;
-    binding[0].descriptorCount = 1;
-    binding[0].stageFlags = vk::ShaderStageFlagBits::eFragment;
-    binding[0].pImmutableSamplers = sampler;
-    
-    vk::DescriptorSetLayoutCreateInfo info;
-    info.bindingCount = 1;
-    info.pBindings = binding;
-
-    g_DescriptorSetLayout = ctx->device.createDescriptorSetLayout(info);
-}
 
 static void ImGui_ImplPhobos_CreateShaderModules(ph::VulkanContext* ctx, vk::ShaderModule* vertex, vk::ShaderModule* fragment) {
     vk::ShaderModuleCreateInfo vert_info;
@@ -195,21 +177,27 @@ static void ImGui_ImplPhobos_CreateShaderModules(ph::VulkanContext* ctx, vk::Sha
 }
 
 static void ImGui_ImplPhobos_CreatePipeline(ph::VulkanContext* ctx) {
-    // Create pipeline layout. TODO: Port this to new api when new pipeline layout api is implemented
-    vk::PipelineLayoutCreateInfo plci;
-    vk::PushConstantRange push_constants[1] = {};
-    push_constants[0].stageFlags = vk::ShaderStageFlagBits::eVertex;
-    push_constants[0].offset = sizeof(float) * 0;
-    push_constants[0].size = sizeof(float) * 4;
-    vk::DescriptorSetLayout set_layout[1] = { g_DescriptorSetLayout };
-    plci.setLayoutCount = 1;
-    plci.pSetLayouts = set_layout;
-    plci.pushConstantRangeCount = 1;
-    plci.pPushConstantRanges = push_constants;
-    ctx->pipeline_layouts.create_layout(ctx->device, ph::PipelineLayoutID::eImgui, plci);
+    // Create descriptor set layout
+    ph::DescriptorSetLayoutCreateInfo set_layout_info;
+    vk::DescriptorSetLayoutBinding binding;
+    binding.binding = 0;
+    binding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
+    binding.descriptorCount = 1;
+    binding.stageFlags = vk::ShaderStageFlagBits::eFragment;
+    binding.pImmutableSamplers = &g_FontSampler;
+    set_layout_info.bindings.push_back(binding);
+
+    // Create pipeline layout
+    ph::PipelineLayoutCreateInfo plci;
+    vk::PushConstantRange push_constants = {};
+    push_constants.stageFlags = vk::ShaderStageFlagBits::eVertex;
+    push_constants.offset = sizeof(float) * 0;
+    push_constants.size = sizeof(float) * 4;
+    plci.push_constants.push_back(push_constants);
+    plci.set_layout = set_layout_info;
     
     ph::PipelineCreateInfo pci;
-    pci.layout = ctx->pipeline_layouts.get_layout(ph::PipelineLayoutID::eImgui).handle;
+    pci.layout = plci;
 
     // Note that deleting shader modules is taken care of by phobos
     vk::ShaderModule vertex;
@@ -315,10 +303,9 @@ void ImGui_ImplPhobos_Init(ImGui_ImplPhobos_InitInfo* init_info) {
     g_Context = init_info->context;
     ImGuiIO& io = ImGui::GetIO();
     io.BackendRendererName = "imgui_impl_phobos";
-    io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
 
     ImGui_ImplPhobos_CreateSampler(init_info->context);
-    ImGui_ImplPhobos_CreateDescriptorSetLayout(init_info->context);
     ImGui_ImplPhobos_CreatePipeline(init_info->context);
     ImGui_ImplPhobos_InitBuffers(init_info);
     ImGui_ImplPhobos_CreateDescriptorPool(init_info);
@@ -335,9 +322,7 @@ void ImGui_ImplPhobos_EnsureBufferSize(ImGui_ImplPhobos_Buffer& buffer, vk::Devi
 
     // Use the available phobos utilites because we're implementing
     // a phobos backend anyway
-    ph::create_buffer(*g_Context, size, usage, 
-        vk::MemoryPropertyFlagBits::eHostVisible, buffer.buffer, 
-        buffer.memory);
+    ph::create_buffer(*g_Context, size, usage, vk::MemoryPropertyFlagBits::eHostVisible, buffer.buffer, buffer.memory);
     buffer.size = size;
 }
 
@@ -369,7 +354,7 @@ void ImGui_ImplPhobos_UpdateBuffers(ImGui_ImplPhobos_Buffer& vertex, ImGui_ImplP
     g_Context->device.unmapMemory(index.memory);
 }
 
-void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame, ph::RenderGraph* render_graph) {
+void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame, ph::RenderGraph* render_graph, ph::Renderer* renderer) {
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
     int fb_width = (int)(draw_data->DisplaySize.x * draw_data->FramebufferScale.x);
     int fb_height = (int)(draw_data->DisplaySize.y * draw_data->FramebufferScale.y);
@@ -414,7 +399,7 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
         }
     }
 
-    render_pass.callback = [draw_data, frame, fb_width, fb_height](ph::RenderPass& pass, vk::CommandBuffer& cmd_buf) {
+    render_pass.callback = [draw_data, frame, renderer, fb_width, fb_height](ph::RenderPass& pass, vk::CommandBuffer& cmd_buf) {
         cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, pass.pipeline);
         ImGui_ImplPhobos_Buffer& vtx_buffer = g_VertexBuffers[frame->frame_index];
         ImGui_ImplPhobos_Buffer& idx_buffer = g_IndexBuffers[frame->frame_index];
@@ -437,8 +422,8 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
         float translate[2];
         translate[0] = -1.0f - draw_data->DisplayPos.x * scale[0];
         translate[1] = -1.0f - draw_data->DisplayPos.y * scale[1];
-        cmd_buf.pushConstants(pass.pipeline_layout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(float) * 2, scale);
-        cmd_buf.pushConstants(pass.pipeline_layout, vk::ShaderStageFlagBits::eVertex, sizeof(float) * 2, sizeof(float) * 2, translate);
+        cmd_buf.pushConstants(pass.pipeline_layout.layout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(float) * 2, scale);
+        cmd_buf.pushConstants(pass.pipeline_layout.layout, vk::ShaderStageFlagBits::eVertex, sizeof(float) * 2, sizeof(float) * 2, translate);
 
         ImVec2 clip_off = draw_data->DisplayPos;         // (0,0) unless using multi-viewportManager
         ImVec2 clip_scale = draw_data->FramebufferScale; // (1,1) unless using retina display which are often (2,2)
@@ -457,8 +442,7 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
                 clip_rect.z = (cmd->ClipRect.z - clip_off.x) * clip_scale.x;
                 clip_rect.w = (cmd->ClipRect.w - clip_off.y) * clip_scale.y;
 
-                if (clip_rect.x < fb_width && clip_rect.y < fb_height && clip_rect.z >= 0.0f && clip_rect.w >= 0.0f)
-                {
+                if (clip_rect.x < fb_width && clip_rect.y < fb_height && clip_rect.z >= 0.0f && clip_rect.w >= 0.0f) {
                     // Negative offsets are illegal for vkCmdSetScissor
                     if (clip_rect.x < 0.0f)
                         clip_rect.x = 0.0f;
@@ -472,9 +456,20 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
                     scissor.extent.height = (uint32_t)(clip_rect.w - clip_rect.y);
                     cmd_buf.setScissor(0, scissor);
                     // Bind descriptorset with font or user texture
-                    std::uint32_t imgID = static_cast<std::uint32_t>(reinterpret_cast<std::size_t>(cmd->TextureId));
-                    vk::DescriptorSet descr_set = imgui_descrSets.at(imgID);
-                    cmd_buf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pass.pipeline_layout, 0, descr_set, nullptr);
+                    vk::ImageView img_view = static_cast<vk::ImageView>(reinterpret_cast<VkImageView>(cmd->TextureId));
+                    // Get descriptor set from the renderer
+                    ph::DescriptorSetBinding binding;
+                    binding.pool = g_DescriptorPool;
+                    binding.bindings.emplace_back();
+                    binding.bindings.back().binding = 0;
+                    binding.bindings.back().type = vk::DescriptorType::eCombinedImageSampler;
+                    // DescriptorBufferInfo even though we are writing image data. We really need a simple API for this
+                    binding.bindings.back().descriptors.emplace_back(vk::DescriptorBufferInfo{});
+                    binding.bindings.back().descriptors.back().image.imageView = img_view;
+                    binding.bindings.back().descriptors.back().image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+                    binding.bindings.back().descriptors.back().image.sampler = g_FontSampler;
+                    vk::DescriptorSet descr_set = renderer->get_descriptor(*frame, pass, binding);
+                    cmd_buf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pass.pipeline_layout.layout, 0, descr_set, nullptr);
                     cmd_buf.drawIndexed(cmd->ElemCount, 1, cmd->IdxOffset + global_idx_offset, cmd->VtxOffset + global_vtx_offset, 0);
                 }
             }       
@@ -499,11 +494,8 @@ bool ImGui_ImplPhobos_CreateFontsTexture(vk::CommandBuffer cmd_buf) {
         g_FontImage, g_FontMemory);
     g_FontView = ph::create_image_view(g_Context->device, g_FontImage, vk::Format::eR8G8B8A8Unorm);
 
-    std::uint32_t font_descriptor_set_id =
-        static_cast<std::uint32_t>(reinterpret_cast<std::size_t>(ImGui_ImplPhobos_AddTexture(g_FontView, vk::ImageLayout::eShaderReadOnlyOptimal)));
     // Store our identifier
-    io.Fonts->TexID = reinterpret_cast<void*>(static_cast<std::size_t>(font_descriptor_set_id));
-
+    io.Fonts->TexID = reinterpret_cast<void*>(static_cast<VkImageView>(g_FontView));
 
     // Create the Upload Buffer:
     ph::create_buffer(*g_Context, upload_size, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible, g_UploadBuffer, g_UploadBufferMemory);
@@ -536,78 +528,11 @@ void ImGui_ImplPhobos_DestroyFontUploadObjects() {
 }
 
 ImTextureID ImGui_ImplPhobos_AddTexture(vk::ImageView image_view, vk::ImageLayout image_layout) {
-    vk::DescriptorSet descriptor_set = nullptr;
-
-    std::lock_guard lockGuard{ g_ImGui_descrSetLock };
-
-    std::uint32_t id = imgui_imgID;
-    imgui_imgID += 1;
-
-
-    vk::DescriptorSetAllocateInfo alloc_info = {};
-    alloc_info.descriptorPool = g_DescriptorPool;
-    alloc_info.descriptorSetCount = 1;
-    alloc_info.pSetLayouts = &g_DescriptorSetLayout;
-    descriptor_set = g_Context->device.allocateDescriptorSets(alloc_info)[0];
-
-
-    imgui_descrSets.insert({ id, descriptor_set });
-
-    // Update the Descriptor Set if we have an image to point
-    if (image_view) {
-        vk::DescriptorImageInfo desc_image[1] = {};
-        //desc_image[0].sampler = g_FontSampler;
-        desc_image[0].imageView = image_view;
-        desc_image[0].imageLayout = image_layout;
-        vk::WriteDescriptorSet write_desc[1] = {};
-        write_desc[0].dstSet = descriptor_set;
-        write_desc[0].descriptorCount = 1;
-        write_desc[0].descriptorType = vk::DescriptorType::eCombinedImageSampler;
-        write_desc[0].pImageInfo = desc_image;
-        g_Context->device.updateDescriptorSets(1, write_desc, 0, nullptr);
-    }
-
-    return reinterpret_cast<void*>(static_cast<std::size_t>(id));
-}
-
-void ImGui_ImplVulkan_OverwriteTexture(ImTextureID tex_id, vk::ImageView image_view, vk::ImageLayout image_layout) {
-    std::lock_guard lock_guard{ g_ImGui_descrSetLock };
-
-    vk::DescriptorSet descr_set = nullptr;
-    try {
-        descr_set = imgui_descrSets.at(static_cast<uint32_t>(reinterpret_cast<size_t>(tex_id)));
-    } catch (std::out_of_range&) {
-        IM_ASSERT(false && "Dear ImGui - Phobos: Failed to grab a VkDescriptorSet for this ImTextureID.");
-    }
-
-    // Update the Descriptor Set:
-    {
-        vk::DescriptorImageInfo desc_image[1] = {};
-        //desc_image[0].sampler = g_FontSampler;
-        desc_image[0].imageView = image_view;
-        desc_image[0].imageLayout = image_layout;
-        vk::WriteDescriptorSet write_desc[1] = {};
-        write_desc[0].dstSet = descr_set;
-        write_desc[0].descriptorCount = 1;
-        write_desc[0].descriptorType = vk::DescriptorType::eCombinedImageSampler;
-        write_desc[0].pImageInfo = desc_image;
-        g_Context->device.updateDescriptorSets(1, write_desc, 0, nullptr);
-    }
+    return reinterpret_cast<void*>(static_cast<VkImageView>(image_view));
 }
 
 void ImGui_ImplPhobos_RemoveTexture(ImTextureID tex_id) {
-    std::lock_guard lock_guard{ g_ImGui_descrSetLock };
-
-    vk::DescriptorSet descrSet = nullptr;
-    try {
-        descrSet = imgui_descrSets.at(static_cast<uint32_t>(reinterpret_cast<size_t>(tex_id)));
-    } catch (std::out_of_range&) {
-        IM_ASSERT(false && "Dear ImGui - Phobos: Failed to grab a VkDescriptorSet for this ImTextureID.");
-    }
-
-    g_Context->device.freeDescriptorSets(g_DescriptorPool, descrSet);
-
-    imgui_descrSets.erase(static_cast<uint32_t>(reinterpret_cast<size_t>(tex_id)));
+    // TODO: Queue for deletion?
 }
 
 void ImGui_ImplPhobos_Shutdown() {
@@ -616,9 +541,6 @@ void ImGui_ImplPhobos_Shutdown() {
     g_Context->device.destroyImage(g_FontImage);
     g_Context->device.destroyImageView(g_FontView);
     g_Context->device.freeMemory(g_FontMemory);
-    for (auto&[id, set] : imgui_descrSets) {
-        g_Context->device.freeDescriptorSets(g_DescriptorPool, 1, &set);
-    }
     g_Context->device.destroyDescriptorPool(g_DescriptorPool);
 
     for (auto& buf : g_VertexBuffers) {

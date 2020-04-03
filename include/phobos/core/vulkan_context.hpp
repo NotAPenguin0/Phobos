@@ -8,7 +8,6 @@
 #include <phobos/core/physical_device.hpp>
 #include <phobos/core/swapchain.hpp>
 
-#include <phobos/pipeline/pipeline_layout.hpp>
 #include <phobos/pipeline/pipeline.hpp>
 
 #include <phobos/util/log_interface.hpp>
@@ -35,7 +34,6 @@ struct VulkanContext : public EventListener<SwapchainRecreateEvent> {
 
     SwapchainDetails swapchain;
 
-    PipelineLayouts pipeline_layouts;
     PipelineManager pipelines;
 
     vk::RenderPass default_render_pass;
@@ -52,6 +50,8 @@ struct VulkanContext : public EventListener<SwapchainRecreateEvent> {
     Cache<vk::RenderPass, vk::RenderPassCreateInfo> renderpass_cache;
     Cache<vk::Framebuffer, vk::FramebufferCreateInfo> framebuffer_cache;
     Cache<vk::Pipeline, PipelineCreateInfo> pipeline_cache;
+    Cache<PipelineLayout, PipelineLayoutCreateInfo> pipeline_layout_cache;
+    Cache<vk::DescriptorSetLayout, DescriptorSetLayoutCreateInfo> set_layout_cache;
 
     void destroy();
 

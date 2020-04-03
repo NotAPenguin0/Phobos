@@ -8,6 +8,7 @@
 #include <phobos/renderer/instancing_buffer.hpp>
 #include <phobos/renderer/render_attachment.hpp>
 #include <phobos/renderer/render_target.hpp>
+#include <phobos/pipeline/pipeline.hpp>
 
 namespace ph {
 
@@ -45,7 +46,7 @@ struct FrameInfo {
 
     // Other resources
     MappedUBO vp_ubo;
-    InstancingBuffer instance_ssbo;
+    InstancingBuffer transform_ssbo;
     MappedUBO lights;
     vk::Sampler default_sampler;
 
@@ -55,6 +56,10 @@ struct FrameInfo {
     // Command buffers
     vk::CommandBuffer command_buffer;
     std::vector<vk::CommandBuffer> extra_command_buffers;
+
+    // TODO: PerFrameCache class?
+    Cache<vk::DescriptorSet, DescriptorSetBinding> descriptor_cache;
+    vk::DescriptorPool descriptor_pool;
 };
 
 }

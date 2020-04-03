@@ -13,8 +13,44 @@
 
 namespace ph {
 
+struct DescriptorSetLayoutCreateInfo {
+    stl::vector<vk::DescriptorSetLayoutBinding> bindings;
+    // Optional. Leave empty to use default flags
+    stl::vector<vk::DescriptorBindingFlags> flags;
+};
+
+struct DescriptorBinding {
+    stl::size_t binding = 0;
+    vk::DescriptorType type;
+
+    union DescriptorContents {
+        vk::DescriptorBufferInfo buffer;
+        vk::DescriptorImageInfo image;
+    };
+
+    stl::vector<DescriptorContents> descriptors;
+};
+
+struct DescriptorSetBinding {
+    stl::vector<DescriptorBinding> bindings;
+    // Leave this on nullptr to use default pool
+    vk::DescriptorPool pool = nullptr;
+    // No need to manually set this field, the renderer can figure this out
+    DescriptorSetLayoutCreateInfo set_layout;
+};
+
+struct PipelineLayoutCreateInfo {
+    DescriptorSetLayoutCreateInfo set_layout;
+    stl::vector<vk::PushConstantRange> push_constants;
+};
+
+struct PipelineLayout {
+    vk::PipelineLayout  layout;
+    vk::DescriptorSetLayout set_layout;
+};
+
 struct PipelineCreateInfo {
-    vk::PipelineLayout layout;
+    PipelineLayoutCreateInfo layout;
 
     vk::VertexInputBindingDescription vertex_input_binding;
     stl::vector<vk::VertexInputAttributeDescription> vertex_attributes;
@@ -41,7 +77,9 @@ private:
     vk::PipelineDynamicStateCreateInfo dynamic_state;
     vk::PipelineViewportStateCreateInfo viewport_state;
 
+    // These are set before creating the actual VkPipeline
     vk::RenderPass render_pass;
+    PipelineLayout pipeline_layout;
     stl::uint32_t subpass;
 };
 
@@ -50,9 +88,7 @@ public:
     void create_named_pipeline(std::string name, PipelineCreateInfo&& info);
     PipelineCreateInfo const* get_named_pipeline(std::string const& name) const;
 
-    // Destroys all stored pipelines.
     void destroy_all(vk::Device device);
-
 private:
     std::unordered_map<std::string, PipelineCreateInfo> pipeline_infos;
 };

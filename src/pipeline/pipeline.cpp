@@ -7,7 +7,7 @@ vk::GraphicsPipelineCreateInfo PipelineCreateInfo::vk_info() const {
 
     info.stageCount = shaders.size();
     info.pStages = shaders.data();
-    info.layout = layout;
+    info.layout = pipeline_layout.layout;
     info.pVertexInputState = &vertex_input;
     info.pInputAssemblyState = &input_assembly;
     info.pViewportState = &viewport_state;

@@ -336,7 +336,7 @@ int main() {
         render_graph->add_pass(stl::move(second_pass));
 
         ImGui::Render();
-        ImGui_ImplPhobos_RenderDrawData(ImGui::GetDrawData(), &frame_info, render_graph);
+        ImGui_ImplPhobos_RenderDrawData(ImGui::GetDrawData(), &frame_info, render_graph, &renderer);
 
         // Build the rendergraph. This creates resources like vkFramebuffers and a vkRenderPass for each ph::RenderPass
         render_graph->build(frame_info);

@@ -7,7 +7,6 @@
 #include <iostream>
 
 #include <phobos/pipeline/pipelines.hpp>
-#include <phobos/pipeline/layouts.hpp>
 
 namespace ph {
 
@@ -183,24 +182,38 @@ static vk::RenderPass create_swapchain_renderpass(VulkanContext& ctx) {
 }
 
 void VulkanContext::destroy() { 
-    pipelines.destroy_all(device);
-    pipeline_layouts.destroy_all(device);
     device.destroyRenderPass(default_render_pass);
     device.destroyRenderPass(swapchain_render_pass);
 
     for (auto&[info, pass] : renderpass_cache.get_all()) {
         device.destroyRenderPass(pass);
     }
+    renderpass_cache.get_keys().clear();
     renderpass_cache.get_all().clear();
 
     for (auto&[info, framebuf] : framebuffer_cache.get_all()) {
         device.destroyFramebuffer(framebuf);
     }
+    framebuffer_cache.get_keys().clear();
     framebuffer_cache.get_all().clear();
+    
+    for (auto&[hash, set_layout] : set_layout_cache.get_all()) {
+        device.destroyDescriptorSetLayout(set_layout);
+    }
+    set_layout_cache.get_all().clear();
 
+    for (auto&[hash, layout] : pipeline_layout_cache.get_all()) {
+        device.destroyPipelineLayout(layout.layout);
+    }
+    pipeline_layout_cache.get_all().clear();
+
+    // Destroys the shader modules
+    pipelines.destroy_all(device);
+    // Destroy the actual pipelines
     for (auto&[info, pipeline] : pipeline_cache.get_all()) {
         device.destroyPipeline(pipeline);
     }
+    pipeline_cache.get_keys().clear();
     pipeline_cache.get_all().clear();
 
     for (auto const& framebuf : swapchain.framebuffers) {
@@ -302,7 +315,6 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
 
     logger->write_fmt(log::Severity::Info, "Created framebuffers");
 
-    create_pipeline_layouts(context->device, context->pipeline_layouts);
     create_pipelines(*context, context->pipelines);
 
     logger->write_fmt(log::Severity::Info, "Created pipelines");
