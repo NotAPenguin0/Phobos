@@ -513,6 +513,7 @@ bool ImGui_ImplPhobos_CreateFontsTexture(vk::CommandBuffer cmd_buf) {
     vk::MappedMemoryRange range;
     range.memory = g_UploadBufferMemory;
     range.size = upload_size;
+    g_Context->device.flushMappedMemoryRanges(1, &range);
     g_Context->device.unmapMemory(g_UploadBufferMemory);
 
     // Copy to image
