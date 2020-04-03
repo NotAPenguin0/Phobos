@@ -335,21 +335,6 @@ int main() {
 
         render_graph->add_pass(stl::move(second_pass));
 
-        // Create ImGui renderpass. This renderpass will sample from the scene color attachment and output to the swapchain.
-//        ph::RenderPass imgui_pass;
-//        imgui_pass.pipeline_name = "generic";
-//        imgui_pass.sampled_attachments.push_back(offscreen_attachment);
-//        imgui_pass.sampled_attachments.push_back(color_attachment2);
-//        imgui_pass.outputs.push_back(frame_info.swapchain_color);
-
-        // Right now we just call the imgui_renderer callback in the imgui renderpass. Next up is making the imgui renderer
-        // use the draw commands api provided in ph::RenderPass
-//        imgui_pass.callback = [&imgui_renderer, &frame_info](ph::RenderPass& pass, vk::CommandBuffer& cmd_buf) {
-//            imgui_renderer.render_frame(pass, frame_info);
-//        };
-        // Submit ImGui renderpass
-//        render_graph->add_pass(stl::move(imgui_pass));
-
         ImGui::Render();
         ImGui_ImplPhobos_RenderDrawData(ImGui::GetDrawData(), &frame_info, render_graph);
 
