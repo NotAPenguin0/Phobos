@@ -102,7 +102,7 @@ RenderAttachment RenderAttachment::from_ref(VulkanContext* ctx, vk::Image image,
     uint32_t w, uint32_t h, vk::Format fmt) {
 
     RenderAttachment attachment(ctx);
-    ctx->event_dispatcher.add_listener(&attachment);
+    // NOTE: RenderAttachment constructor already adds the attachment to the listener list!
     attachment.owning = false;
     attachment.image = image;
     attachment.memory = memory;

@@ -175,12 +175,9 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
 
 FrameInfo& PresentManager::get_frame_info() {
     FrameInfo& frame = frames[frame_index];
-
-    frame.framebuffer = context.swapchain.framebuffers[image_index];
     frame.command_buffer = command_buffers[image_index];
     frame.frame_index = frame_index;
     frame.image_index = image_index;
-    frame.image = context.swapchain.images[image_index];
     // Make sure frame_index and image_index are set here!
     frame.swapchain_color = get_swapchain_attachment(frame);
 

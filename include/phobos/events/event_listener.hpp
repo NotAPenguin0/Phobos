@@ -5,7 +5,7 @@ namespace ph {
 
 template<typename Event>
 class EventListener {
-protected:
+public:
     friend class EventDispatcher;
     
     virtual void on_event(Event const& e) = 0;

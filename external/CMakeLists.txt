@@ -31,9 +31,8 @@ set(PHOBOS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_demo.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_widgets.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui.cpp"
-    # Mimas + Vulkan
+    # Mimas + Phobos! (All my own backends! :D)
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_mimas.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_vulkan.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_phobos.cpp"
     PARENT_SCOPE
 )

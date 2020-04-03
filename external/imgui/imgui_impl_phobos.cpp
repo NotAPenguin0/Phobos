@@ -577,7 +577,7 @@ void ImGui_ImplVulkan_OverwriteTexture(ImTextureID tex_id, vk::ImageView image_v
     try {
         descr_set = imgui_descrSets.at(static_cast<uint32_t>(reinterpret_cast<size_t>(tex_id)));
     } catch (std::out_of_range&) {
-        IM_ASSERT(false && "Dear ImGui - Vulkan: Failed to grab a VkDescriptorSet for this ImTextureID.");
+        IM_ASSERT(false && "Dear ImGui - Phobos: Failed to grab a VkDescriptorSet for this ImTextureID.");
     }
 
     // Update the Descriptor Set:
@@ -602,7 +602,7 @@ void ImGui_ImplPhobos_RemoveTexture(ImTextureID tex_id) {
     try {
         descrSet = imgui_descrSets.at(static_cast<uint32_t>(reinterpret_cast<size_t>(tex_id)));
     } catch (std::out_of_range&) {
-        IM_ASSERT(false && "Dear ImGui - Vulkan: Failed to grab a VkDescriptorSet for this ImTextureID.");
+        IM_ASSERT(false && "Dear ImGui - Phobos: Failed to grab a VkDescriptorSet for this ImTextureID.");
     }
 
     g_Context->device.freeDescriptorSets(g_DescriptorPool, descrSet);
