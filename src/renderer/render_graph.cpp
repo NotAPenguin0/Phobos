@@ -3,14 +3,16 @@
 #include <stl/enumerate.hpp>
 #include <stl/span.hpp>
 
+#include <phobos/pipeline/pipeline.hpp>
+
 /*
 
 TODO: 
 
 [X] 1) Create vkRenderPass for every ph::RenderPass
-[-] 2) Create ph::RenderTarget for every ph::RenderPass
-[-] 3) Cache vkRenderPass (and vkFrameBuffer? )
-[-] 4) Integrate imgui pass
+[X] 2) Create ph::RenderTarget for every ph::RenderPass
+[X] 3) Cache vkRenderPass (and vkFrameBuffer? )
+[X] 4) Integrate imgui pass
 [-] 5) Synchronization if necessary
 
 */
@@ -217,70 +219,6 @@ void RenderGraph::create_render_passes(FrameInfo& frame) {
         // Next we have to create the vkFramebuffer for this renderpass. This is abstracted away in the RenderTarget class
         it->target = RenderTarget(ctx, it->render_pass, it->outputs);
 
-        // Now that we have the renderpass, we can create the VkPipeline (or get it from the cache)
-        PipelineCreateInfo const* pci_raw = ctx->pipelines.get_named_pipeline(it->pipeline_name);
-        PipelineCreateInfo pci = *pci_raw;
-        pci.finalize();
-        pci.render_pass = it->render_pass;
-        pci.subpass = 0; // #Tag(Subpass)
-        // Now we have to create the VkPipelineLayout and VkDescriptorSetLayout
-
-        // Create or get descriptor set layout from cache
-        vk::DescriptorSetLayout descriptor_set_layout;
-        auto set_layout_opt = ctx->set_layout_cache.get(pci.layout.set_layout);
-        if (!set_layout_opt) {
-            // We have to create the descriptor set layout here
-            vk::DescriptorSetLayoutCreateInfo set_layout_info;
-            set_layout_info.bindingCount = pci.layout.set_layout.bindings.size();
-            set_layout_info.pBindings = pci.layout.set_layout.bindings.data();
-            vk::DescriptorSetLayoutBindingFlagsCreateInfo flags_info;
-            if (!pci.layout.set_layout.flags.empty()) {
-                STL_ASSERT(pci.layout.set_layout.bindings.size() == pci.layout.set_layout.flags.size(), "flag count doesn't match binding count");
-                flags_info.bindingCount = pci.layout.set_layout.bindings.size();
-                flags_info.pBindingFlags = pci.layout.set_layout.flags.data();
-                set_layout_info.pNext = &flags_info;
-            }
-            vk::DescriptorSetLayout set_layout = ctx->device.createDescriptorSetLayout(set_layout_info); 
-            // Store for further use when creating the pipeline layout
-            descriptor_set_layout = set_layout;
-            ctx->set_layout_cache.insert(pci.layout.set_layout, stl::move(set_layout));
-        } else {
-            // The set layout was already created at some point
-            descriptor_set_layout = *set_layout_opt;
-        }
-
-        // Create or get pipeline layout from cache
-        auto pipeline_layout_opt = ctx->pipeline_layout_cache.get(pci.layout);
-        if (!pipeline_layout_opt) {
-            // We have to create a new pipeline layout
-            vk::PipelineLayoutCreateInfo layout_create_info;
-            layout_create_info.pushConstantRangeCount = pci.layout.push_constants.size();
-            layout_create_info.pPushConstantRanges = pci.layout.push_constants.data();
-            layout_create_info.setLayoutCount = 1;
-            layout_create_info.pSetLayouts = &descriptor_set_layout;
-
-            vk::PipelineLayout vk_layout = ctx->device.createPipelineLayout(layout_create_info);
-            PipelineLayout layout;
-            layout.layout = vk_layout;
-            layout.set_layout = descriptor_set_layout;
-            pci.pipeline_layout = layout;
-
-            it->pipeline_layout = layout;
-            ctx->pipeline_layout_cache.insert(pci.layout, stl::move(layout));
-        } else {
-            // Pipeline layout was already created
-            pci.pipeline_layout = *pipeline_layout_opt;
-            it->pipeline_layout = *pipeline_layout_opt;
-        }
-        
-        auto pipeline = ctx->pipeline_cache.get(pci);
-        if (pipeline) { it->pipeline = *pipeline; }
-        else {
-            vk::Pipeline ppl = ctx->device.createGraphicsPipeline(nullptr, pci.vk_info());
-            it->pipeline = ppl;
-            ctx->pipeline_cache.insert(pci, stl::move(ppl));
-        }
-        
         // Set correct offset for transforms
         it->transforms_offset = current_transform_offset;
         current_transform_offset += it->transforms.size();

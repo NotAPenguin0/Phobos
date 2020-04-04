@@ -15,6 +15,8 @@ namespace ph {
 class PresentManager;
 class RenderGraph;
 
+// TODO: Clean up this struct + make stuff private
+
 struct FrameInfo {
     PresentManager* present_manager;
     RenderGraph* render_graph;

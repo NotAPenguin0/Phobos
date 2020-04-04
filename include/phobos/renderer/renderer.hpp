@@ -5,8 +5,11 @@
 #include <phobos/present/frame_info.hpp>
 
 #include <phobos/renderer/render_graph.hpp>
+#include <phobos/renderer/command_buffer.hpp>
 
 #include <phobos/events/event_listener.hpp>
+
+// TODO: Custom command buffer class?
 
 namespace ph {
 
@@ -16,14 +19,16 @@ public:
 
     void render_frame(FrameInfo& info);
 
-    // TODO: More high-level utilities to manage this. This can only be called inside the renderpass callback.
+    // This can only be called inside the renderpass callback.
     // The descriptor set layout will be set by this function. The pNext parameter will be passed into the vk::DescriptorSetAllocateInfo::pNext
     // field.
     vk::DescriptorSet get_descriptor(FrameInfo& frame, RenderPass& pass, DescriptorSetBinding set_binding, void* pNext = nullptr);
 
     // Execute the draw commands in the pass::draw_commands array with the default fixed rendering pipeline.
-    // Typically you want to call this function when you simply want to render the submitted draws without any special processing
-    void execute_draw_commands(FrameInfo& frame, RenderPass& pass, vk::CommandBuffer& cmd_buffer);
+    // Typically you want to call this function when you simply want to render the submitted draws without any special processing.
+    void execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer);
+
+    Pipeline get_pipeline(std::string_view name, RenderPass& pass);
 
     void destroy();
 
@@ -37,7 +42,6 @@ private:
 
     void update_camera_data(FrameInfo& info, RenderGraph const* graph);
     void update_model_matrices(FrameInfo& info, RenderGraph const* graph);
-    void update_materials(FrameInfo& info, RenderGraph const* graph);
     void update_lights(FrameInfo& info, RenderGraph const* graph);
 
     vk::DescriptorSet get_fixed_descriptor_set(FrameInfo& frame, RenderGraph const* graph);

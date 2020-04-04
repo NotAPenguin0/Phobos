@@ -6,12 +6,15 @@
 #include <unordered_map>
 #include <string>
 
+#include <stl/span.hpp>
 #include <stl/vector.hpp>
 
 #include <phobos/pipeline/pipelines.hpp>
 
 
 namespace ph {
+
+struct RenderPass;
 
 struct DescriptorSetLayoutCreateInfo {
     stl::vector<vk::DescriptorSetLayoutBinding> bindings;
@@ -31,6 +34,11 @@ struct DescriptorBinding {
     stl::vector<DescriptorContents> descriptors;
 };
 
+DescriptorBinding make_image_descriptor(uint32_t binding, vk::ImageView view, vk::Sampler sampler, vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);
+DescriptorBinding make_image_descriptor_array(uint32_t binding, stl::span<vk::ImageView> views, vk::Sampler sampler,
+    vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);
+DescriptorBinding make_buffer_descriptor(uint32_t binding, vk::DescriptorType type, vk::Buffer buffer, vk::DeviceSize size, vk::DeviceSize offset = 0);
+
 struct DescriptorSetBinding {
     stl::vector<DescriptorBinding> bindings;
     // Leave this on nullptr to use default pool
@@ -47,6 +55,13 @@ struct PipelineLayoutCreateInfo {
 struct PipelineLayout {
     vk::PipelineLayout  layout;
     vk::DescriptorSetLayout set_layout;
+};
+
+struct Pipeline {
+    vk::Pipeline pipeline;
+    PipelineLayout layout;
+
+    std::string name;
 };
 
 struct PipelineCreateInfo {
@@ -71,6 +86,7 @@ private:
     friend class Renderer;
     friend struct std::hash<PipelineCreateInfo>;
     friend class RenderGraph;
+    friend Pipeline create_or_get_pipeline(VulkanContext*, RenderPass*, PipelineCreateInfo);
 
     vk::PipelineVertexInputStateCreateInfo vertex_input;
     vk::PipelineColorBlendStateCreateInfo blending;
@@ -82,6 +98,8 @@ private:
     PipelineLayout pipeline_layout;
     stl::uint32_t subpass;
 };
+
+Pipeline create_or_get_pipeline(VulkanContext* ctx, RenderPass* pass, PipelineCreateInfo pci);
 
 class PipelineManager {
 public:

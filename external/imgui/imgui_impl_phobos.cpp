@@ -14,10 +14,11 @@
 #include <phobos/util/buffer_util.hpp>
 #include <phobos/util/image_util.hpp>
 
-#include <unordered_map>
-#include <stdexcept>
-#include <mutex>
-
+/* Notes
+ * In ImGui_ImplPhobos, an ImTextureID is simply a VkImageView handle.
+ * To obtain a handle, you can call ImGui_ImplPhobos_AddTexture() or simply do
+ * reinterpret_cast<ImTextureID>(my_vk_image_view);
+ */
 
 // TODO: Custom VkAllocationCallbacks
 
@@ -374,7 +375,6 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
     ImGui_ImplPhobos_UpdateBuffers(vertex_buffer, index_buffer, draw_data);
 
     ph::RenderPass render_pass;
-    render_pass.pipeline_name = "ImGui_ImplPhobos_pipeline";
 
     ph::RenderAttachment swapchain = frame->present_manager->get_swapchain_attachment(*frame);
     // TODO: Make this more customizable? => Probably just pass it as a parameter to ImGui_ImplPhobos_RenderDrawData
@@ -399,14 +399,16 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
         }
     }
 
-    render_pass.callback = [draw_data, frame, renderer, fb_width, fb_height](ph::RenderPass& pass, vk::CommandBuffer& cmd_buf) {
-        cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, pass.pipeline);
+    render_pass.callback = [draw_data, frame, renderer, fb_width, fb_height](ph::CommandBuffer& cmd_buf) {
+        ph::RenderPass& pass = *cmd_buf.get_active_renderpass();
+        ph::Pipeline pipeline = renderer->get_pipeline("ImGui_ImplPhobos_pipeline", pass);
+        cmd_buf.bind_pipeline(pipeline);
+
         ImGui_ImplPhobos_Buffer& vtx_buffer = g_VertexBuffers[frame->frame_index];
         ImGui_ImplPhobos_Buffer& idx_buffer = g_IndexBuffers[frame->frame_index];
 
-        vk::DeviceSize offset = 0;
-        cmd_buf.bindVertexBuffers(0, 1, &vtx_buffer.buffer, &offset);
-        cmd_buf.bindIndexBuffer(idx_buffer.buffer, offset, sizeof(ImDrawIdx) == 2 ? vk::IndexType::eUint16 : vk::IndexType::eUint32);
+        cmd_buf.bind_vertex_buffer(0, vtx_buffer.buffer);
+        cmd_buf.bind_index_buffer(idx_buffer.buffer, 0, sizeof(ImDrawIdx) == 2 ? vk::IndexType::eUint16 : vk::IndexType::eUint32);
         vk::Viewport viewport;
         viewport.x = 0;
         viewport.y = 0;
@@ -414,7 +416,7 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
         viewport.height = (float)fb_height;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
-        cmd_buf.setViewport(0, viewport);
+        cmd_buf.set_viewport(viewport);
 
         float scale[2];
         scale[0] = 2.0f / draw_data->DisplaySize.x;
@@ -422,8 +424,8 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
         float translate[2];
         translate[0] = -1.0f - draw_data->DisplayPos.x * scale[0];
         translate[1] = -1.0f - draw_data->DisplayPos.y * scale[1];
-        cmd_buf.pushConstants(pass.pipeline_layout.layout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(float) * 2, scale);
-        cmd_buf.pushConstants(pass.pipeline_layout.layout, vk::ShaderStageFlagBits::eVertex, sizeof(float) * 2, sizeof(float) * 2, translate);
+        cmd_buf.push_constants(vk::ShaderStageFlagBits::eVertex, 0, sizeof(float) * 2, scale);
+        cmd_buf.push_constants(vk::ShaderStageFlagBits::eVertex, sizeof(float) * 2, sizeof(float) * 2, translate);
 
         ImVec2 clip_off = draw_data->DisplayPos;         // (0,0) unless using multi-viewportManager
         ImVec2 clip_scale = draw_data->FramebufferScale; // (1,1) unless using retina display which are often (2,2)
@@ -454,23 +456,18 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
                     scissor.offset.y = (int32_t)(clip_rect.y);
                     scissor.extent.width = (uint32_t)(clip_rect.z - clip_rect.x);
                     scissor.extent.height = (uint32_t)(clip_rect.w - clip_rect.y);
-                    cmd_buf.setScissor(0, scissor);
+                    
+                    cmd_buf.set_scissor(scissor);
                     // Bind descriptorset with font or user texture
                     vk::ImageView img_view = static_cast<vk::ImageView>(reinterpret_cast<VkImageView>(cmd->TextureId));
                     // Get descriptor set from the renderer
-                    ph::DescriptorSetBinding binding;
-                    binding.pool = g_DescriptorPool;
-                    binding.bindings.emplace_back();
-                    binding.bindings.back().binding = 0;
-                    binding.bindings.back().type = vk::DescriptorType::eCombinedImageSampler;
-                    // DescriptorBufferInfo even though we are writing image data. We really need a simple API for this
-                    binding.bindings.back().descriptors.emplace_back(vk::DescriptorBufferInfo{});
-                    binding.bindings.back().descriptors.back().image.imageView = img_view;
-                    binding.bindings.back().descriptors.back().image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-                    binding.bindings.back().descriptors.back().image.sampler = g_FontSampler;
-                    vk::DescriptorSet descr_set = renderer->get_descriptor(*frame, pass, binding);
-                    cmd_buf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pass.pipeline_layout.layout, 0, descr_set, nullptr);
-                    cmd_buf.drawIndexed(cmd->ElemCount, 1, cmd->IdxOffset + global_idx_offset, cmd->VtxOffset + global_vtx_offset, 0);
+                    ph::DescriptorSetBinding descriptor_set;
+                    descriptor_set.pool = g_DescriptorPool;
+                    descriptor_set.bindings.push_back(ph::make_image_descriptor(0, img_view, g_FontSampler));
+                    vk::DescriptorSet descr_set = renderer->get_descriptor(*frame, pass, descriptor_set);
+
+                    cmd_buf.bind_descriptor_set(0, descr_set)
+                           .draw_indexed(cmd->ElemCount, 1, cmd->IdxOffset + global_idx_offset, cmd->VtxOffset + global_vtx_offset, 0);
                 }
             }       
             global_idx_offset += cmd_list->IdxBuffer.Size;

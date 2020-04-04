@@ -14,45 +14,24 @@ Renderer::Renderer(VulkanContext& context) : ctx(context) {
 } 
 
 void Renderer::render_frame(FrameInfo& info) {
-    // https://discordapp.com/channels/427551838099996672/427951526967902218/680723607831314527
-    vk::CommandBuffer cmd_buffer = info.command_buffer;
-    // Record command buffer
-    vk::CommandBufferBeginInfo begin_info;
-    begin_info.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
-    cmd_buffer.begin(begin_info);
-
-    get_fixed_descriptor_set(info, info.render_graph);
+    CommandBuffer cmd_buffer { info.command_buffer };
+    cmd_buffer.begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 
     update_camera_data(info, info.render_graph);
     update_lights(info, info.render_graph);
     update_model_matrices(info, info.render_graph);
 
     for (auto& pass : info.render_graph->passes) {
-        // Start render pass
-        vk::RenderPassBeginInfo render_pass_info;
-        render_pass_info.renderPass = pass.render_pass;
-        render_pass_info.framebuffer = pass.target.get_framebuf();
-        render_pass_info.renderArea.offset = vk::Offset2D{ 0, 0 };
-        render_pass_info.renderArea.extent = vk::Extent2D{ pass.target.get_width(), pass.target.get_height() };
-
-        // TODO: Match clear values to attachment count
-        render_pass_info.clearValueCount = 2;
-        vk::ClearValue clear_values[2];
-        clear_values[0].color = pass.clear_color;
-        clear_values[1].depthStencil = vk::ClearDepthStencilValue {1.0f, 0};
-        render_pass_info.pClearValues = clear_values;
-
-        cmd_buffer.beginRenderPass(render_pass_info, vk::SubpassContents::eInline);
-        // Call the RenderPass callback
-        pass.callback(pass, cmd_buffer);
-        cmd_buffer.endRenderPass();
+        cmd_buffer.begin_renderpass(pass);
+        pass.callback(cmd_buffer);
+        cmd_buffer.end_renderpass();
     }
 
     cmd_buffer.end();
 }
 
 vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, RenderPass& pass, DescriptorSetBinding set_binding, void* pNext) {
-    auto const& set_layout_info = ctx.pipelines.get_named_pipeline(pass.pipeline_name)->layout.set_layout;
+    auto const& set_layout_info = ctx.pipelines.get_named_pipeline(pass.active_pipeline.name)->layout.set_layout;
     return get_descriptor(frame, set_layout_info, stl::move(set_binding), pNext);
 }
 
@@ -68,7 +47,8 @@ vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, DescriptorSetLayout
         vk::DescriptorSetAllocateInfo alloc_info;
         // Get set layout. We can assume that it has already been created. If not, something went very wrong
         vk::DescriptorSetLayout* set_layout = ctx.set_layout_cache.get(set_binding.set_layout);
-        STL_ASSERT(set_layout, "see above comment");
+        STL_ASSERT(set_layout, "Descriptor requested without creating desctiptor set layout first. This can happen if there is"
+            " no active pipeline bound.");
         alloc_info.pSetLayouts = set_layout;
         // If a custom pool was specified, use that one instead of the default one.
         alloc_info.descriptorPool = set_binding.pool ? set_binding.pool : frame.descriptor_pool;
@@ -113,15 +93,16 @@ vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, DescriptorSetLayout
     }
 }
 
-void Renderer::execute_draw_commands(FrameInfo& frame, RenderPass& pass, vk::CommandBuffer& cmd_buffer) {
-    // TODO: Multiple pipelines
-    // TODO execute_draw_commands should probably always use the generic pipeline
-    vk::Pipeline pipeline = pass.pipeline;
-    cmd_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+void Renderer::execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer) {
+    ph::RenderPass* pass_ptr = cmd_buffer.get_active_renderpass();
+    STL_ASSERT(pass_ptr, "execute_draw_commands called outside of an active renderpass");
+    ph::RenderPass& pass = *pass_ptr;
+    Pipeline pipeline = get_pipeline("generic", pass);
+    cmd_buffer.bind_pipeline(pipeline);
 
     // Allocate fixed descriptor set and bind it
     vk::DescriptorSet fixed_set = get_fixed_descriptor_set(frame, frame.render_graph);
-    cmd_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pass.pipeline_layout.layout, 0, fixed_set, nullptr);
+    cmd_buffer.bind_descriptor_set(0, fixed_set);
 
     vk::Viewport viewport;
     viewport.x = 0;
@@ -130,32 +111,37 @@ void Renderer::execute_draw_commands(FrameInfo& frame, RenderPass& pass, vk::Com
     viewport.height = pass.target.get_height();
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
-    cmd_buffer.setViewport(0, viewport);
+    cmd_buffer.set_viewport(viewport);
 
     vk::Rect2D scissor;
     scissor.offset = vk::Offset2D{0, 0};
     scissor.extent = vk::Extent2D{ pass.target.get_width(), pass.target.get_height() };
-    cmd_buffer.setScissor(0, scissor);
+    cmd_buffer.set_scissor(scissor);
 
     for (auto[idx, draw] : stl::enumerate(pass.draw_commands.begin(), pass.draw_commands.end())) {
         Mesh* mesh = draw.mesh;
         // TODO: Sort by material/pipeline
         Material material = frame.render_graph->materials[draw.material_index];
         // Bind draw data
-        vk::DeviceSize const offset = 0;
-        cmd_buffer.bindVertexBuffers(0, mesh->get_vertices(), offset);
-        cmd_buffer.bindIndexBuffer(mesh->get_indices(), 0, vk::IndexType::eUint32);
+        cmd_buffer.bind_vertex_buffer(0, mesh->get_vertices());
+        cmd_buffer.bind_index_buffer(mesh->get_indices());
 
         // update push constant ranges
         stl::uint32_t const transform_index = idx + pass.transforms_offset;
         uint32_t push_indices[2] { draw.material_index, transform_index };
-        cmd_buffer.pushConstants(pass.pipeline_layout.layout, 
-            vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eVertex, 0, 2 * sizeof(uint32_t), push_indices);
-
+        cmd_buffer.push_constants(vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eVertex, 0, 2 * sizeof(uint32_t), push_indices);
         // Execute drawcall
-        cmd_buffer.drawIndexed(mesh->get_index_count(), 1, 0, 0, 0);
+        cmd_buffer.draw_indexed(mesh->get_index_count(), 1, 0, 0, 0);
         frame.draw_calls++;
     }
+}
+
+Pipeline Renderer::get_pipeline(std::string_view name, RenderPass& pass) {
+    ph::PipelineCreateInfo const* pci = ctx.pipelines.get_named_pipeline(std::string(name));
+    STL_ASSERT(pci, "pipeline not created");
+    Pipeline pipeline = create_or_get_pipeline(&ctx, &pass, *pci);
+    pipeline.name = name;
+    return pipeline;
 }
 
 void Renderer::destroy() {
@@ -195,29 +181,6 @@ void Renderer::update_model_matrices(FrameInfo& info, RenderGraph const* graph) 
     }
 }
 
-void Renderer::update_materials(FrameInfo& info, RenderGraph const* graph) {
-    // This is taken care of by get_fixed_descriptor_set!
-    if (graph->materials.empty()) return;
-
-    std::vector<vk::DescriptorImageInfo> img_info(graph->materials.size());
-    for (size_t i = 0; i < graph->materials.size(); ++i) {
-        Texture* texture = graph->materials[i].texture;
-        img_info[i].imageView = texture->view_handle();
-        img_info[i].imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-        img_info[i].sampler = info.default_sampler;
-    }
-
-    vk::WriteDescriptorSet write;
-    write.dstSet = info.fixed_descriptor_set;
-    write.dstBinding = meta::bindings::generic::textures;
-    write.descriptorCount = graph->materials.size();
-    write.dstArrayElement = 0;
-    write.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-    write.pImageInfo = img_info.data();
-
-    ctx.device.updateDescriptorSets(write, nullptr);
-}
-
 void Renderer::update_lights(FrameInfo& info, RenderGraph const* graph) {
     if (graph->point_lights.empty()) return;
     // Update point lights
@@ -231,46 +194,19 @@ void Renderer::update_lights(FrameInfo& info, RenderGraph const* graph) {
 
 vk::DescriptorSet Renderer::get_fixed_descriptor_set(FrameInfo& frame, RenderGraph const* graph) {
     DescriptorSetBinding bindings;
-
-
     bindings.bindings.resize(4);
     auto& cam = bindings.bindings[meta::bindings::generic::camera];
     auto& transform = bindings.bindings[meta::bindings::generic::transforms];
     auto& mtl = bindings.bindings[meta::bindings::generic::textures];
     auto& lights = bindings.bindings[meta::bindings::generic::lights];
 
-    cam.type = vk::DescriptorType::eUniformBuffer;
-    cam.binding = meta::bindings::generic::camera;
-    cam.descriptors.emplace_back();
-    cam.descriptors.back().buffer.buffer = frame.vp_ubo.buffer;
-    cam.descriptors.back().buffer.offset = 0;
-    cam.descriptors.back().buffer.range = frame.vp_ubo.size;
-
-    transform.type = vk::DescriptorType::eStorageBuffer;
-    transform.binding = meta::bindings::generic::transforms;
-    transform.descriptors.emplace_back();
-    transform.descriptors.back().buffer.buffer = frame.transform_ssbo.buffer_handle();
-    transform.descriptors.back().buffer.offset = 0;
-    transform.descriptors.back().buffer.range = frame.transform_ssbo.size();
-
-    mtl.binding = meta::bindings::generic::textures;
-    mtl.type = vk::DescriptorType::eCombinedImageSampler;
-    mtl.descriptors.reserve(graph->materials.size());
-    for (stl::size_t i = 0; i < graph->materials.size(); ++i) {
-        vk::DescriptorImageInfo info;
-        info.sampler = frame.default_sampler;
-        info.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-        info.imageView = graph->materials[i].texture->view_handle();
-        mtl.descriptors.emplace_back();
-        mtl.descriptors.back().image = info;
-    }
-    
-    lights.type = vk::DescriptorType::eUniformBuffer;
-    lights.binding = meta::bindings::generic::lights;
-    lights.descriptors.emplace_back();
-    lights.descriptors.back().buffer.buffer = frame.lights.buffer;
-    lights.descriptors.back().buffer.offset = 0;
-    lights.descriptors.back().buffer.range = frame.lights.size;
+    cam = make_buffer_descriptor(meta::bindings::generic::camera, vk::DescriptorType::eUniformBuffer, frame.vp_ubo.buffer, frame.vp_ubo.size);
+    transform = make_buffer_descriptor(meta::bindings::generic::transforms, vk::DescriptorType::eStorageBuffer, frame.transform_ssbo.buffer_handle(), frame.transform_ssbo.size());
+    stl::vector<vk::ImageView> texture_views;
+    texture_views.reserve(graph->materials.size());
+    for (auto const& mat : graph->materials) { texture_views.push_back(mat.texture->view_handle()); }
+    mtl = make_image_descriptor_array(meta::bindings::generic::textures, texture_views, frame.default_sampler);
+    lights = make_buffer_descriptor(meta::bindings::generic::lights, vk::DescriptorType::eUniformBuffer, frame.lights.buffer, frame.lights.size);
 
     // We need variable count to use descriptor indexing
     vk::DescriptorSetVariableDescriptorCountAllocateInfo variable_count_info;

@@ -2,7 +2,6 @@
 #include <phobos/core/vulkan_context.hpp>
 #include <phobos/present/present_manager.hpp>
 #include <phobos/renderer/renderer.hpp>
-#include <phobos/renderer/imgui_renderer.hpp>
 #include <phobos/renderer/texture.hpp>
 #include <phobos/util/log_interface.hpp>
 
@@ -296,7 +295,6 @@ int main() {
 
         // Main render pass. This render pass renders the scene to an offscreen texture
         ph::RenderPass main_pass;
-        main_pass.pipeline_name = "generic";
         main_pass.sampled_attachments = {};
         main_pass.outputs.push_back(offscreen_attachment);
         main_pass.outputs.push_back(depth_attachment);
@@ -310,15 +308,14 @@ int main() {
         main_pass.draw_commands.push_back(draw);
 
         // This is the most basic callback to get something rendered.
-        main_pass.callback = [&frame_info, &renderer](ph::RenderPass& pass, vk::CommandBuffer& cmd_buf) {
-            renderer.execute_draw_commands(frame_info, pass, cmd_buf);
+        main_pass.callback = [&frame_info, &renderer](ph::CommandBuffer& cmd_buf) {
+            renderer.execute_draw_commands(frame_info, cmd_buf);
         };
 
         // Send the renderpass to the graph
         render_graph->add_pass(stl::move(main_pass));
 
         ph::RenderPass second_pass;
-        second_pass.pipeline_name = "generic";
         second_pass.sampled_attachments = {};
         second_pass.outputs.push_back(color_attachment2);
         second_pass.outputs.push_back(depth_attachment);
@@ -329,8 +326,8 @@ int main() {
         glm::mat4 transform_2 = glm::scale(glm::mat4(1.0), glm::vec3(1, 1, 1));
         second_pass.transforms.push_back(transform_2);
         second_pass.draw_commands.push_back(draw2);
-        second_pass.callback = [&frame_info, &renderer](ph::RenderPass& pass, vk::CommandBuffer& cmd_buf) {
-            renderer.execute_draw_commands(frame_info, pass, cmd_buf);
+        second_pass.callback = [&frame_info, &renderer](ph::CommandBuffer& cmd_buf) {
+            renderer.execute_draw_commands(frame_info, cmd_buf);
         };
 
         render_graph->add_pass(stl::move(second_pass));

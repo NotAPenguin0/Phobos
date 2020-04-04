@@ -6,6 +6,7 @@
 
 #include <phobos/renderer/render_attachment.hpp>
 #include <phobos/renderer/render_target.hpp>
+#include <phobos/renderer/command_buffer.hpp>
 
 #include <phobos/renderer/mesh.hpp>
 #include <phobos/renderer/material.hpp>
@@ -14,12 +15,11 @@
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 
+#include <phobos/pipeline/pipeline.hpp>
+
 namespace ph {
 
 struct RenderPass {
-    // TODO: Multiple pipelines
-    std::string pipeline_name;
-
     stl::vector<RenderAttachment> sampled_attachments;
     stl::vector<RenderAttachment> outputs;
 
@@ -38,14 +38,14 @@ struct RenderPass {
     stl::vector<DrawCommand> draw_commands;
 
     // This callback is called right before executing the renderpass' draw commands
-    std::function<void(RenderPass&, vk::CommandBuffer&)> callback = [](RenderPass&, vk::CommandBuffer&) {};
+    std::function<void(CommandBuffer&)> callback = [](CommandBuffer&) {};
 
     // These are all modified by the render graph. Don't manually set these fields.
     vk::RenderPass render_pass;
     RenderTarget target;
     stl::uint32_t transforms_offset = 0;
-    vk::Pipeline pipeline;
-    PipelineLayout pipeline_layout;
+
+    Pipeline active_pipeline;
 };
 
 }
