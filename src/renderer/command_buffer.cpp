@@ -102,19 +102,17 @@ CommandBuffer& CommandBuffer::begin_renderpass(ph::RenderPass& pass) {
     info.renderArea.offset = vk::Offset2D { 0, 0 };
     info.renderArea.extent = vk::Extent2D { pass.target.get_width(), pass.target.get_height() };
 
-    // TODO: Match clear values to attachment count
-    info.clearValueCount = 2;
-    vk::ClearValue clear_values[2];
-    clear_values[0].color = pass.clear_color;
-    clear_values[1].depthStencil = vk::ClearDepthStencilValue {1.0f, 0};
-    info.pClearValues = clear_values;
+    info.clearValueCount = pass.clear_values.size();
+    info.pClearValues = pass.clear_values.data();
 
     cmd_buf.beginRenderPass(info, vk::SubpassContents::eInline);
+    pass.active = true;
 
     return *this;
 }
 
 CommandBuffer& CommandBuffer::end_renderpass() {
+    active_renderpass->active = false;
     cmd_buf.endRenderPass();
     return *this;
 }

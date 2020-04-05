@@ -18,31 +18,19 @@ class RenderGraph;
 // TODO: Clean up this struct + make stuff private
 
 struct FrameInfo {
-    PresentManager* present_manager;
     RenderGraph* render_graph;
-
+    PresentManager* present_manager;
+    // Misc info. Do not modify
+    size_t draw_calls;
     size_t frame_index;
     size_t image_index;
-
-    // Misc info
-    size_t draw_calls;
-
-    // Render target
-    vk::Framebuffer framebuffer;
-    vk::Image image;
-
-    vk::Extent2D render_target_extent;
-
-    // Main attachments for rendering
-    RenderAttachment swapchain_color;
-
-    RenderTarget swapchain_target;
-
-    RenderTarget offscreen_target;
+private:
+    friend class RenderGraph;
+    friend class PresentManager;
+    friend class Renderer;
 
     // Synchronization
     vk::Fence fence;
-
     vk::Semaphore image_available;
     vk::Semaphore render_finished;
 
@@ -52,12 +40,7 @@ struct FrameInfo {
     MappedUBO lights;
     vk::Sampler default_sampler;
 
-    // Descriptors
-    vk::DescriptorSet fixed_descriptor_set;
-
-    // Command buffers
     vk::CommandBuffer command_buffer;
-    std::vector<vk::CommandBuffer> extra_command_buffers;
 
     // TODO: PerFrameCache class?
     Cache<vk::DescriptorSet, DescriptorSetBinding> descriptor_cache;

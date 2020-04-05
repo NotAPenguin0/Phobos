@@ -28,12 +28,14 @@ void RenderGraph::add_pass(RenderPass&& pass) {
     passes.push_back(stl::move(pass));
 }
 
-void RenderGraph::build(FrameInfo& frame) {
-    create_render_passes(frame);
+void RenderGraph::build() {
+    create_render_passes();
 }
 
-static bool is_swapchain_attachment(FrameInfo& frame, RenderAttachment& attachment) {
-    if (attachment.image_handle() == frame.swapchain_color.image_handle()) { return true; }
+static bool is_swapchain_attachment(VulkanContext* ctx, RenderAttachment& attachment) {
+    for (auto img : ctx->swapchain.images) {
+        if (attachment.image_handle() == img) { return true; }
+    }
     return false;
 }
 
@@ -65,7 +67,7 @@ static vk::ImageLayout get_output_layout_for_format(vk::Format fmt) {
     return vk::ImageLayout::eColorAttachmentOptimal;
 }
 
-static vk::ImageLayout get_final_layout(FrameInfo& frame, stl::span<RenderPass> passes, stl::span<RenderPass>::iterator pass, 
+static vk::ImageLayout get_final_layout(VulkanContext* ctx, stl::span<RenderPass> passes, stl::span<RenderPass>::iterator pass, 
     stl::vector<RenderAttachment>::iterator attachment) {
 
     // For the final layout, there are 3 (4?) options:
@@ -85,7 +87,7 @@ static vk::ImageLayout get_final_layout(FrameInfo& frame, stl::span<RenderPass> 
     // First, we create a span of passes following the current renderpass. We check if this pass is the last pass first.
     if (pass == passes.end() - 1) {
         // In this case, the attachments are not used later. We only need to check if this attachment is a swapchain attachment.
-        if (is_swapchain_attachment(frame, *attachment)) {
+        if (is_swapchain_attachment(ctx, *attachment)) {
             // Case 2
             return vk::ImageLayout::ePresentSrcKHR;
         } 
@@ -119,7 +121,7 @@ static vk::ImageLayout get_final_layout(FrameInfo& frame, stl::span<RenderPass> 
     return get_output_layout_for_format(attachment->get_format());
 }
 
-static stl::vector<vk::AttachmentDescription> get_attachment_descriptions(FrameInfo& frame, stl::span<RenderPass> passes, 
+static stl::vector<vk::AttachmentDescription> get_attachment_descriptions(VulkanContext* ctx, stl::span<RenderPass> passes, 
     stl::span<RenderPass>::iterator pass) {
 
     stl::vector<vk::AttachmentDescription> attachments;
@@ -138,7 +140,7 @@ static stl::vector<vk::AttachmentDescription> get_attachment_descriptions(FrameI
 
         // Now we have to find the correct attachment layouts to use.
         description.initialLayout = vk::ImageLayout::eUndefined;
-        description.finalLayout = get_final_layout(frame, passes, pass, &attachment);
+        description.finalLayout = get_final_layout(ctx, passes, pass, &attachment);
 
         attachments.push_back(stl::move(description));
     }
@@ -172,10 +174,10 @@ static std::optional<vk::AttachmentReference> get_depth_reference(stl::span<vk::
 }
 
 
-void RenderGraph::create_render_passes(FrameInfo& frame) {
+void RenderGraph::create_render_passes() {
     stl::size_t current_transform_offset = 0;
     for (auto it = passes.begin(); it != passes.end(); ++it) {
-        auto attachments = get_attachment_descriptions(frame, passes, it);
+        auto attachments = get_attachment_descriptions(ctx, passes, it);
         auto color_refs = get_color_references(attachments);
         // Note that get_depth_reference returns an optional, since depth is optional
         auto depth_ref_opt = get_depth_reference(attachments);

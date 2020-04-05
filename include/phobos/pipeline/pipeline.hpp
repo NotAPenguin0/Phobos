@@ -9,12 +9,13 @@
 #include <stl/span.hpp>
 #include <stl/vector.hpp>
 
-#include <phobos/pipeline/pipelines.hpp>
-
+#include <phobos/forward.hpp>
 
 namespace ph {
 
 struct RenderPass;
+
+void create_pipelines(VulkanContext& ctx, PipelineManager& pipelines);
 
 struct DescriptorSetLayoutCreateInfo {
     stl::vector<vk::DescriptorSetLayoutBinding> bindings;
@@ -43,7 +44,9 @@ struct DescriptorSetBinding {
     stl::vector<DescriptorBinding> bindings;
     // Leave this on nullptr to use default pool
     vk::DescriptorPool pool = nullptr;
-    // No need to manually set this field, the renderer can figure this out
+private:
+    friend class Renderer;
+    friend struct std::hash<DescriptorSetBinding>;
     DescriptorSetLayoutCreateInfo set_layout;
 };
 

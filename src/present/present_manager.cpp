@@ -63,23 +63,23 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
 
     // TODO: Allow for more descriptors
     vk::DescriptorPoolSize sizes[] = {
-        vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2 * swapchain_image_count),
-        vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, swapchain_image_count),
-        vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, meta::max_textures_bound * swapchain_image_count)
+        vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 1000),
+        vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, 1000),
+        vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 1000)
     };
      
     vk::DescriptorPoolCreateInfo fixed_descriptor_pool_info;
-    fixed_descriptor_pool_info.poolSizeCount = sizeof(sizes) / sizeof(sizes[0]);
+    fixed_descriptor_pool_info.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet;
+    fixed_descriptor_pool_info.poolSizeCount = sizeof(sizes) / sizeof(vk::DescriptorPoolSize);
     fixed_descriptor_pool_info.pPoolSizes = sizes;
-    // Add some extra space
-    fixed_descriptor_pool_info.maxSets = swapchain_image_count * 3;
-
+    fixed_descriptor_pool_info.maxSets = sizeof(sizes) / sizeof(vk::DescriptorPoolSize) * 1000;
     fixed_descriptor_pool = ctx.device.createDescriptorPool(fixed_descriptor_pool_info);
 
     image_in_flight_fences = stl::vector<vk::Fence>(swapchain_image_count, nullptr);
     frames.resize(max_frames_in_flight);
     // Initialize frame info data
     for (auto& frame_info : frames) {
+        // #Tag(Sampler)
         frame_info.default_sampler = default_sampler;
         frame_info.present_manager = this;
         frame_info.descriptor_pool = fixed_descriptor_pool;
@@ -91,8 +91,6 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         vk::SemaphoreCreateInfo semaphore_info;
         frame_info.image_available = ctx.device.createSemaphore(semaphore_info);
         frame_info.render_finished = ctx.device.createSemaphore(semaphore_info);
-
-        frame_info.swapchain_target = RenderTarget(&context);
 
         // Create camera UBO for this frame
         // Note that the camera position is a vec3, but it is aligned to a vec4
@@ -108,7 +106,7 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         // Create instance data SSBO for this frame
         frame_info.transform_ssbo = InstancingBuffer(ctx);
         // Start with 32 instances (arbitrary number)
-        static constexpr stl::size_t transforms_begin_size = 32;
+        static constexpr stl::size_t transforms_begin_size = 1;
         frame_info.transform_ssbo.create(transforms_begin_size * sizeof(glm::mat4));
     }
 }
@@ -118,15 +116,6 @@ FrameInfo& PresentManager::get_frame_info() {
     frame.command_buffer = command_buffers[image_index];
     frame.frame_index = frame_index;
     frame.image_index = image_index;
-    // Make sure frame_index and image_index are set here!
-    frame.swapchain_color = get_swapchain_attachment(frame);
-
-    stl::vector<RenderAttachment> swapchain_attachments;
-    swapchain_attachments.push_back(frame.swapchain_color);
-    frame.swapchain_target = 
-        std::move(RenderTarget(&context, context.swapchain_render_pass, swapchain_attachments));
-    // Clear previous draw data
-    frame.extra_command_buffers.clear();
     frame.draw_calls = 0;
     return frame;
 }
@@ -136,43 +125,55 @@ void PresentManager::present_frame(FrameInfo& frame) {
     vk::SubmitInfo submit_info;
     submit_info.waitSemaphoreCount = 1;
     submit_info.pWaitSemaphores = &frame.image_available;
-
     vk::PipelineStageFlags wait_stages[] = { vk::PipelineStageFlagBits::eColorAttachmentOutput };
     submit_info.pWaitDstStageMask = wait_stages;
-
-    std::vector<vk::CommandBuffer>& cmd_buffers = frame.extra_command_buffers;
-    cmd_buffers.insert(cmd_buffers.begin(), frame.command_buffer);
-
-    submit_info.commandBufferCount = cmd_buffers.size();
-    submit_info.pCommandBuffers = cmd_buffers.data();
-
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &frame.command_buffer;
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores = &frame.render_finished;
-
     context.device.resetFences(frame.fence);
-
     context.graphics_queue.submit(submit_info, frame.fence);
 
     // Present
     vk::PresentInfoKHR present_info;
     present_info.waitSemaphoreCount = 1;
     present_info.pWaitSemaphores = &frame.render_finished;
-
     present_info.swapchainCount = 1;
     present_info.pSwapchains = &context.swapchain.handle;
     present_info.pImageIndices = &image_index;
-
     context.graphics_queue.presentKHR(present_info);
     // Advance to next frame
     frame_index = (frame_index + 1) % max_frames_in_flight;
+
+    for (auto& frame : frames) {
+        auto& cache = frame.descriptor_cache.get_all();
+        for (auto it = cache.begin(); it != cache.end(); ) {
+            size_t hash = it->first;
+            auto& entry = it->second;
+            // If a descriptor was used this frame, we reset frames_since_last_usage
+            if (entry.used_this_frame) {
+                entry.frames_since_last_usage = 0;
+                entry.used_this_frame = false;
+            }
+            // Now, each used entry will have a frames_since_last_usage of 1, while each unused entry
+            // will have its frames_since_last_usage incremented by 1.
+            entry.frames_since_last_usage++;
+
+            // If this entry has exceeded the max amount of frames since its last usage, free it.
+            if (entry.frames_since_last_usage > max_frames_in_flight) {
+                context.device.freeDescriptorSets(entry.key.pool ? entry.key.pool : fixed_descriptor_pool, 1, &entry.data);
+                // std::unordered_map guarantees iterator stability when erasing an element, so this is safe
+                // to do in a loop
+                it = cache.erase(cache.find(hash));
+            } else {
+                ++it;
+            }
+        }
+    }
 }
 
 void PresentManager::wait_for_available_frame() {
     context.device.waitForFences(frames[frame_index].fence, true, std::numeric_limits<uint32_t>::max());
-
-    // When this frame is done we can deallocate the RenderGraph owned by it.
-    // Note that we might have to change this when caching vkRenderPass and vkFramebuffer creation
-    delete frames[frame_index].render_graph;
     frames[frame_index].render_graph = nullptr;
 
     // Get image
@@ -207,12 +208,7 @@ void PresentManager::destroy() {
         context.device.destroyBuffer(frame.vp_ubo.buffer);
         context.device.unmapMemory(frame.vp_ubo.memory);
         context.device.freeMemory(frame.vp_ubo.memory);
-        frame.swapchain_target.destroy();
-        frame.offscreen_target.destroy();
-        frame.swapchain_color.destroy();
-        frame.descriptor_cache.get_keys().clear();
         frame.descriptor_cache.get_all().clear();
-        delete frame.render_graph;
     }
     for (auto&[name, attachment] : attachments) {
         attachment.destroy();

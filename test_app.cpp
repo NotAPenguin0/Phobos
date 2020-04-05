@@ -271,16 +271,16 @@ int main() {
         scene.light.position.z = std::cos(time) * 2.0f;
 
         // Create RenderGraph
-        ph::RenderGraph* render_graph = new ph::RenderGraph(vulkan_context);
+        ph::RenderGraph render_graph(vulkan_context);
 
         auto& offscreen_attachment = present_manager.get_attachment("color1");
         auto& color_attachment2 = present_manager.get_attachment("color2");
         auto& depth_attachment = present_manager.get_attachment("depth1");
 
         // Add materials
-        render_graph->materials.push_back(default_material);
+        render_graph.materials.push_back(default_material);
         // Add lights
-        render_graph->point_lights.push_back(scene.light);
+        render_graph.point_lights.push_back(scene.light);
 
         // Setup camera data
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), 
@@ -289,15 +289,20 @@ int main() {
         projection[1][1] *= -1;
         glm::vec3 cam_pos = glm::vec3(2, 2, 2);
         glm::mat4 view = glm::lookAt(cam_pos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
-        render_graph->projection = projection;
-        render_graph->view = view;
-        render_graph->camera_pos = cam_pos;
+        render_graph.projection = projection;
+        render_graph.view = view;
+        render_graph.camera_pos = cam_pos;
+
+        vk::ClearColorValue clear_color = vk::ClearColorValue { std::array<float, 4>{{0.0f, 0.0f, 0.0f, 1.0F}} };
+        vk::ClearDepthStencilValue clear_depth = vk::ClearDepthStencilValue { 1.0f, 0 };
 
         // Main render pass. This render pass renders the scene to an offscreen texture
         ph::RenderPass main_pass;
         main_pass.sampled_attachments = {};
         main_pass.outputs.push_back(offscreen_attachment);
         main_pass.outputs.push_back(depth_attachment);
+        main_pass.clear_values.push_back(clear_color);
+        main_pass.clear_values.push_back(clear_depth);
     
         // Add a draw command for the cube
         ph::RenderPass::DrawCommand draw;
@@ -313,33 +318,37 @@ int main() {
         };
 
         // Send the renderpass to the graph
-        render_graph->add_pass(stl::move(main_pass));
+        render_graph.add_pass(stl::move(main_pass));
 
         ph::RenderPass second_pass;
         second_pass.sampled_attachments = {};
         second_pass.outputs.push_back(color_attachment2);
         second_pass.outputs.push_back(depth_attachment);
+        second_pass.clear_values.push_back(clear_color);
+        second_pass.clear_values.push_back(clear_depth);
 
         ph::RenderPass::DrawCommand draw2;
         draw2.mesh = &cube;
         draw2.material_index = 0;
         glm::mat4 transform_2 = glm::scale(glm::mat4(1.0), glm::vec3(1, 1, 1));
         second_pass.transforms.push_back(transform_2);
+        second_pass.transforms.push_back(glm::translate(transform_2, glm::vec3(0, 1, 0)));
+        second_pass.draw_commands.push_back(draw2);
         second_pass.draw_commands.push_back(draw2);
         second_pass.callback = [&frame_info, &renderer](ph::CommandBuffer& cmd_buf) {
             renderer.execute_draw_commands(frame_info, cmd_buf);
         };
 
-        render_graph->add_pass(stl::move(second_pass));
+        render_graph.add_pass(stl::move(second_pass));
 
         ImGui::Render();
-        ImGui_ImplPhobos_RenderDrawData(ImGui::GetDrawData(), &frame_info, render_graph, &renderer);
+        ImGui_ImplPhobos_RenderDrawData(ImGui::GetDrawData(), &frame_info, &render_graph, &renderer);
 
         // Build the rendergraph. This creates resources like vkFramebuffers and a vkRenderPass for each ph::RenderPass
-        render_graph->build(frame_info);
+        render_graph.build();
 
         // Render frame
-        frame_info.render_graph = render_graph;
+        frame_info.render_graph = &render_graph;
         renderer.render_frame(frame_info);
 
         present_manager.present_frame(frame_info);

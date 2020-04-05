@@ -404,37 +404,53 @@ namespace ph {
 template<typename T, typename LookupT>
 class Cache {
 public:
+    struct Entry {
+        T data;
+        LookupT key;
+        size_t frames_since_last_usage = 0;
+        bool used_this_frame = false;
+    };
+
     // Useful for cleanup
     auto& get_all() { return cache; }
-    auto& get_keys() { return keys; }
     
     void insert(LookupT const& key, T&& val) {
         size_t hash = std::hash<LookupT>()(key);
-        cache[hash] = stl::move(val);
-        keys[hash] = key;
+        cache[hash] = Entry { stl::move(val), key, 0 };
     }
 
     T* get(LookupT const& key) {
         size_t hash = std::hash<LookupT>()(key);
         auto it = cache.find(hash);
-        if (it != cache.end()) { return &it->second; }
+        if (it != cache.end()) {
+            it->second.used_this_frame = true;
+            return &it->second.data;
+        }
         else return nullptr;
     }
 
     T const* get(LookupT const& key) const {
         size_t hash = std::hash<LookupT>()(key);
         auto it = cache.find(hash);
-        if (it != cache.end()) { return &it->second; }
+        if (it != cache.end()) { 
+            // Mark the entry as used
+            it->second.used_this_frame = true;
+            return &it->second.data; 
+        }
         else return nullptr;
     }
 
     LookupT* get_key(size_t hash) {
-        return &keys.at(hash);
+        return &cache.at(hash).key;
+    }
+
+    size_t get_frames_since_last_usage(LookupT const& key) {
+        size_t hash = std::hash<LookupT>()(key);
+        return cache[hash].frames_since_last_usage;
     }
 
 private:
-    std::unordered_map<size_t, T> cache;
-    std::unordered_map<size_t, LookupT> keys;
+    std::unordered_map<size_t, Entry> cache;
 };
 
 }

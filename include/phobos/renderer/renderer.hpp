@@ -13,6 +13,7 @@
 
 namespace ph {
 
+// TODO: InstancingBufferResizeEvent probably doesn't work correctly with new descriptor system
 class Renderer : public EventListener<InstancingBufferResizeEvent> {
 public:
     Renderer(VulkanContext& context);
@@ -27,11 +28,10 @@ public:
     // Execute the draw commands in the pass::draw_commands array with the default fixed rendering pipeline.
     // Typically you want to call this function when you simply want to render the submitted draws without any special processing.
     void execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer);
-
+    // Get a named pipeline. Must be called in an active renderpass
     Pipeline get_pipeline(std::string_view name, RenderPass& pass);
 
     void destroy();
-
 protected:
     void on_event(InstancingBufferResizeEvent const& e) override;
 private:
@@ -41,7 +41,7 @@ private:
         DescriptorSetBinding set_binding, void* pNext = nullptr);
 
     void update_camera_data(FrameInfo& info, RenderGraph const* graph);
-    void update_model_matrices(FrameInfo& info, RenderGraph const* graph);
+    void update_model_matrices(FrameInfo& info, RenderGraph const* graph, vk::DescriptorSet descriptor_set);
     void update_lights(FrameInfo& info, RenderGraph const* graph);
 
     vk::DescriptorSet get_fixed_descriptor_set(FrameInfo& frame, RenderGraph const* graph);

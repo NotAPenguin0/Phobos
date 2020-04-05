@@ -10,7 +10,7 @@ set(PHOBOS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/events/event_dispatcher.cpp"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/pipeline.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/pipelines.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/default_pipelines.cpp"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/present/present_manager.cpp"
 

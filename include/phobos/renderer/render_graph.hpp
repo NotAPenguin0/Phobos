@@ -21,13 +21,13 @@ public:
     RenderGraph(VulkanContext* ctx);
 
     void add_pass(RenderPass&& pass);
-    void build(FrameInfo& frame);
+    void build();
 
 private:
     VulkanContext* ctx;
     stl::vector<RenderPass> passes;
 
-    void create_render_passes(FrameInfo& frame);
+    void create_render_passes();
 };
 
 }

@@ -19,7 +19,6 @@ void Renderer::render_frame(FrameInfo& info) {
 
     update_camera_data(info, info.render_graph);
     update_lights(info, info.render_graph);
-    update_model_matrices(info, info.render_graph);
 
     for (auto& pass : info.render_graph->passes) {
         cmd_buffer.begin_renderpass(pass);
@@ -31,24 +30,24 @@ void Renderer::render_frame(FrameInfo& info) {
 }
 
 vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, RenderPass& pass, DescriptorSetBinding set_binding, void* pNext) {
+    STL_ASSERT(pass.active, "get_descriptor called on inactive renderpass");
     auto const& set_layout_info = ctx.pipelines.get_named_pipeline(pass.active_pipeline.name)->layout.set_layout;
     return get_descriptor(frame, set_layout_info, stl::move(set_binding), pNext);
 }
 
+
 vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, DescriptorSetLayoutCreateInfo const& set_layout_info, 
     DescriptorSetBinding set_binding, void* pNext) {
         
-    // #Tag(MultiPipeline)
     set_binding.set_layout = set_layout_info;
     auto set_opt = frame.descriptor_cache.get(set_binding);
     if (!set_opt) {
         // Create descriptor set layout and issue writes
-        // TODO: Allow overwriting an existing set if specified instead of creating a new one
         vk::DescriptorSetAllocateInfo alloc_info;
         // Get set layout. We can assume that it has already been created. If not, something went very wrong
         vk::DescriptorSetLayout* set_layout = ctx.set_layout_cache.get(set_binding.set_layout);
         STL_ASSERT(set_layout, "Descriptor requested without creating desctiptor set layout first. This can happen if there is"
-            " no active pipeline bound.");
+            " no active pipeline bound, or get_descriptor was called outside a valid ph::RenderPass callback.");
         alloc_info.pSetLayouts = set_layout;
         // If a custom pool was specified, use that one instead of the default one.
         alloc_info.descriptorPool = set_binding.pool ? set_binding.pool : frame.descriptor_pool;
@@ -59,6 +58,7 @@ vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, DescriptorSetLayout
         vk::DescriptorSet set = ctx.device.allocateDescriptorSets(alloc_info)[0];
 
         // Now we have the set we need to write the requested data to it
+        // TODO: Look into vkUpdateDescriptorSetsWithTemplate?
         stl::vector<vk::WriteDescriptorSet> writes;
         writes.reserve(set_binding.bindings.size());
         for (auto const& binding : set_binding.bindings) {
@@ -70,11 +70,9 @@ vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, DescriptorSetLayout
             switch(binding.type) {
                 case vk::DescriptorType::eCombinedImageSampler:
                 case vk::DescriptorType::eSampledImage: {
-                    // Pray this is not UB => It most likely is :(
                     write.pImageInfo = &binding.descriptors[0].image;
                 } break;
                 default: {
-                    // Pray this is not UB
                     write.pBufferInfo = &binding.descriptors[0].buffer;
                 } break;
 
@@ -102,6 +100,7 @@ void Renderer::execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer
 
     // Allocate fixed descriptor set and bind it
     vk::DescriptorSet fixed_set = get_fixed_descriptor_set(frame, frame.render_graph);
+    update_model_matrices(frame, frame.render_graph, fixed_set);
     cmd_buffer.bind_descriptor_set(0, fixed_set);
 
     vk::Viewport viewport;
@@ -138,7 +137,8 @@ void Renderer::execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer
 
 Pipeline Renderer::get_pipeline(std::string_view name, RenderPass& pass) {
     ph::PipelineCreateInfo const* pci = ctx.pipelines.get_named_pipeline(std::string(name));
-    STL_ASSERT(pci, "pipeline not created");
+    STL_ASSERT(pci, "Pipeline not found");
+    STL_ASSERT(pass.active, "Cannot get pipeline handle without an active renderpass");
     Pipeline pipeline = create_or_get_pipeline(&ctx, &pass, *pci);
     pipeline.name = name;
     return pipeline;
@@ -170,12 +170,12 @@ void Renderer::update_camera_data(FrameInfo& info, RenderGraph const* graph) {
     std::memcpy(data_ptr + 16, &graph->camera_pos.x, sizeof(glm::vec3));
 }
 
-void Renderer::update_model_matrices(FrameInfo& info, RenderGraph const* graph) {
+void Renderer::update_model_matrices(FrameInfo& info, RenderGraph const* graph, vk::DescriptorSet descriptor_set) {
     for (auto const& pass : graph->passes) {
         // Don't write when there are no transforms to avoid out of bounds indexing
         if (!pass.transforms.empty()) {
             constexpr stl::size_t sz = sizeof(pass.transforms[0]);
-            info.transform_ssbo.write_data(info.fixed_descriptor_set, &pass.transforms[0], 
+            info.transform_ssbo.write_data(descriptor_set, &pass.transforms[0], 
                 pass.transforms.size() * sz, pass.transforms_offset * sz);
         }
     }

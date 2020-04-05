@@ -1,4 +1,3 @@
-#include <phobos/pipeline/pipelines.hpp>
 #include <phobos/pipeline/pipeline.hpp>
 
 #include <phobos/renderer/meta.hpp>

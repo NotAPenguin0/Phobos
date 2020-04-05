@@ -270,17 +270,7 @@ static void ImGui_ImplPhobos_CreatePipeline(ph::VulkanContext* ctx) {
 static void ImGui_ImplPhobos_CreateDescriptorPool(ImGui_ImplPhobos_InitInfo* init_info) {
     vk::DescriptorPoolSize pool_sizes[] =   
     {
-        { vk::DescriptorType::eSampler, 1000 },
         { vk::DescriptorType::eCombinedImageSampler, 1000 },
-        { vk::DescriptorType::eSampledImage, 1000 },
-        { vk::DescriptorType::eStorageImage, 1000 },
-        { vk::DescriptorType::eUniformTexelBuffer, 1000 },
-        { vk::DescriptorType::eStorageTexelBuffer, 1000 },
-        { vk::DescriptorType::eUniformBuffer, 1000 },
-        { vk::DescriptorType::eStorageBuffer, 1000 },
-        { vk::DescriptorType::eUniformBufferDynamic, 1000 },
-        { vk::DescriptorType::eStorageBufferDynamic, 1000 },
-        { vk::DescriptorType::eInputAttachment, 1000 }
     };
     vk::DescriptorPoolCreateInfo pool_info = {};
     pool_info.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet;
@@ -379,6 +369,8 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
     ph::RenderAttachment swapchain = frame->present_manager->get_swapchain_attachment(*frame);
     // TODO: Make this more customizable? => Probably just pass it as a parameter to ImGui_ImplPhobos_RenderDrawData
     render_pass.outputs.push_back(swapchain);
+    vk::ClearColorValue clear_color = vk::ClearColorValue { std::array<float, 4>{{0.0f, 0.0f, 0.0f, 1.0F}} };
+    render_pass.clear_values.push_back(clear_color);
     
     // Loop through all attachments and check if this frame samples from them.
     // We need to do this to fill out the render_pass.sampled_attachments field to ensure these images are properly transitioned

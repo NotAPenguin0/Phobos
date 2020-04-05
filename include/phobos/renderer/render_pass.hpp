@@ -22,30 +22,34 @@ namespace ph {
 struct RenderPass {
     stl::vector<RenderAttachment> sampled_attachments;
     stl::vector<RenderAttachment> outputs;
+    // Size of this must match the size of the outputs vector
+    stl::vector<vk::ClearValue> clear_values;
 
-    vk::ClearColorValue clear_color = vk::ClearColorValue{std::array<float, 4>{{0.0f, 0.0f, 0.0f, 1.0f}}};
-
-    // Camera data
-
+    struct DrawCommand {
+        Mesh* mesh = nullptr;
+        uint32_t material_index = 0;
+    };
+    stl::vector<DrawCommand> draw_commands;
     // Must have the same size as draw_commands
     stl::vector<glm::mat4> transforms;
 
-    struct DrawCommand {
-        Mesh* mesh;
-        uint32_t material_index;
-    };
 
-    stl::vector<DrawCommand> draw_commands;
-
-    // This callback is called right before executing the renderpass' draw commands
+    // This callback is called right when executing the renderpass
     std::function<void(CommandBuffer&)> callback = [](CommandBuffer&) {};
 
-    // These are all modified by the render graph. Don't manually set these fields.
+private:
+    // These classes and functions all need access to the render_pass field
+    friend class CommandBuffer;
+    friend class RenderGraph;
+    friend class Renderer;
+    friend Pipeline create_or_get_pipeline(VulkanContext* ctx, RenderPass* pass, PipelineCreateInfo pci);
+
     vk::RenderPass render_pass;
     RenderTarget target;
     stl::uint32_t transforms_offset = 0;
 
     Pipeline active_pipeline;
+    bool active = false;
 };
 
 }

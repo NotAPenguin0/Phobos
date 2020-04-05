@@ -9,7 +9,6 @@ layout(location = 1) out vec2 TexCoords;
 layout(location = 2) out vec3 FragPos;
 layout(location = 3) out vec3 ViewPos;
 
-
 layout(set = 0, binding = 0) uniform CameraData {
     mat4 projection_view;
     vec3 cam_pos;
