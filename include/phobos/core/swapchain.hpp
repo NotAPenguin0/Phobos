@@ -20,15 +20,11 @@ struct SwapchainDetails {
 
     std::vector<vk::Image> images;
     stl::vector<vk::ImageView> image_views;
-
-    stl::vector<vk::Framebuffer> framebuffers;
 };
 
 SwapchainDetails create_swapchain(vk::Device device, WindowContext const& window_ctx, 
     PhysicalDeviceDetails& physical_device, vk::SwapchainKHR old_swapchain = nullptr);
     
-void create_swapchain_framebuffers(VulkanContext& ctx, SwapchainDetails& swapchain);
-
 }
 
 #endif

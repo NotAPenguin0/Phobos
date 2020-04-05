@@ -1,7 +1,7 @@
 #include <phobos/present/present_manager.hpp>
 
 #include <phobos/util/buffer_util.hpp>
-#include <phobos/renderer/instancing_buffer.hpp>
+#include <phobos/renderer/dynamic_gpu_buffer.hpp>
 #include <phobos/renderer/render_graph.hpp>
 #include <phobos/renderer/meta.hpp>
 #include <phobos/util/image_util.hpp>
@@ -14,13 +14,14 @@
 
 namespace ph {
 
-static void create_lights_ubo(VulkanContext& ctx, MappedUBO& ubo) {
-    size_t const size = meta::max_lights_per_type * sizeof(PointLight) + sizeof(uint32_t);
+
+static MappedUBO create_mapped_ubo(VulkanContext& ctx, size_t const size) {
+    MappedUBO ubo;
     create_buffer(ctx, size, vk::BufferUsageFlagBits::eUniformBuffer, 
-            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, 
-    ubo.buffer, ubo.memory);
+        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, ubo.buffer, ubo.memory);
     ubo.size = size;
     ubo.ptr = ctx.device.mapMemory(ubo.memory, 0, VK_WHOLE_SIZE);
+    return ubo;
 }
 
 PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight) 
@@ -32,7 +33,6 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
     command_pool_info.queueFamilyIndex = ctx.physical_device.queue_families.graphics_family.value();
     // We're going to reset the command buffers each frame and re-record them
     command_pool_info.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
-
     command_pool = ctx.device.createCommandPool(command_pool_info);
 
     size_t const swapchain_image_count = ctx.swapchain.images.size();
@@ -73,7 +73,7 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
     fixed_descriptor_pool_info.poolSizeCount = sizeof(sizes) / sizeof(vk::DescriptorPoolSize);
     fixed_descriptor_pool_info.pPoolSizes = sizes;
     fixed_descriptor_pool_info.maxSets = sizeof(sizes) / sizeof(vk::DescriptorPoolSize) * 1000;
-    fixed_descriptor_pool = ctx.device.createDescriptorPool(fixed_descriptor_pool_info);
+    main_descriptor_pool = ctx.device.createDescriptorPool(fixed_descriptor_pool_info);
 
     image_in_flight_fences = stl::vector<vk::Fence>(swapchain_image_count, nullptr);
     frames.resize(max_frames_in_flight);
@@ -82,7 +82,7 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         // #Tag(Sampler)
         frame_info.default_sampler = default_sampler;
         frame_info.present_manager = this;
-        frame_info.descriptor_pool = fixed_descriptor_pool;
+        frame_info.descriptor_pool = main_descriptor_pool;
 
         vk::FenceCreateInfo fence_info;
         fence_info.flags = vk::FenceCreateFlagBits::eSignaled;
@@ -94,19 +94,13 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
 
         // Create camera UBO for this frame
         // Note that the camera position is a vec3, but it is aligned to a vec4
-        size_t const camera_buffer_size = sizeof(glm::mat4) + sizeof(glm::vec4);
-        create_buffer(ctx, camera_buffer_size, vk::BufferUsageFlagBits::eUniformBuffer, 
-            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, 
-            frame_info.vp_ubo.buffer, frame_info.vp_ubo.memory);
-        frame_info.vp_ubo.size = camera_buffer_size;
-        frame_info.vp_ubo.ptr = ctx.device.mapMemory(frame_info.vp_ubo.memory, 0, VK_WHOLE_SIZE);
+        frame_info.vp_ubo = create_mapped_ubo(ctx, sizeof(glm::mat4) + sizeof(glm::vec4));
+        frame_info.lights = create_mapped_ubo(ctx, sizeof(PointLight) * meta::max_lights_per_type + sizeof(uint32_t));
 
-        create_lights_ubo(ctx, frame_info.lights);
-
-        // Create instance data SSBO for this frame
-        frame_info.transform_ssbo = InstancingBuffer(ctx);
-        // Start with 32 instances (arbitrary number)
-        static constexpr stl::size_t transforms_begin_size = 1;
+        // Create transform data SSBO for this frame
+        frame_info.transform_ssbo = DynamicGpuBuffer(ctx);
+        // Start with 32 transforms (arbitrary number)
+        static constexpr stl::size_t transforms_begin_size = 32;
         frame_info.transform_ssbo.create(transforms_begin_size * sizeof(glm::mat4));
     }
 }
@@ -145,6 +139,7 @@ void PresentManager::present_frame(FrameInfo& frame) {
     // Advance to next frame
     frame_index = (frame_index + 1) % max_frames_in_flight;
 
+    // TODO: Move this into a more generic deletion queue
     for (auto& frame : frames) {
         auto& cache = frame.descriptor_cache.get_all();
         for (auto it = cache.begin(); it != cache.end(); ) {
@@ -161,7 +156,7 @@ void PresentManager::present_frame(FrameInfo& frame) {
 
             // If this entry has exceeded the max amount of frames since its last usage, free it.
             if (entry.frames_since_last_usage > max_frames_in_flight) {
-                context.device.freeDescriptorSets(entry.key.pool ? entry.key.pool : fixed_descriptor_pool, 1, &entry.data);
+                context.device.freeDescriptorSets(entry.key.pool ? entry.key.pool : main_descriptor_pool, 1, &entry.data);
                 // std::unordered_map guarantees iterator stability when erasing an element, so this is safe
                 // to do in a loop
                 it = cache.erase(cache.find(hash));
@@ -214,7 +209,7 @@ void PresentManager::destroy() {
         attachment.destroy();
     }
     attachments.clear();
-    context.device.destroyDescriptorPool(fixed_descriptor_pool);
+    context.device.destroyDescriptorPool(main_descriptor_pool);
     context.device.destroyCommandPool(command_pool);
 }
 
@@ -267,12 +262,6 @@ void PresentManager::on_event(WindowResizeEvent const& evt) {
     // Wait until all rendering is done
     context.device.waitIdle();
 
-    for (auto framebuf : context.swapchain.framebuffers) {
-        context.device.destroyFramebuffer(framebuf);
-    }
-
-    context.swapchain.framebuffers.clear();
-
     for (auto view : context.swapchain.image_views) {
         context.device.destroyImageView(view);
     }
@@ -283,12 +272,8 @@ void PresentManager::on_event(WindowResizeEvent const& evt) {
     auto new_swapchain = create_swapchain(context.device, *context.window_ctx, context.physical_device, context.swapchain.handle);
     context.device.destroySwapchainKHR(context.swapchain.handle);
     context.swapchain = std::move(new_swapchain);
-
-    // Recreate renderpass
+    
     context.event_dispatcher.fire_event(SwapchainRecreateEvent{evt.window_ctx});
-
-    // Recreate framebuffers. This has to be done after the renderpass has been recreated
-    create_swapchain_framebuffers(context, context.swapchain);
 }
 
 

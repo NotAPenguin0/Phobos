@@ -36,7 +36,7 @@ static void remove_listener_impl(stl::vector<EventListener<T>*>& listeners, Even
     }
 
 
-EVENT_DISPATCH_IMPL(InstancingBufferResizeEvent, instancing_buffer_resize)
+EVENT_DISPATCH_IMPL(DynamicGpuBufferResizeEvent, dynamic_gpu_buffer_resize)
 EVENT_DISPATCH_IMPL(WindowResizeEvent, window_resize);
 EVENT_DISPATCH_IMPL(SwapchainRecreateEvent, swapchain_recreate);
 

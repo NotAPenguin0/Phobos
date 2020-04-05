@@ -5,7 +5,7 @@
 #include <stl/vector.hpp>
 
 #include <phobos/renderer/mapped_ubo.hpp>
-#include <phobos/renderer/instancing_buffer.hpp>
+#include <phobos/renderer/dynamic_gpu_buffer.hpp>
 #include <phobos/renderer/render_attachment.hpp>
 #include <phobos/renderer/render_target.hpp>
 #include <phobos/pipeline/pipeline.hpp>
@@ -36,7 +36,7 @@ private:
 
     // Other resources
     MappedUBO vp_ubo;
-    InstancingBuffer transform_ssbo;
+    DynamicGpuBuffer transform_ssbo;
     MappedUBO lights;
     vk::Sampler default_sampler;
 

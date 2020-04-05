@@ -6,7 +6,7 @@
 
 namespace ph {
 
-struct InstancingBufferResizeEvent {
+struct DynamicGpuBufferResizeEvent {
     vk::Buffer buffer_handle;
     vk::DescriptorSet descriptor_set;
     size_t new_size;

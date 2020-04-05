@@ -148,7 +148,8 @@ void Renderer::destroy() {
     ctx.event_dispatcher.remove_listener(this);
 }
 
-void Renderer::on_event(InstancingBufferResizeEvent const& e) {
+// this should not be in the renderer
+void Renderer::on_event(DynamicGpuBufferResizeEvent const& e) {
     vk::DescriptorBufferInfo buffer;
     buffer.buffer = e.buffer_handle;
     buffer.offset = 0;

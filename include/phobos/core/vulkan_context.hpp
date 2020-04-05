@@ -18,33 +18,25 @@
 
 namespace ph {
 
-struct VulkanContext : public EventListener<SwapchainRecreateEvent> {
+struct VulkanContext {
     vk::Instance instance;    
     vk::DispatchLoaderDynamic dynamic_dispatcher;
-
-    WindowContext* window_ctx;
-
     // Only available if enable_validation_layers is set to true
     vk::DebugUtilsMessengerEXT debug_messenger;
-
     PhysicalDeviceDetails physical_device;
     vk::Device device;
 
+    WindowContext* window_ctx;
+
     vk::Queue graphics_queue;
-
     SwapchainDetails swapchain;
-
     PipelineManager pipelines;
 
-    vk::RenderPass default_render_pass;
-    // Renderpass that only has a color attachment
-    vk::RenderPass swapchain_render_pass;
     // A command pool that can be used to allocate various command buffers for various operations. 
     // This command pool is marked with the eTransient flag
     vk::CommandPool command_pool;
-
+    
     log::LogInterface* logger = nullptr;
-
     EventDispatcher event_dispatcher;
 
     Cache<vk::RenderPass, vk::RenderPassCreateInfo> renderpass_cache;
@@ -54,9 +46,6 @@ struct VulkanContext : public EventListener<SwapchainRecreateEvent> {
     Cache<vk::DescriptorSetLayout, DescriptorSetLayoutCreateInfo> set_layout_cache;
 
     void destroy();
-
-protected:
-    void on_event(SwapchainRecreateEvent const& evt) override;
 };
 
 struct AppSettings {

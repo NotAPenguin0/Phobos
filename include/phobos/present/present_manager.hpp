@@ -49,7 +49,7 @@ private:
     std::vector<vk::CommandBuffer> command_buffers;
 
     // Pool for all "fixed" descriptors
-    vk::DescriptorPool fixed_descriptor_pool;
+    vk::DescriptorPool main_descriptor_pool;
 
     // Samplers
     vk::Sampler default_sampler;

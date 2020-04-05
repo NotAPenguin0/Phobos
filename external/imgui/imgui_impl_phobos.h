@@ -13,7 +13,6 @@ struct ImGui_ImplPhobos_InitInfo {
 };
 
 void ImGui_ImplPhobos_Init(ImGui_ImplPhobos_InitInfo* init_info);
-void ImGui_ImplPhobos_NewFrame();
 void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame, ph::RenderGraph* render_graph, ph::Renderer* renderer);
 void ImGui_ImplPhobos_Shutdown();
 

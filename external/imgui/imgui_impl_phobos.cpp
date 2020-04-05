@@ -268,8 +268,7 @@ static void ImGui_ImplPhobos_CreatePipeline(ph::VulkanContext* ctx) {
 }
 
 static void ImGui_ImplPhobos_CreateDescriptorPool(ImGui_ImplPhobos_InitInfo* init_info) {
-    vk::DescriptorPoolSize pool_sizes[] =   
-    {
+    vk::DescriptorPoolSize pool_sizes[] = {
         { vk::DescriptorType::eCombinedImageSampler, 1000 },
     };
     vk::DescriptorPoolCreateInfo pool_info = {};
@@ -285,10 +284,6 @@ void ImGui_ImplPhobos_InitBuffers(ImGui_ImplPhobos_InitInfo* init_info) {
     g_IndexBuffers.resize(init_info->max_frames_in_flight);
 }
 
-void ImGui_ImplPhobos_NewFrame() {
-    auto& imgui = *GImGui;
-    imgui.WithinFrameScope = true;
-}
 
 void ImGui_ImplPhobos_Init(ImGui_ImplPhobos_InitInfo* init_info) {
     g_Context = init_info->context;

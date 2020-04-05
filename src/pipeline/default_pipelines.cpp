@@ -105,7 +105,7 @@ static void create_generic_pipeline(VulkanContext& ctx) {
     ctx.pipelines.create_named_pipeline("generic", stl::move(info));
 }
 
-void create_pipelines(VulkanContext& ctx, PipelineManager& pipelines) {
+void create_default_pipelines(VulkanContext& ctx, PipelineManager& pipelines) {
     create_generic_pipeline(ctx);
 }
 

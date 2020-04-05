@@ -1,5 +1,5 @@
-#ifndef PHOBOS_INSTANCING_BUFFER_HPP_
-#define PHOBOS_INSTANCING_BUFFER_HPP_
+#ifndef PHOBOS_DYNAMIC_GPU_BUFFER_HPP_
+#define PHOBOS_DYNAMIC_GPU_BUFFER_HPP_
 
 #include <vulkan/vulkan.hpp>
 
@@ -9,13 +9,13 @@ namespace ph {
 
 // Buffer class capable of storing instance data on the GPU in a shader storage buffer. Reallocates memory when nessecary.
 // TODO: If a max_size is specified, the buffer can assume that this size will never be exceeded. 
-class InstancingBuffer {
+class DynamicGpuBuffer {
 public:
-    InstancingBuffer() = default;
-    InstancingBuffer(VulkanContext& ctx);
+    DynamicGpuBuffer() = default;
+    DynamicGpuBuffer(VulkanContext& ctx);
 
-    InstancingBuffer(InstancingBuffer&&) = default;
-    InstancingBuffer& operator=(InstancingBuffer&&) = default;
+    DynamicGpuBuffer(DynamicGpuBuffer&&) = default;
+    DynamicGpuBuffer& operator=(DynamicGpuBuffer&&) = default;
 
     // TODO: Implement max_size
     void create(size_t initial_size, size_t max_size = 0);

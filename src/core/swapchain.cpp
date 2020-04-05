@@ -103,20 +103,4 @@ SwapchainDetails create_swapchain(vk::Device device, WindowContext const& window
     return details;
 }
 
-void create_swapchain_framebuffers(VulkanContext& ctx, SwapchainDetails& swapchain) {
-    swapchain.framebuffers.resize(swapchain.images.size());
-    for (auto[index, framebuffer] : stl::enumerate(swapchain.framebuffers.begin(), swapchain.framebuffers.end())) {
-        vk::FramebufferCreateInfo info;
-        info.renderPass = ctx.swapchain_render_pass;
-        info.attachmentCount = 1;
-        vk::ImageView attachments[1] = { swapchain.image_views[index] };
-        info.pAttachments = attachments;
-        info.width = swapchain.extent.width;
-        info.height = swapchain.extent.height;
-        info.layers = 1;
-
-        framebuffer = ctx.device.createFramebuffer(info);
-    }
-}
-
 }

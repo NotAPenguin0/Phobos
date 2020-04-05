@@ -1,14 +1,14 @@
-#include <phobos/renderer/instancing_buffer.hpp>
+#include <phobos/renderer/dynamic_gpu_buffer.hpp>
 
 #include <phobos/util/buffer_util.hpp>
 
 namespace ph {
 
-InstancingBuffer::InstancingBuffer(VulkanContext& ctx) : ctx(&ctx) {
+DynamicGpuBuffer::DynamicGpuBuffer(VulkanContext& ctx) : ctx(&ctx) {
 
 }
 
-void InstancingBuffer::create(size_t initial_size, size_t) {
+void DynamicGpuBuffer::create(size_t initial_size, size_t) {
     current_size = initial_size;
     create_buffer(*ctx, initial_size, vk::BufferUsageFlagBits::eStorageBuffer, 
         vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, 
@@ -16,7 +16,7 @@ void InstancingBuffer::create(size_t initial_size, size_t) {
     data_ptr = ctx->device.mapMemory(memory, 0, initial_size); 
 }
 
-void InstancingBuffer::destroy() {
+void DynamicGpuBuffer::destroy() {
     if (buffer) {
         ctx->device.destroyBuffer(buffer);
         buffer = nullptr;
@@ -33,19 +33,19 @@ void InstancingBuffer::destroy() {
     }
 }
 
-vk::Buffer InstancingBuffer::buffer_handle() {
+vk::Buffer DynamicGpuBuffer::buffer_handle() {
     return buffer;
 }
 
-vk::DeviceMemory InstancingBuffer::memory_handle() {
+vk::DeviceMemory DynamicGpuBuffer::memory_handle() {
     return memory;
 }
 
-size_t InstancingBuffer::size() const {
+size_t DynamicGpuBuffer::size() const {
     return current_size;
 }
 
-void InstancingBuffer::write_data(vk::DescriptorSet descriptor_set, void const* data, size_t size, size_t offset) {
+void DynamicGpuBuffer::write_data(vk::DescriptorSet descriptor_set, void const* data, size_t size, size_t offset) {
     if (offset + size > current_size) {
         size_t new_size = current_size;
         while(offset + size > new_size) {
@@ -53,7 +53,7 @@ void InstancingBuffer::write_data(vk::DescriptorSet descriptor_set, void const* 
         }
         destroy();
         create(new_size);
-        ctx->event_dispatcher.fire_event(InstancingBufferResizeEvent{buffer, descriptor_set, new_size});
+        ctx->event_dispatcher.fire_event(DynamicGpuBufferResizeEvent{buffer, descriptor_set, new_size});
     }
 
     std::memcpy((unsigned char*)data_ptr + offset, data, size);

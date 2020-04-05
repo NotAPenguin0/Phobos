@@ -14,7 +14,7 @@
 namespace ph {
 
 // TODO: InstancingBufferResizeEvent probably doesn't work correctly with new descriptor system
-class Renderer : public EventListener<InstancingBufferResizeEvent> {
+class Renderer : public EventListener<DynamicGpuBufferResizeEvent> {
 public:
     Renderer(VulkanContext& context);
 
@@ -33,7 +33,7 @@ public:
 
     void destroy();
 protected:
-    void on_event(InstancingBufferResizeEvent const& e) override;
+    void on_event(DynamicGpuBufferResizeEvent const& e) override;
 private:
     VulkanContext& ctx;
 

@@ -15,7 +15,8 @@ namespace ph {
 
 struct RenderPass;
 
-void create_pipelines(VulkanContext& ctx, PipelineManager& pipelines);
+// Called by ph::VulkanContext on startup. Creates all pipelines necessary for the fixed pipeline functionality to work
+void create_default_pipelines(VulkanContext& ctx, PipelineManager& pipelines);
 
 struct DescriptorSetLayoutCreateInfo {
     stl::vector<vk::DescriptorSetLayoutBinding> bindings;
@@ -73,15 +74,33 @@ struct PipelineCreateInfo {
     vk::VertexInputBindingDescription vertex_input_binding;
     stl::vector<vk::VertexInputAttributeDescription> vertex_attributes;
     stl::vector<vk::PipelineShaderStageCreateInfo> shaders;
-    vk::PipelineInputAssemblyStateCreateInfo input_assembly;
-    vk::PipelineDepthStencilStateCreateInfo depth_stencil;
+    vk::PipelineInputAssemblyStateCreateInfo input_assembly =
+        vk::PipelineInputAssemblyStateCreateInfo {
+            vk::PipelineInputAssemblyStateCreateFlags{},
+            vk::PrimitiveTopology::eTriangleList,
+            false
+        };
+    vk::PipelineDepthStencilStateCreateInfo depth_stencil = 
+        vk::PipelineDepthStencilStateCreateInfo {
+            vk::PipelineDepthStencilStateCreateFlags{},
+            true, true, vk::CompareOp::eLess, false, false
+        };
     stl::vector<vk::DynamicState> dynamic_states;
-    vk::PipelineRasterizationStateCreateInfo rasterizer;
-    vk::PipelineMultisampleStateCreateInfo multisample;
+    vk::PipelineRasterizationStateCreateInfo rasterizer = 
+        vk::PipelineRasterizationStateCreateInfo {
+            vk::PipelineRasterizationStateCreateFlags{},
+            false, false, vk::PolygonMode::eFill, vk::CullModeFlagBits::eBack,
+            vk::FrontFace::eCounterClockwise, false, 0.0f, 0.0f, 0.0f, 1.0f
+        };
+    vk::PipelineMultisampleStateCreateInfo multisample = 
+        vk::PipelineMultisampleStateCreateInfo {
+            vk::PipelineMultisampleStateCreateFlags{},
+            vk::SampleCountFlagBits::e1
+        };
     stl::vector<vk::PipelineColorBlendAttachmentState> blend_attachments;
     stl::vector<vk::Viewport> viewports;
     stl::vector<vk::Rect2D> scissors;
-    bool blend_logic_op_enable;
+    bool blend_logic_op_enable = false;
     vk::GraphicsPipelineCreateInfo vk_info() const;
     
     void finalize();

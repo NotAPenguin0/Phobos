@@ -45,18 +45,8 @@ void make_ui(int draw_calls, Scene& scene, ph::FrameInfo& info) {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     ImGui::PopStyleVar(3);
 
-    // DockSpace
-    ImGuiIO& io = ImGui::GetIO();
-
-    if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable) {
-//        ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
-//        ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f),
-//                         ImGuiDockNodeFlags_None);
-    }
-
     static bool show_stats = true;
     if (ImGui::Begin("Renderer stats", &show_stats)) {
-//        ImGui::PushFont(io.FontDefault);
         ImGui::Text("Frametime: %f ms", ImGui::GetIO().DeltaTime * 1000);
         ImGui::Text("FPS: %i", (int)ImGui::GetIO().Framerate);
         ImGui::Text("Draw calls (ImGui excluded): %i", draw_calls);
@@ -106,13 +96,6 @@ public:
     }
 };
 
-void mouse_button_callback(Mimas_Window* win, Mimas_Key button, Mimas_Mouse_Button_Action action, void* user_data) {
-    ph::VulkanContext* ctx = reinterpret_cast<ph::VulkanContext*>(user_data);
-    if (action == MIMAS_MOUSE_BUTTON_PRESS) {
-
-    }
-}
-
 static void load_imgui_fonts(ph::VulkanContext& ctx, vk::CommandPool command_pool) {
     vk::CommandBufferAllocateInfo buf_info;
     buf_info.commandBufferCount = 1;
@@ -138,6 +121,95 @@ static void load_imgui_fonts(ph::VulkanContext& ctx, vk::CommandPool command_poo
     ctx.device.freeCommandBuffers(command_pool, command_buffer);
 }
 
+static void init_imgui(ph::VulkanContext* ctx) {
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.ConfigDockingWithShift = false;
+    io.ConfigWindowsMoveFromTitleBarOnly = true;
+    style_theme_grey();
+
+    ImGui_ImplMimas_InitForVulkan(ctx->window_ctx->handle);
+    ImGui_ImplPhobos_InitInfo init_info;
+    init_info.context = ctx;
+    init_info.max_frames_in_flight = 2; // TODO: better
+    ImGui_ImplPhobos_Init(&init_info);
+    io.Fonts->AddFontDefault();
+    vk::CommandPoolCreateInfo command_pool_info;
+    command_pool_info.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
+    vk::CommandPool command_pool = ctx->device.createCommandPool(command_pool_info);
+    load_imgui_fonts(*ctx, command_pool);
+    ctx->device.destroyCommandPool(command_pool);
+    ImGui_ImplPhobos_DestroyFontUploadObjects();
+}
+
+static float vertices[] = {
+    -1, -1, -1, 0, 0, -1, 1, 1,    1, 1, -1, 0, 0, -1, 0, 0,     1,  -1, -1, 0, 0, -1, 0, 1,
+    1,  1, -1, 0, 0, -1, 0, 0,    -1, -1, -1, 0, 0, -1, 1, 1,   -1, 1, -1, 0, 0, -1, 1, 0,
+
+    -1, -1, 1, 0, 0, 1, 0, 1,    1, -1, 1, 0, 0, 1, 1, 1,     1, 1, 1, 0, 0, 1, 1, 0,
+    1,  1,  1, 0, 0, 1, 1, 0,    -1, 1, 1, 0, 0, 1, 0, 0,     -1, -1, 1, 0, 0, 1, 0, 1,
+
+    -1, 1, -1, -1, 0, 0, 0, 0,    -1, -1, -1, -1, 0, 0, 0, 1,   -1, 1, 1, -1, 0, 0, 1, 0,
+    -1, -1, -1, -1, 0, 0, 0, 1,   -1, -1, 1, -1, 0, 0, 1, 1,    -1, 1, 1, -1, 0, 0, 1, 0,
+
+    1, 1, 1, 1, 0, 0, 0, 0,      1, -1, -1, 1, 0, 0, 1, 1,    1, 1, -1, 1, 0, 0, 1, 0,
+    1, -1, -1, 1, 0, 0, 1, 1,    1,  1, 1, 1, 0, 0, 0, 0,     1, -1, 1, 1, 0, 0, 0, 1,
+
+    -1, -1, -1, 0, -1, 0, 0, 1,   1, -1, -1, 0, -1, 0, 1, 1,    1, -1, 1, 0, -1, 0, 1, 0,
+    1, -1, 1, 0, -1, 0, 1, 0,     -1, -1, 1, 0, -1, 0, 0, 0,    -1, -1, -1, 0, -1, 0, 0, 1,
+
+    -1, 1, -1, 0, 1, 0, 0, 0,    1, 1, 1, 0, 1, 0, 1, 1,      1, 1, -1, 0, 1, 0, 1, 0,
+    1,  1, 1, 0, 1, 0, 1, 1,    -1, 1, -1, 0, 1, 0, 0, 0,    -1, 1, 1, 0, 1, 0, 0, 1
+};
+
+ph::Mesh get_cube(ph::VulkanContext* ctx) {
+    uint32_t indices[36];
+    std::iota(indices, indices + 36, 0);
+    ph::Mesh::CreateInfo cube_info;
+    cube_info.ctx = ctx;
+    cube_info.vertices = vertices;
+    cube_info.vertex_count = 36;
+    cube_info.vertex_size = 8;
+    cube_info.indices = indices;
+    cube_info.index_count = 36;
+    return ph::Mesh(cube_info);
+}
+
+ph::Texture get_blank_texture(ph::VulkanContext* ctx) {
+    int w, h, channels; 
+    uint8_t* img = stbi_load("data/textures/blank.png", &w, &h, &channels, STBI_rgb_alpha);
+    ph::Texture::CreateInfo tex_info;
+    tex_info.ctx = ctx;
+    tex_info.channels = channels;
+    tex_info.format = vk::Format::eR8G8B8A8Srgb;
+    tex_info.width = w;
+    tex_info.height = h;
+    tex_info.data = img;
+    ph::Texture tex(tex_info);
+    stbi_image_free(img);
+
+    return stl::move(tex);
+}
+
+Scene get_basic_scene() {
+    Scene scene;
+    // Default values
+    scene.light.position = glm::vec3(0, 2, 4);
+    scene.light.ambient = glm::vec3(34.0f/255.0f, 34.0f/255.0f, 34.0f/255.0f);
+    scene.light.diffuse = glm::vec3(185.0f/255.0f, 194.0f/255.0f, 32.0f/255.0f);
+    scene.light.specular = glm::vec3(1, 1, 1);
+    return scene;
+}
+
+void update_scene(Scene& scene) {
+    float time = mimas_get_time();
+    scene.light.position.x = std::sin(time) * 2.0f;
+    scene.light.position.y = 1.0f;
+    scene.light.position.z = std::cos(time) * 2.0f;
+}
+
 int main() {
     DefaultLogger logger;
     logger.set_timestamp(true);
@@ -149,115 +221,33 @@ int main() {
     settings.enable_validation_layers = true;
     settings.version = ph::Version{0, 0, 1};
     ph::VulkanContext* vulkan_context = ph::create_vulkan_context(*window_context, &logger, settings);
-    
-    mimas_set_window_mouse_button_callback(window_context->handle, mouse_button_callback, vulkan_context);
-    
-    // Setup ImGui
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-    io.ConfigDockingWithShift = false;
-    io.ConfigWindowsMoveFromTitleBarOnly = true;
-    style_theme_grey();
 
     // Create present manager (required for presenting to the screen).
     ph::PresentManager present_manager(*vulkan_context);
     ph::Renderer renderer(*vulkan_context);
-//    ph::ImGuiRenderer imgui_renderer(*window_context, *vulkan_context);
-    ImGui_ImplMimas_InitForVulkan(window_context->handle);
-    ImGui_ImplPhobos_InitInfo init_info;
-    init_info.context = vulkan_context;
-    init_info.max_frames_in_flight = 2; // TODO: better
-    ImGui_ImplPhobos_Init(&init_info);
-    io.Fonts->AddFontDefault();
-    vk::CommandPoolCreateInfo command_pool_info;
-    command_pool_info.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
-    vk::CommandPool command_pool = vulkan_context->device.createCommandPool(command_pool_info);
-    load_imgui_fonts(*vulkan_context, command_pool);
-    vulkan_context->device.destroyCommandPool(command_pool);
-    ImGui_ImplPhobos_DestroyFontUploadObjects();
 
-
+    init_imgui(vulkan_context);
     logger.write_fmt(ph::log::Severity::Info, "Created renderers");
 
-    size_t draw_calls = 0;
-
-    float vertices[] = {
-        -1, -1, -1, 0, 0, -1, 1, 1,    1, 1, -1, 0, 0, -1, 0, 0,     1,  -1, -1, 0, 0, -1, 0, 1,
-        1,  1, -1, 0, 0, -1, 0, 0,    -1, -1, -1, 0, 0, -1, 1, 1,   -1, 1, -1, 0, 0, -1, 1, 0,
-
-        -1, -1, 1, 0, 0, 1, 0, 1,    1, -1, 1, 0, 0, 1, 1, 1,     1, 1, 1, 0, 0, 1, 1, 0,
-        1,  1,  1, 0, 0, 1, 1, 0,    -1, 1, 1, 0, 0, 1, 0, 0,     -1, -1, 1, 0, 0, 1, 0, 1,
-
-        -1, 1, -1, -1, 0, 0, 0, 0,    -1, -1, -1, -1, 0, 0, 0, 1,   -1, 1, 1, -1, 0, 0, 1, 0,
-        -1, -1, -1, -1, 0, 0, 0, 1,   -1, -1, 1, -1, 0, 0, 1, 1,    -1, 1, 1, -1, 0, 0, 1, 0,
-
-        1, 1, 1, 1, 0, 0, 0, 0,      1, -1, -1, 1, 0, 0, 1, 1,    1, 1, -1, 1, 0, 0, 1, 0,
-        1, -1, -1, 1, 0, 0, 1, 1,    1,  1, 1, 1, 0, 0, 0, 0,     1, -1, 1, 1, 0, 0, 0, 1,
-
-        -1, -1, -1, 0, -1, 0, 0, 1,   1, -1, -1, 0, -1, 0, 1, 1,    1, -1, 1, 0, -1, 0, 1, 0,
-        1, -1, 1, 0, -1, 0, 1, 0,     -1, -1, 1, 0, -1, 0, 0, 0,    -1, -1, -1, 0, -1, 0, 0, 1,
-
-        -1, 1, -1, 0, 1, 0, 0, 0,    1, 1, 1, 0, 1, 0, 1, 1,      1, 1, -1, 0, 1, 0, 1, 0,
-        1,  1, 1, 0, 1, 0, 1, 1,    -1, 1, -1, 0, 1, 0, 0, 0,    -1, 1, 1, 0, 1, 0, 0, 1
-    };
-  
-    uint32_t indices[36];
-    std::iota(indices, indices + 36, 0);
-
-    ph::Mesh::CreateInfo cube_info;
-    cube_info.ctx = vulkan_context;
-    cube_info.vertices = vertices;
-    cube_info.vertex_count = 36;
-    cube_info.vertex_size = 8;
-    cube_info.indices = indices;
-    cube_info.index_count = 36;
-    ph::Mesh cube(cube_info);
-
-    int w, h, channels;
-    uint8_t* img = stbi_load("data/textures/blank.png", &w, &h, &channels, STBI_rgb_alpha);
-    ph::Texture::CreateInfo tex_info;
-    tex_info.ctx = vulkan_context;
-    tex_info.channels = channels;
-    tex_info.format = vk::Format::eR8G8B8A8Srgb;
-    tex_info.width = w;
-    tex_info.height = h;
-    tex_info.data = img;
-    ph::Texture pengu(tex_info);
-    stbi_image_free(img);
+    ph::Mesh cube = get_cube(vulkan_context);
+    ph::Texture blank_texture = get_blank_texture(vulkan_context);
 
     ph::Material default_material;
-    default_material.texture = &pengu;
-
+    default_material.texture = &blank_texture;
     logger.write_fmt(ph::log::Severity::Info, "Loaded assets");
 
-    Scene scene;
-    // Default values
-    scene.light.position = glm::vec3(0, 2, 4);
-    scene.light.ambient = glm::vec3(34.0f/255.0f, 34.0f/255.0f, 34.0f/255.0f);
-    scene.light.diffuse = glm::vec3(185.0f/255.0f, 194.0f/255.0f, 32.0f/255.0f);
-    scene.light.specular = glm::vec3(1, 1, 1);
+    Scene scene = get_basic_scene();
 
-    float rotation = 0;
-
+    // Create rendering attachments
     present_manager.add_color_attachment("color1");
     present_manager.add_color_attachment("color2");
     present_manager.add_depth_attachment("depth1");
 
+    size_t draw_calls;
     while(window_context->is_open()) {
         window_context->poll_events();
-
-        float rotation_speed = 20.0f;
-        static float time = 0.0f;
-        time += ImGui::GetIO().DeltaTime;
-        rotation += ImGui::GetIO().DeltaTime * rotation_speed;
-
         present_manager.wait_for_available_frame();
-
-        ///// FRAME START
-//        imgui_renderer.begin_frame();
-        ImGui_ImplPhobos_NewFrame();
+        
         ImGui_ImplMimas_NewFrame();
         ImGui::NewFrame();
 
@@ -265,10 +255,7 @@ int main() {
 
         // Imgui
         make_ui(draw_calls, scene, frame_info);
-
-        scene.light.position.x = std::sin(time) * 2.0f;
-        scene.light.position.y = 1.0f;
-        scene.light.position.z = std::cos(time) * 2.0f;
+        update_scene(scene);
 
         // Create RenderGraph
         ph::RenderGraph render_graph(vulkan_context);
@@ -332,8 +319,6 @@ int main() {
         draw2.material_index = 0;
         glm::mat4 transform_2 = glm::scale(glm::mat4(1.0), glm::vec3(1, 1, 1));
         second_pass.transforms.push_back(transform_2);
-        second_pass.transforms.push_back(glm::translate(transform_2, glm::vec3(0, 1, 0)));
-        second_pass.draw_commands.push_back(draw2);
         second_pass.draw_commands.push_back(draw2);
         second_pass.callback = [&frame_info, &renderer](ph::CommandBuffer& cmd_buf) {
             renderer.execute_draw_commands(frame_info, cmd_buf);
@@ -341,21 +326,20 @@ int main() {
 
         render_graph.add_pass(stl::move(second_pass));
 
+        // Render ImGui
         ImGui::Render();
         ImGui_ImplPhobos_RenderDrawData(ImGui::GetDrawData(), &frame_info, &render_graph, &renderer);
 
-        // Build the rendergraph. This creates resources like vkFramebuffers and a vkRenderPass for each ph::RenderPass
+        // Build the rendergraph. This creates resources like VkFramebuffers and a VkRenderPass for each ph::RenderPass.
+        // Note that these resources are cached, so you don't need to worry about them being recreated every frame.
         render_graph.build();
 
         // Render frame
         frame_info.render_graph = &render_graph;
         renderer.render_frame(frame_info);
-
         present_manager.present_frame(frame_info);
 
         draw_calls = frame_info.draw_calls;
-
-        ///// FRAME END
     }
 
     logger.write_fmt(ph::log::Severity::Info, "Exiting");
@@ -364,12 +348,11 @@ int main() {
     vulkan_context->device.waitIdle();
 
     // Deallocate resources
-    pengu.destroy();
+    blank_texture.destroy();
     cube.destroy();
     renderer.destroy();
     present_manager.destroy();
     ImGui_ImplPhobos_Shutdown();
-//    imgui_renderer.destroy();
     vulkan_context->destroy();
     mimas_destroy_window(window_context->handle);
     mimas_terminate();
