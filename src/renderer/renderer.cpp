@@ -49,8 +49,9 @@ vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, DescriptorSetLayout
         STL_ASSERT(set_layout, "Descriptor requested without creating desctiptor set layout first. This can happen if there is"
             " no active pipeline bound, or get_descriptor was called outside a valid ph::RenderPass callback.");
         alloc_info.pSetLayouts = set_layout;
-        // If a custom pool was specified, use that one instead of the default one.
-        alloc_info.descriptorPool = set_binding.pool ? set_binding.pool : frame.descriptor_pool;
+        // add default descriptor pool if no custom one was specified
+        if (!set_binding.pool) { set_binding.pool = frame.descriptor_pool; };
+        alloc_info.descriptorPool = set_binding.pool;
         alloc_info.descriptorSetCount = 1;
         alloc_info.pNext = pNext;
 

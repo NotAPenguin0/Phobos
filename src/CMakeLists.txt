@@ -25,6 +25,7 @@ set(PHOBOS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/stb_image.cpp"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/util/cmdbuf_util.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/util/cache_cleanup.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/image_util.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/shader_util.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/memory_util.cpp"
