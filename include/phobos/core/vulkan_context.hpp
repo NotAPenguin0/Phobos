@@ -19,7 +19,7 @@
 namespace ph {
 
 struct VulkanContext {
-    vk::Instance instance;    
+    vk::Instance instance;
     vk::DispatchLoaderDynamic dynamic_dispatcher;
     // Only available if enable_validation_layers is set to true
     vk::DebugUtilsMessengerEXT debug_messenger;

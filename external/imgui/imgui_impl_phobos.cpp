@@ -360,6 +360,7 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
     ImGui_ImplPhobos_UpdateBuffers(vertex_buffer, index_buffer, draw_data);
 
     ph::RenderPass render_pass;
+    render_pass.debug_name = "Imgui - Renderpass";
 
     ph::RenderAttachment swapchain = frame->present_manager->get_swapchain_attachment(*frame);
     // TODO: Make this more customizable? => Probably just pass it as a parameter to ImGui_ImplPhobos_RenderDrawData

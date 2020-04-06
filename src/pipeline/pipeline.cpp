@@ -1,5 +1,6 @@
 #include <phobos/pipeline/pipeline.hpp>
 #include <phobos/renderer/render_pass.hpp>
+#include <phobos/util/memory_util.hpp>
 
 namespace ph {
 
@@ -153,6 +154,13 @@ Pipeline create_or_get_pipeline(VulkanContext* ctx, RenderPass* pass, PipelineCr
     if (pipeline_ptr) { pipeline.pipeline = *pipeline_ptr; }
     else {
         vk::Pipeline ppl = ctx->device.createGraphicsPipeline(nullptr, pci.vk_info());
+        if (pci.debug_name != "") {
+            vk::DebugUtilsObjectNameInfoEXT name_info;
+            name_info.objectType = vk::ObjectType::ePipeline;
+            name_info.pObjectName = pci.debug_name.c_str();
+            name_info.objectHandle = memory_util::vk_to_u64(ppl);
+            ctx->device.setDebugUtilsObjectNameEXT(name_info, ctx->dynamic_dispatcher);
+        }
         pipeline.pipeline = ppl;
         ctx->pipeline_cache.insert(pci, stl::move(ppl));
     }
@@ -161,6 +169,7 @@ Pipeline create_or_get_pipeline(VulkanContext* ctx, RenderPass* pass, PipelineCr
 }
 
 void PipelineManager::create_named_pipeline(std::string name, PipelineCreateInfo&& info) {
+    if (info.debug_name == "") { info.debug_name = "Pipeline - " + name; }
     pipeline_infos.emplace(stl::move(name), stl::move(info));
 }
 

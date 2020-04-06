@@ -31,7 +31,7 @@ void update_cache_resource_usage(VulkanContext* ctx, Cache<T, LookupT>& cache, s
         entry.frames_since_last_usage++;
 
         // If this entry has exceeded the max amount of frames since its last usage, free it.
-        if (entry.frames_since_last_usage > max_frames_in_flight) {
+        if (entry.frames_since_last_usage > max_frames_in_flight + 1) {
             destroy(ctx, entry.key, entry.data);
             // std::unordered_map guarantees iterator stability when erasing an element, so this is safe
             // to do in a loop

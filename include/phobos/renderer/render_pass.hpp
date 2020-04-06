@@ -20,6 +20,9 @@
 namespace ph {
 
 struct RenderPass {
+    // This is the name that will be given to the vk object created from this renderpass
+    std::string debug_name;
+
     stl::vector<RenderAttachment> sampled_attachments;
     stl::vector<RenderAttachment> outputs;
     // Size of this must match the size of the outputs vector

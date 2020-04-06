@@ -69,6 +69,9 @@ struct Pipeline {
 };
 
 struct PipelineCreateInfo {
+    // debug name for this pipeline, defaults to the name given in the pipeline manager
+    std::string debug_name;
+
     PipelineLayoutCreateInfo layout;
 
     vk::VertexInputBindingDescription vertex_input_binding;

@@ -285,6 +285,7 @@ int main() {
 
         // Main render pass. This render pass renders the scene to an offscreen texture
         ph::RenderPass main_pass;
+        main_pass.debug_name = "Main renderpass";
         main_pass.sampled_attachments = {};
         main_pass.outputs.push_back(offscreen_attachment);
         main_pass.outputs.push_back(depth_attachment);
@@ -308,6 +309,7 @@ int main() {
         render_graph.add_pass(stl::move(main_pass));
 
         ph::RenderPass second_pass;
+        second_pass.debug_name = "Secondary renderpass";
         second_pass.sampled_attachments = {};
         second_pass.outputs.push_back(color_attachment2);
         second_pass.outputs.push_back(depth_attachment);

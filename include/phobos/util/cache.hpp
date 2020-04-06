@@ -79,7 +79,6 @@ template<>
 struct hash<vk::RenderPass> {
     size_t operator()(vk::RenderPass const& pass) const noexcept {
         size_t h = 0;
-        // Is this UB?
         ph::hash_combine(h, reinterpret_cast<uint64_t>(static_cast<VkRenderPass>(pass)));
         return h;
     }  

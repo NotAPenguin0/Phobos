@@ -6,6 +6,7 @@
 #include <vector>
 #include <iostream>
 
+#include <phobos/util/memory_util.hpp>
 
 namespace ph {
 
@@ -187,6 +188,10 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
     cmd_pool_info.flags = vk::CommandPoolCreateFlagBits::eTransient | vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
     cmd_pool_info.queueFamilyIndex = context->physical_device.queue_families.graphics_family.value();
     context->command_pool = context->device.createCommandPool(cmd_pool_info);
+    vk::DebugUtilsObjectNameInfoEXT cmd_pool_name_info;
+    cmd_pool_name_info.objectHandle = memory_util::vk_to_u64(context->command_pool);
+    cmd_pool_name_info.objectType = vk::ObjectType::eCommandPool;
+    cmd_pool_name_info.pObjectName = "Main command pool";
 
     logger->write_fmt(log::Severity::Info, "Created command pool");
 

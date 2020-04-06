@@ -4,6 +4,7 @@
 #include <stl/span.hpp>
 
 #include <phobos/pipeline/pipeline.hpp>
+#include <phobos/util/memory_util.hpp>
 
 /*
 
@@ -214,6 +215,13 @@ void RenderGraph::create_render_passes() {
         else { 
             // Create the renderpass and insert it into the caches
             vk::RenderPass render_pass = ctx->device.createRenderPass(info);
+            if (it->debug_name != "") {
+                vk::DebugUtilsObjectNameInfoEXT name_info;
+                name_info.pObjectName = it->debug_name.c_str();
+                name_info.objectHandle = memory_util::vk_to_u64(render_pass);
+                name_info.objectType = vk::ObjectType::eRenderPass;
+                ctx->device.setDebugUtilsObjectNameEXT(name_info, ctx->dynamic_dispatcher);
+            }
             it->render_pass = render_pass;
             ctx->renderpass_cache.insert(info, stl::move(render_pass));
         }
