@@ -48,6 +48,43 @@ DescriptorBinding make_buffer_descriptor(uint32_t binding, vk::DescriptorType ty
     return descriptor_binding;
 }
 
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, vk::ImageView view, vk::Sampler sampler, vk::ImageLayout layout) {
+    DescriptorBinding descriptor_binding;
+    descriptor_binding.binding = binding.binding;
+    descriptor_binding.type = binding.type;
+    auto& descriptor = descriptor_binding.descriptors.emplace_back();
+    descriptor.image.imageView = view;
+    descriptor.image.imageLayout = layout;
+    descriptor.image.sampler = sampler;
+    return descriptor_binding;
+}
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, stl::span<vk::ImageView> views, vk::Sampler sampler, vk::ImageLayout layout) {
+    DescriptorBinding descriptor_binding;
+    descriptor_binding.binding = binding.binding;
+    descriptor_binding.type = binding.type;
+    descriptor_binding.descriptors.reserve(views.size());
+    for (auto img : views) {
+        auto& descriptor = descriptor_binding.descriptors.emplace_back();
+        descriptor.image.imageView = img;
+        descriptor.image.imageLayout = layout;
+        descriptor.image.sampler = sampler;
+    }
+
+    return descriptor_binding;
+}
+
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, vk::Buffer buffer, vk::DeviceSize size, vk::DeviceSize offset) {
+    DescriptorBinding descriptor_binding;
+    descriptor_binding.binding = binding.binding;
+    descriptor_binding.type = binding.type;
+    auto& descriptor = descriptor_binding.descriptors.emplace_back();
+    descriptor.buffer.buffer = buffer;
+    descriptor.buffer.offset = offset;
+    descriptor.buffer.range = size;
+    return descriptor_binding;
+}
+
+
 vk::GraphicsPipelineCreateInfo PipelineCreateInfo::vk_info() const {
     vk::GraphicsPipelineCreateInfo info;
 
@@ -65,8 +102,6 @@ vk::GraphicsPipelineCreateInfo PipelineCreateInfo::vk_info() const {
 
     return info;
 }
-
-
 
 void PipelineCreateInfo::finalize() {
     vertex_input.vertexBindingDescriptionCount = 1;

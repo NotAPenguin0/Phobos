@@ -1,19 +1,32 @@
 #ifndef PHOBOS_SHADER_INFO_HPP_
 #define PHOBOS_SHADER_INFO_HPP_
 
-#include <phobos/pipeline/pipeline.hpp>
+#include <string_view>
+#include <unordered_map>
+
+#include <vulkan/vulkan.hpp>
 
 namespace ph {
 
+struct PipelineCreateInfo;
+
 class ShaderInfo {
 public:
-    
+    struct BindingInfo {
+        uint32_t binding;
+        vk::DescriptorType type;
+    };
+
+    BindingInfo operator[](std::string_view name) const;
+
+    void add_binding(std::string_view name, BindingInfo info);
+private:
+    std::unordered_map<std::string, BindingInfo> bindings;
 };
 
 // Provides meta info like descriptor bindings on shaders in the pipeline, and updates members of the pipeline 
-// create info to match these shaders (like vertex attributes). This information will only be gathered from shaders specified in the
-// PipelineCreateInfo::reflected_shaders field.
-ShaderInfo reflect_shaders(ph::PipelineCreateInfo& pci);
+// create info to match these shaders (Pipeline layout and ShaderInfo field).
+void reflect_shaders(ph::PipelineCreateInfo& pci);
 
 }
 

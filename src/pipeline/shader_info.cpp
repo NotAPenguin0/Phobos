@@ -1,4 +1,5 @@
 #include <phobos/pipeline/shader_info.hpp>
+#include <phobos/pipeline/pipeline.hpp>
 
 #include <vector>
 #include <fstream>
@@ -11,6 +12,14 @@
 #include <iostream>
 
 namespace ph {
+
+ShaderInfo::BindingInfo ShaderInfo::operator[](std::string_view name) const {
+    return bindings.at(std::string(name));
+}
+
+void ShaderInfo::add_binding(std::string_view name, BindingInfo info) {
+    bindings[std::string(name)] = info;
+}
 
 static vk::ShaderStageFlags get_shader_stage(spirv_cross::Compiler& refl) {
     auto entry_point_name = refl.get_entry_points_and_stages()[0];
@@ -72,14 +81,14 @@ static void process_vertex_input(spirv_cross::Compiler& refl, spirv_cross::Shade
     }    
 }
 
-static std::unique_ptr<spirv_cross::Compiler> reflect_shader_stage(ShaderInfo& info, PipelineCreateInfo& pci, ShaderModuleCreateInfo const& shader) {
+static std::unique_ptr<spirv_cross::Compiler> reflect_shader_stage(PipelineCreateInfo& pci, ShaderModuleCreateInfo const& shader) {
     auto refl = std::make_unique<spirv_cross::Compiler>(shader.code);
     spirv_cross::ShaderResources res = refl->get_shader_resources();
     
     auto const shader_stage = get_shader_stage(*refl);
     if (shader_stage == vk::ShaderStageFlagBits::eAll) { throw std::runtime_error("Invalid shader stage"); }
     STL_ASSERT(shader_stage == shader.stage, "Invalid shader stage specified");
-    // This is too unreliable
+    // This is too unreliable, because we cannot know the correct vk::Format to use (as this depends on the buffer, not on the shader)
 /*    if (shader_stage == vk::ShaderStageFlagBits::eVertex) {
         process_vertex_input(*refl, res, pci);
     }
@@ -88,11 +97,13 @@ static std::unique_ptr<spirv_cross::Compiler> reflect_shader_stage(ShaderInfo& i
     return refl;
 }
 
+// This function merges all push constant ranges in a single shader stage into one push constant range.
+// We need this because spirv-cross reports one push constant range for each variable, instead of for each block.
 static void merge_ranges(stl::vector<vk::PushConstantRange>& out, stl::vector<vk::PushConstantRange> const& in,
     vk::ShaderStageFlags stage) {
 
     vk::PushConstantRange merged;
-    merged.offset = 1000000; // some arbitrarily large value to start with
+    merged.offset = 1000000; // some arbitrarily large value to start with, we'll make this smaller using std::min() later
     merged.stageFlags = stage;
     for (auto& range : in) {
         if (range.stageFlags == stage) {
@@ -127,7 +138,7 @@ static stl::vector<vk::PushConstantRange> get_push_constants(stl::vector<std::un
     return final;
 }   
 
-static void find_uniform_buffers(spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
+static void find_uniform_buffers(ShaderInfo& info, spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
     // TODO: Refer to a UBO in multiple stages
     vk::ShaderStageFlags const stage = get_shader_stage(refl);
     spirv_cross::ShaderResources res = refl.get_shader_resources();
@@ -138,10 +149,12 @@ static void find_uniform_buffers(spirv_cross::Compiler& refl, DescriptorSetLayou
         binding.descriptorCount = 1;
         binding.stageFlags = stage;
         dslci.bindings.push_back(binding);
+
+        info.add_binding(refl.get_name(ubo.id), { binding.binding, binding.descriptorType });
     }
 }
 
-static void find_shader_storage_buffers(spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
+static void find_shader_storage_buffers(ShaderInfo& info, spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
     vk::ShaderStageFlags const stage = get_shader_stage(refl);
     spirv_cross::ShaderResources res = refl.get_shader_resources();
     for (auto& ssbo : res.storage_buffers) {
@@ -151,10 +164,12 @@ static void find_shader_storage_buffers(spirv_cross::Compiler& refl, DescriptorS
         binding.descriptorCount = 1;
         binding.stageFlags = stage;
         dslci.bindings.push_back(binding);
+
+        info.add_binding(refl.get_name(ssbo.id), { binding.binding, binding.descriptorType });
     }
 }
 
-static void find_sampled_images(spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
+static void find_sampled_images(ShaderInfo& info, spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
     vk::ShaderStageFlags const stage = get_shader_stage(refl);
     spirv_cross::ShaderResources res = refl.get_shader_resources();
     for (auto& si : res.sampled_images) {
@@ -185,35 +200,36 @@ static void find_sampled_images(spirv_cross::Compiler& refl, DescriptorSetLayout
             // If it' not an array, there is only one descriptor
             binding.descriptorCount = 1;
         }
+
+        info.add_binding(refl.get_name(si.id), { binding.binding, binding.descriptorType });
         dslci.bindings.push_back(binding);
     }
 }
 
-static DescriptorSetLayoutCreateInfo get_descriptor_set_layout(stl::vector<std::unique_ptr<spirv_cross::Compiler>>& reflected_shaders) {
+static DescriptorSetLayoutCreateInfo get_descriptor_set_layout(ShaderInfo& info, stl::vector<std::unique_ptr<spirv_cross::Compiler>>& reflected_shaders) {
     DescriptorSetLayoutCreateInfo dslci;
     for (auto& refl : reflected_shaders) {
-        find_uniform_buffers(*refl, dslci);
-        find_shader_storage_buffers(*refl, dslci);
-        find_sampled_images(*refl, dslci);
+        find_uniform_buffers(info, *refl, dslci);
+        find_shader_storage_buffers(info, *refl, dslci);
+        find_sampled_images(info, *refl, dslci);
     }
     return dslci;
 }
 
 static void make_pipeline_layout(stl::vector<std::unique_ptr<spirv_cross::Compiler>>& reflected_shaders, PipelineCreateInfo& pci) {  
+
     pci.layout.push_constants = get_push_constants(reflected_shaders);
-    pci.layout.set_layout = get_descriptor_set_layout(reflected_shaders);
+    pci.layout.set_layout = get_descriptor_set_layout(pci.shader_info, reflected_shaders);
 }
 
-ShaderInfo reflect_shaders(PipelineCreateInfo& pci) {
-    ShaderInfo info;
+void reflect_shaders(PipelineCreateInfo& pci) {
     stl::vector<std::unique_ptr<spirv_cross::Compiler>> reflected_shaders;
     for (auto const& shader : pci.shaders) {
-        reflected_shaders.push_back(reflect_shader_stage(info, pci, shader));
+        reflected_shaders.push_back(reflect_shader_stage(pci, shader));
     }
 
     make_pipeline_layout(reflected_shaders, pci);
 
-    return info;
 }
 
 }

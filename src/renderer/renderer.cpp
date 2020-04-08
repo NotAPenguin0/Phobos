@@ -193,21 +193,19 @@ void Renderer::update_lights(FrameInfo& info, RenderGraph const* graph) {
 }
 
 vk::DescriptorSet Renderer::get_fixed_descriptor_set(FrameInfo& frame, RenderGraph const* graph) {
-    DescriptorSetBinding bindings;
-    bindings.bindings.resize(4);
-    auto& cam = bindings.bindings[meta::bindings::generic::camera];
-    auto& transform = bindings.bindings[meta::bindings::generic::transforms];
-    auto& mtl = bindings.bindings[meta::bindings::generic::textures];
-    auto& lights = bindings.bindings[meta::bindings::generic::lights];
+    PipelineCreateInfo const* pci = ctx.pipelines.get_named_pipeline("generic");
+    STL_ASSERT(pci, "Generic pipeline not created");
+    ShaderInfo const& shader_info = pci->shader_info;
 
-    cam = make_buffer_descriptor(meta::bindings::generic::camera, vk::DescriptorType::eUniformBuffer, frame.vp_ubo.buffer, frame.vp_ubo.size);
-    transform = make_buffer_descriptor(meta::bindings::generic::transforms, vk::DescriptorType::eStorageBuffer, frame.transform_ssbo.buffer_handle(), frame.transform_ssbo.size());
+    DescriptorSetBinding bindings;
+    bindings.bindings.push_back(make_descriptor(shader_info["camera"], frame.vp_ubo.buffer, frame.vp_ubo.size));
+    bindings.bindings.push_back(make_descriptor(shader_info["transforms"], frame.transform_ssbo.buffer_handle(), frame.transform_ssbo.size()));
     stl::vector<vk::ImageView> texture_views;
     texture_views.reserve(graph->materials.size());
     for (auto const& mat : graph->materials) { texture_views.push_back(mat.texture->view_handle()); }
-    mtl = make_image_descriptor_array(meta::bindings::generic::textures, texture_views, frame.default_sampler);
-    lights = make_buffer_descriptor(meta::bindings::generic::lights, vk::DescriptorType::eUniformBuffer, frame.lights.buffer, frame.lights.size);
-
+    bindings.bindings.push_back(make_descriptor(shader_info["textures"], texture_views, frame.default_sampler));
+    bindings.bindings.push_back(make_descriptor(shader_info["lights"], frame.lights.buffer, frame.lights.size));
+    
     // We need variable count to use descriptor indexing
     vk::DescriptorSetVariableDescriptorCountAllocateInfo variable_count_info;
     uint32_t counts[1] { meta::max_unbounded_array_size };
@@ -215,8 +213,7 @@ vk::DescriptorSet Renderer::get_fixed_descriptor_set(FrameInfo& frame, RenderGra
     variable_count_info.pDescriptorCounts = counts;
 
     // use default descriptor pool and internal version of get_descriptor to specify a pipeline manually
-    DescriptorSetLayoutCreateInfo const& set_layout = ctx.pipelines.get_named_pipeline("generic")->layout.set_layout;
-    return get_descriptor(frame, set_layout, stl::move(bindings), &variable_count_info);
+    return get_descriptor(frame, pci->layout.set_layout, stl::move(bindings), &variable_count_info);
 }
 
 } // namespace ph

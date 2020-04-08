@@ -10,6 +10,7 @@
 #include <stl/vector.hpp>
 
 #include <phobos/forward.hpp>
+#include <phobos/pipeline/shader_info.hpp>
 
 namespace ph {
 
@@ -40,6 +41,12 @@ DescriptorBinding make_image_descriptor(uint32_t binding, vk::ImageView view, vk
 DescriptorBinding make_image_descriptor_array(uint32_t binding, stl::span<vk::ImageView> views, vk::Sampler sampler,
     vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);
 DescriptorBinding make_buffer_descriptor(uint32_t binding, vk::DescriptorType type, vk::Buffer buffer, vk::DeviceSize size, vk::DeviceSize offset = 0);
+
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, vk::ImageView view, vk::Sampler sampler, 
+        vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, stl::span<vk::ImageView> views, vk::Sampler sampler, 
+        vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, vk::Buffer buffer, vk::DeviceSize size, vk::DeviceSize offset = 0);
 
 struct DescriptorSetBinding {
     stl::vector<DescriptorBinding> bindings;
@@ -77,6 +84,8 @@ struct ShaderModuleCreateInfo {
 struct PipelineCreateInfo {
     // debug name for this pipeline, defaults to the name given in the pipeline manager
     std::string debug_name;
+    // Contains reflected information with binding names, etc
+    ShaderInfo shader_info;
 
     PipelineLayoutCreateInfo layout;
 

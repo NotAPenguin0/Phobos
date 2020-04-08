@@ -339,6 +339,8 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
     render_pass.callback = [draw_data, frame, renderer, fb_width, fb_height](ph::CommandBuffer& cmd_buf) {
         ph::RenderPass& pass = *cmd_buf.get_active_renderpass();
         ph::Pipeline pipeline = renderer->get_pipeline("ImGui_ImplPhobos_pipeline", pass);
+        ph::ShaderInfo const& shader_info = g_Context->pipelines.get_named_pipeline("ImGui_ImplPhobos_pipeline")->shader_info;
+
         cmd_buf.bind_pipeline(pipeline);
         ImGui_ImplPhobos_Buffer& vtx_buffer = g_VertexBuffers[frame->frame_index];
         ImGui_ImplPhobos_Buffer& idx_buffer = g_IndexBuffers[frame->frame_index];
@@ -399,7 +401,7 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
                     // Get descriptor set from the renderer
                     ph::DescriptorSetBinding descriptor_set;
                     descriptor_set.pool = g_DescriptorPool;
-                    descriptor_set.bindings.push_back(ph::make_image_descriptor(0, img_view, g_FontSampler));
+                    descriptor_set.bindings.push_back(ph::make_descriptor(shader_info["sTexture"], img_view, g_FontSampler));
                     vk::DescriptorSet descr_set = renderer->get_descriptor(*frame, pass, descriptor_set);
 
                     cmd_buf.bind_descriptor_set(0, descr_set)
