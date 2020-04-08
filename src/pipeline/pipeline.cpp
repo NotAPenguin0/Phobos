@@ -51,8 +51,6 @@ DescriptorBinding make_buffer_descriptor(uint32_t binding, vk::DescriptorType ty
 vk::GraphicsPipelineCreateInfo PipelineCreateInfo::vk_info() const {
     vk::GraphicsPipelineCreateInfo info;
 
-    info.stageCount = shaders.size();
-    info.pStages = shaders.data();
     info.layout = pipeline_layout.layout;
     info.pVertexInputState = &vertex_input;
     info.pInputAssemblyState = &input_assembly;
@@ -67,6 +65,8 @@ vk::GraphicsPipelineCreateInfo PipelineCreateInfo::vk_info() const {
 
     return info;
 }
+
+
 
 void PipelineCreateInfo::finalize() {
     vertex_input.vertexBindingDescriptionCount = 1;
@@ -135,6 +135,14 @@ static PipelineLayout create_or_get_pipeline_layout(VulkanContext* ctx, Pipeline
     }
 }
 
+static vk::ShaderModule create_shader_module(VulkanContext* ctx, ShaderModuleCreateInfo const& info) {
+    vk::ShaderModuleCreateInfo vk_info;
+    constexpr size_t bytes_per_spv_element = 4;
+    vk_info.codeSize = info.code.size() * bytes_per_spv_element;
+    vk_info.pCode = info.code.data();
+    return ctx->device.createShaderModule(vk_info);
+}
+
 Pipeline create_or_get_pipeline(VulkanContext* ctx, RenderPass* pass, PipelineCreateInfo pci) {
     Pipeline pipeline;
 
@@ -149,11 +157,28 @@ Pipeline create_or_get_pipeline(VulkanContext* ctx, RenderPass* pass, PipelineCr
     // Make sure to set pipeline layout before lookup
     pci.pipeline_layout = pipeline_layout;
     pipeline.layout = pipeline_layout;
+        
 
     auto pipeline_ptr = ctx->pipeline_cache.get(pci);
     if (pipeline_ptr) { pipeline.pipeline = *pipeline_ptr; }
     else {
-        vk::Pipeline ppl = ctx->device.createGraphicsPipeline(nullptr, pci.vk_info());
+        vk::GraphicsPipelineCreateInfo vk_pci = pci.vk_info();
+        // Create shader modules
+        std::vector<vk::PipelineShaderStageCreateInfo> shader_infos;
+        for (auto const& shader_info : pci.shaders) {
+            vk::PipelineShaderStageCreateInfo ssci;
+            ssci.module = create_shader_module(ctx, shader_info);
+            ssci.pName = shader_info.entry_point.c_str();
+            ssci.stage = shader_info.stage;
+            shader_infos.push_back(ssci);
+        }
+        vk_pci.stageCount = shader_infos.size();
+        vk_pci.pStages = shader_infos.data();
+        vk::Pipeline ppl = ctx->device.createGraphicsPipeline(nullptr, vk_pci);
+        // Pipeline was created, destroy shader modules as we don't need them anymore
+        for (auto& shader : shader_infos) {
+            ctx->device.destroyShaderModule(shader.module);
+        }
         if (pci.debug_name != "") {
             vk::DebugUtilsObjectNameInfoEXT name_info;
             name_info.objectType = vk::ObjectType::ePipeline;
@@ -179,14 +204,5 @@ PipelineCreateInfo const* PipelineManager::get_named_pipeline(std::string const&
     return nullptr;
 }
 
-void PipelineManager::destroy_all(vk::Device device) {
-    for (auto [id, pipeline] : pipeline_infos) {
-        for (auto const& shader : pipeline.shaders) {
-            device.destroyShaderModule(shader.module);
-        }
-    }
-
-    pipeline_infos.clear();
-}
 
 }

@@ -11,7 +11,7 @@ uint32_t find_memory_type(PhysicalDeviceDetails const& phys_device, uint32_t typ
 
 template<typename T>
 auto to_vk_type(T obj) { 
-    return static_cast<T::CType>(obj);
+    return static_cast<typename T::CType>(obj);
 }
 
 template<typename T>

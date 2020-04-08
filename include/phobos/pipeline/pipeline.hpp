@@ -68,6 +68,12 @@ struct Pipeline {
     std::string name;
 };
 
+struct ShaderModuleCreateInfo {
+    std::vector<uint32_t> code;
+    std::string entry_point;
+    vk::ShaderStageFlagBits stage;
+};
+
 struct PipelineCreateInfo {
     // debug name for this pipeline, defaults to the name given in the pipeline manager
     std::string debug_name;
@@ -76,7 +82,7 @@ struct PipelineCreateInfo {
 
     vk::VertexInputBindingDescription vertex_input_binding;
     stl::vector<vk::VertexInputAttributeDescription> vertex_attributes;
-    stl::vector<vk::PipelineShaderStageCreateInfo> shaders;
+    stl::vector<ShaderModuleCreateInfo> shaders;
     vk::PipelineInputAssemblyStateCreateInfo input_assembly =
         vk::PipelineInputAssemblyStateCreateInfo {
             vk::PipelineInputAssemblyStateCreateFlags{},
@@ -130,8 +136,6 @@ class PipelineManager {
 public:
     void create_named_pipeline(std::string name, PipelineCreateInfo&& info);
     PipelineCreateInfo const* get_named_pipeline(std::string const& name) const;
-
-    void destroy_all(vk::Device device);
 private:
     std::unordered_map<std::string, PipelineCreateInfo> pipeline_infos;
 };

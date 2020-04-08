@@ -63,7 +63,7 @@ CommandBuffer& CommandBuffer::bind_index_buffer(vk::Buffer buffer, vk::DeviceSiz
     return *this;
 }
 
-CommandBuffer& CommandBuffer::push_constants(vk::ShaderStageFlags stage_flags, uint32_t offset, uint32_t size, void* data) {
+CommandBuffer& CommandBuffer::push_constants(vk::ShaderStageFlags stage_flags, uint32_t offset, uint32_t size, void const* data) {
     STL_ASSERT(active_renderpass, "push_constants called without an active renderpass");
     cmd_buf.pushConstants(active_renderpass->active_pipeline.layout.layout, stage_flags, offset, size, data);
     return *this;

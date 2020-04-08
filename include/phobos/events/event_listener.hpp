@@ -6,6 +6,8 @@ namespace ph {
 template<typename Event>
 class EventListener {
 public:
+    virtual ~EventListener() = default;
+
     friend class EventDispatcher;
     
     virtual void on_event(Event const& e) = 0;

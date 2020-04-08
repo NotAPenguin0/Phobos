@@ -18,7 +18,7 @@ public:
     RenderAttachment& operator=(RenderAttachment const& rhs);
     RenderAttachment& operator=(RenderAttachment&& rhs);
 
-    ~RenderAttachment();
+    virtual ~RenderAttachment();
 
     static RenderAttachment from_ref(VulkanContext* ctx, vk::Image image, vk::DeviceMemory memory, vk::ImageView view, 
         uint32_t w, uint32_t h, vk::Format fmt = vk::Format::eUndefined);

@@ -22,7 +22,7 @@ public:
     CommandBuffer& bind_vertex_buffer(uint32_t first_binding, vk::Buffer buffer, vk::DeviceSize offset = 0);
     CommandBuffer& bind_vertex_buffers(uint32_t first_binding, stl::span<vk::Buffer> buffers, stl::span<vk::DeviceSize> offsets);
     CommandBuffer& bind_index_buffer(vk::Buffer buffer, vk::DeviceSize offset = 0, vk::IndexType type = vk::IndexType::eUint32);
-    CommandBuffer& push_constants(vk::ShaderStageFlags stage_flags, uint32_t offset, uint32_t size, void* data);
+    CommandBuffer& push_constants(vk::ShaderStageFlags stage_flags, uint32_t offset, uint32_t size, void const* data);
     CommandBuffer& draw_indexed(uint32_t index_count, uint32_t instance_count, uint32_t first_index = 0, 
         uint32_t vertex_offset = 0, uint32_t first_instance = 0);
 

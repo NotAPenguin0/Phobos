@@ -13,6 +13,9 @@
 
 #include <phobos/util/buffer_util.hpp>
 #include <phobos/util/image_util.hpp>
+#include <phobos/util/shader_util.hpp>
+
+#include <phobos/pipeline/shader_info.hpp>
 
 /* Notes
  * In ImGui_ImplPhobos, an ImTextureID is simply a VkImageView handle.
@@ -29,7 +32,6 @@ static vk::DeviceMemory g_FontMemory;
 static vk::Buffer g_UploadBuffer;
 static vk::DeviceMemory g_UploadBufferMemory;
 static vk::DescriptorPool g_DescriptorPool;
-static vk::DescriptorSetLayout g_DescriptorSetLayout;
 static ph::VulkanContext* g_Context;
 
 namespace {
@@ -165,86 +167,33 @@ static void ImGui_ImplPhobos_CreateSampler(ph::VulkanContext* ctx) {
 }
 
 
-static void ImGui_ImplPhobos_CreateShaderModules(ph::VulkanContext* ctx, vk::ShaderModule* vertex, vk::ShaderModule* fragment) {
-    vk::ShaderModuleCreateInfo vert_info;
-    vert_info.codeSize = sizeof(__glsl_shader_vert_spv);
-    vert_info.pCode = (uint32_t*)__glsl_shader_vert_spv;
-    *vertex = ctx->device.createShaderModule(vert_info);
-
-    vk::ShaderModuleCreateInfo frag_info;
-    frag_info.codeSize = sizeof(__glsl_shader_frag_spv);
-    frag_info.pCode = (uint32_t*)__glsl_shader_frag_spv;
-    *fragment = ctx->device.createShaderModule(frag_info);
-}
-
 static void ImGui_ImplPhobos_CreatePipeline(ph::VulkanContext* ctx) {
-    // Create descriptor set layout
-    ph::DescriptorSetLayoutCreateInfo set_layout_info;
-    vk::DescriptorSetLayoutBinding binding;
-    binding.binding = 0;
-    binding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-    binding.descriptorCount = 1;
-    binding.stageFlags = vk::ShaderStageFlagBits::eFragment;
-    binding.pImmutableSamplers = &g_FontSampler;
-    set_layout_info.bindings.push_back(binding);
-
-    // Create pipeline layout
-    ph::PipelineLayoutCreateInfo plci;
-    vk::PushConstantRange push_constants = {};
-    push_constants.stageFlags = vk::ShaderStageFlagBits::eVertex;
-    push_constants.offset = sizeof(float) * 0;
-    push_constants.size = sizeof(float) * 4;
-    plci.push_constants.push_back(push_constants);
-    plci.set_layout = set_layout_info;
-    
     ph::PipelineCreateInfo pci;
-    pci.layout = plci;
 
-    // Note that deleting shader modules is taken care of by phobos
-    vk::ShaderModule vertex;
-    vk::ShaderModule fragment;
-    ImGui_ImplPhobos_CreateShaderModules(ctx, &vertex, &fragment);
-    vk::PipelineShaderStageCreateInfo stages[2];
-    stages[0].stage = vk::ShaderStageFlagBits::eVertex;
-    stages[0].module = vertex;
-    stages[0].pName = "main";
-    stages[1].stage = vk::ShaderStageFlagBits::eFragment;
-    stages[1].module = fragment;
-    stages[1].pName = "main";
-    pci.shaders.push_back(stages[0]);
-    pci.shaders.push_back(stages[1]);
+    pci.shaders.emplace_back(std::vector<uint32_t>(&__glsl_shader_vert_spv[0], __glsl_shader_vert_spv + IM_ARRAYSIZE(__glsl_shader_vert_spv)),
+        "main", vk::ShaderStageFlagBits::eVertex);
+    pci.shaders.emplace_back(std::vector<uint32_t>(&__glsl_shader_frag_spv[0], __glsl_shader_frag_spv + IM_ARRAYSIZE(__glsl_shader_frag_spv)),
+        "main", vk::ShaderStageFlagBits::eFragment);
 
-    pci.vertex_input_binding.binding = 0;
-    pci.vertex_input_binding.stride = sizeof(ImDrawVert);
+    ph::reflect_shaders(pci);
+
+    pci.vertex_attributes.resize(3);
+    pci.vertex_attributes[0].location = 0;
+    pci.vertex_attributes[0].binding = 0;
+    pci.vertex_attributes[0].format = vk::Format::eR32G32Sfloat;
+    pci.vertex_attributes[0].offset = IM_OFFSETOF(ImDrawVert, pos);
+    pci.vertex_attributes[1].location = 1;
+    pci.vertex_attributes[1].binding = 0;
+    pci.vertex_attributes[1].format = vk::Format::eR32G32Sfloat;
+    pci.vertex_attributes[1].offset = IM_OFFSETOF(ImDrawVert, uv);
+    pci.vertex_attributes[2].location = 2;
+    pci.vertex_attributes[2].binding = 0;
+    pci.vertex_attributes[2].format = vk::Format::eR8G8B8A8Unorm;
+    pci.vertex_attributes[2].offset = IM_OFFSETOF(ImDrawVert, col);
     pci.vertex_input_binding.inputRate = vk::VertexInputRate::eVertex;
+    pci.vertex_input_binding.stride = sizeof(ImDrawVert);
 
-    vk::VertexInputAttributeDescription attribute_desc[3];
-    attribute_desc[0].location = 0;
-    attribute_desc[0].binding =  pci.vertex_input_binding.binding;
-    attribute_desc[0].format = vk::Format::eR32G32Sfloat;
-    attribute_desc[0].offset = IM_OFFSETOF(ImDrawVert, pos);
-    attribute_desc[1].location = 1;
-    attribute_desc[1].binding =  pci.vertex_input_binding.binding;
-    attribute_desc[1].format = vk::Format::eR32G32Sfloat;
-    attribute_desc[1].offset = IM_OFFSETOF(ImDrawVert, uv);
-    attribute_desc[2].location = 2;
-    attribute_desc[2].binding =  pci.vertex_input_binding.binding;
-    attribute_desc[2].format = vk::Format::eR8G8B8A8Unorm;
-    attribute_desc[2].offset = IM_OFFSETOF(ImDrawVert, col);
-
-    pci.vertex_attributes.push_back(attribute_desc[0]);
-    pci.vertex_attributes.push_back(attribute_desc[1]);
-    pci.vertex_attributes.push_back(attribute_desc[2]);
-
-    pci.input_assembly.topology = vk::PrimitiveTopology::eTriangleList;
-    pci.input_assembly.primitiveRestartEnable = false;
-
-    pci.rasterizer.polygonMode = vk::PolygonMode::eFill;
     pci.rasterizer.cullMode = vk::CullModeFlagBits::eNone;
-    pci.rasterizer.frontFace = vk::FrontFace::eCounterClockwise;
-    pci.rasterizer.lineWidth = 1.0f;
-
-    pci.multisample.rasterizationSamples = vk::SampleCountFlagBits::e1;
 
     pci.viewports.emplace_back();
     pci.scissors.emplace_back();
@@ -312,12 +261,13 @@ void ImGui_ImplPhobos_EnsureBufferSize(ImGui_ImplPhobos_Buffer& buffer, vk::Devi
     buffer.size = size;
 }
 
+
 void ImGui_ImplPhobos_UpdateBuffers(ImGui_ImplPhobos_Buffer& vertex, ImGui_ImplPhobos_Buffer& index, ImDrawData* draw_data) {
     // Map the buffer memory
     ImDrawVert* vtx_mem = (ImDrawVert*)g_Context->device.mapMemory(vertex.memory, 0, VK_WHOLE_SIZE);
     ImDrawIdx* idx_mem = (ImDrawIdx*)g_Context->device.mapMemory(index.memory, 0, VK_WHOLE_SIZE);
 
-    for (size_t i = 0; i < draw_data->CmdListsCount; ++i) {
+    for (size_t i = 0; i < (size_t)draw_data->CmdListsCount; ++i) {
         ImDrawList const* cmd_list = draw_data->CmdLists[i];
         // Copy data
         memcpy(vtx_mem, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
@@ -371,10 +321,10 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
     // Loop through all attachments and check if this frame samples from them.
     // We need to do this to fill out the render_pass.sampled_attachments field to ensure these images are properly transitioned
     for (auto const&[name, attachment] : frame->present_manager->get_all_attachments()) {
-        for (size_t i = 0; i < draw_data->CmdListsCount; ++i) {
+        for (size_t i = 0; i < (size_t)draw_data->CmdListsCount; ++i) {
             bool found = false;
             ImDrawList const* draw_list = draw_data->CmdLists[i];
-            for (size_t cmd_i = 0; cmd_i < draw_list->CmdBuffer.Size; ++cmd_i) {
+            for (size_t cmd_i = 0; cmd_i < (size_t)draw_list->CmdBuffer.Size; ++cmd_i) {
                 ImDrawCmd const* cmd = &draw_list->CmdBuffer[cmd_i];
                 if (cmd->TextureId == attachment.get_imgui_tex_id()) {
                     render_pass.sampled_attachments.push_back(attachment);
@@ -390,7 +340,6 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
         ph::RenderPass& pass = *cmd_buf.get_active_renderpass();
         ph::Pipeline pipeline = renderer->get_pipeline("ImGui_ImplPhobos_pipeline", pass);
         cmd_buf.bind_pipeline(pipeline);
-
         ImGui_ImplPhobos_Buffer& vtx_buffer = g_VertexBuffers[frame->frame_index];
         ImGui_ImplPhobos_Buffer& idx_buffer = g_IndexBuffers[frame->frame_index];
 
@@ -420,9 +369,9 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
         // Render command lists
         size_t global_vtx_offset = 0;
         size_t global_idx_offset = 0;
-        for (size_t i = 0; i < draw_data->CmdListsCount; ++i) {
+        for (size_t i = 0; i < (size_t)draw_data->CmdListsCount; ++i) {
             ImDrawList const* cmd_list = draw_data->CmdLists[i];
-            for (size_t cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; ++cmd_i) {
+            for (size_t cmd_i = 0; cmd_i < (size_t)cmd_list->CmdBuffer.Size; ++cmd_i) {
                 ImDrawCmd const* cmd = &cmd_list->CmdBuffer[cmd_i];
                 // We don't support user callbacks yet
                 ImVec4 clip_rect;

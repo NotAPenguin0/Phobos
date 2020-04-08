@@ -54,6 +54,17 @@ struct hash<stl::vector<T>> {
     }
 };
 
+template<typename T>
+struct hash<::std::vector<T>> {
+    size_t operator()(::std::vector<T> const& v) const noexcept {
+        size_t h = 0;
+        for (auto const& elem : v) {
+            ph::hash_combine(h, elem);
+        }
+        return h;
+    }
+};
+
 template<>
 struct hash<vk::AttachmentDescription> {
     size_t operator()(vk::AttachmentDescription const& x) const noexcept {
@@ -134,11 +145,11 @@ struct hash<vk::ShaderModule> {
 };
 
 template<>
-struct hash<vk::PipelineShaderStageCreateInfo> {
-    size_t operator()(vk::PipelineShaderStageCreateInfo const& shader) const noexcept {
+struct hash<ph::ShaderModuleCreateInfo> {
+    size_t operator()(ph::ShaderModuleCreateInfo const& shader) const noexcept {
         size_t h = 0;
         // flags aren't hashed
-        ph::hash_combine(h, shader.stage, shader.module, shader.pName);
+        ph::hash_combine(h, shader.stage, shader.code, shader.entry_point);
         return h;
     }  
 };

@@ -15,8 +15,6 @@ namespace ph {
 class PresentManager;
 class RenderGraph;
 
-// TODO: Clean up this struct + make stuff private
-
 struct FrameInfo {
     RenderGraph* render_graph;
     PresentManager* present_manager;
@@ -38,12 +36,14 @@ private:
     MappedUBO vp_ubo;
     DynamicGpuBuffer transform_ssbo;
     MappedUBO lights;
+    // Non-owning
     vk::Sampler default_sampler;
 
     vk::CommandBuffer command_buffer;
 
     // TODO: PerFrameCache class?
     Cache<vk::DescriptorSet, DescriptorSetBinding> descriptor_cache;
+    // Non-owning
     vk::DescriptorPool descriptor_pool;
 };
 

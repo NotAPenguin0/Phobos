@@ -120,16 +120,14 @@ void Renderer::execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer
 
     for (auto[idx, draw] : stl::enumerate(pass.draw_commands.begin(), pass.draw_commands.end())) {
         Mesh* mesh = draw.mesh;
-        // TODO: Sort by material/pipeline
-        Material material = frame.render_graph->materials[draw.material_index];
         // Bind draw data
         cmd_buffer.bind_vertex_buffer(0, mesh->get_vertices());
         cmd_buffer.bind_index_buffer(mesh->get_indices());
 
         // update push constant ranges
         stl::uint32_t const transform_index = idx + pass.transforms_offset;
-        uint32_t push_indices[2] { draw.material_index, transform_index };
-        cmd_buffer.push_constants(vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eVertex, 0, 2 * sizeof(uint32_t), push_indices);
+        cmd_buffer.push_constants(vk::ShaderStageFlagBits::eVertex, sizeof(uint32_t), sizeof(uint32_t), &transform_index);
+        cmd_buffer.push_constants(vk::ShaderStageFlagBits::eFragment, 0, sizeof(uint32_t), &draw.material_index);
         // Execute drawcall
         cmd_buffer.draw_indexed(mesh->get_index_count(), 1, 0, 0, 0);
         frame.draw_calls++;
@@ -212,7 +210,7 @@ vk::DescriptorSet Renderer::get_fixed_descriptor_set(FrameInfo& frame, RenderGra
 
     // We need variable count to use descriptor indexing
     vk::DescriptorSetVariableDescriptorCountAllocateInfo variable_count_info;
-    uint32_t counts[1] { meta::max_textures_bound };
+    uint32_t counts[1] { meta::max_unbounded_array_size };
     variable_count_info.descriptorSetCount = 1;
     variable_count_info.pDescriptorCounts = counts;
 

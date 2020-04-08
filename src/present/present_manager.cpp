@@ -66,7 +66,7 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
     vk::DescriptorPoolSize sizes[] = {
         vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 1000),
         vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, 1000),
-        vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 1000)
+        vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, meta::max_unbounded_array_size)
     };
      
     vk::DescriptorPoolCreateInfo fixed_descriptor_pool_info;
@@ -206,10 +206,10 @@ RenderAttachment PresentManager::add_color_attachment(std::string const& name) {
         usage, vk::MemoryPropertyFlagBits::eDeviceLocal,
         image, memory);
     vk::ImageView view = create_image_view(context.device, image, context.swapchain.format.format);
-    return attachments[name] = std::move(RenderAttachment(&context, image, memory, view, 
+    return attachments[name] = RenderAttachment(&context, image, memory, view, 
                 context.swapchain.extent.width, context.swapchain.extent.height,
                 context.swapchain.format.format, usage,
-                vk::ImageAspectFlagBits::eColor));
+                vk::ImageAspectFlagBits::eColor);
 }
 
 RenderAttachment PresentManager::add_depth_attachment(std::string const& name) {
@@ -223,9 +223,9 @@ RenderAttachment PresentManager::add_depth_attachment(std::string const& name) {
         image, memory);
     vk::ImageView view = create_image_view(context.device, image, vk::Format::eD32Sfloat, vk::ImageAspectFlagBits::eDepth);
 
-    return attachments[name] = std::move(RenderAttachment(&context, image, memory, view,
+    return attachments[name] = RenderAttachment(&context, image, memory, view,
         context.swapchain.extent.width, context.swapchain.extent.height, vk::Format::eD32Sfloat, usage, 
-        vk::ImageAspectFlagBits::eDepth));
+        vk::ImageAspectFlagBits::eDepth);
 }
 
 RenderAttachment& PresentManager::get_attachment(std::string const& name) {

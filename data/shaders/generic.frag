@@ -20,7 +20,7 @@ struct PointLight {
 
 layout(set = 0, binding = 2) uniform Lights {
     PointLight point_lights[MAX_LIGHT_COUNT];
-    // other light types
+    // insert other light types here
     uint point_light_count;
 } lights;
 

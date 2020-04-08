@@ -7,6 +7,8 @@
 
 #include <phobos/renderer/render_pass.hpp>
 
+#include <phobos/pipeline/shader_info.hpp>
+
 #include <stb/stb_image.h>
 
 #include <mimas/mimas.h>
@@ -177,13 +179,23 @@ ph::Mesh get_cube(ph::VulkanContext* ctx) {
     return ph::Mesh(cube_info);
 }
 
+static vk::Format get_image_format(int channels) {
+    switch (channels) {
+    case 1: return vk::Format::eR8Srgb;
+    case 2: return vk::Format::eR8G8Srgb;
+    case 3: return vk::Format::eR8G8B8Srgb;
+    case 4: return vk::Format::eR8G8B8A8Srgb;
+    default: return vk::Format::eUndefined;
+    }
+}
+
 ph::Texture get_blank_texture(ph::VulkanContext* ctx) {
-    int w, h, channels; 
-    uint8_t* img = stbi_load("data/textures/blank.png", &w, &h, &channels, STBI_rgb_alpha);
+    int w, h, channels = 4;
+    uint8_t* img = stbi_load("data/textures/blank.png", &w, &h, &channels, 4);
     ph::Texture::CreateInfo tex_info;
     tex_info.ctx = ctx;
-    tex_info.channels = channels;
-    tex_info.format = vk::Format::eR8G8B8A8Srgb;
+    tex_info.channels = 4;
+    tex_info.format = get_image_format(4);
     tex_info.width = w;
     tex_info.height = h;
     tex_info.data = img;
@@ -209,6 +221,7 @@ void update_scene(Scene& scene) {
     scene.light.position.y = 1.0f;
     scene.light.position.z = std::cos(time) * 2.0f;
 }
+
 
 int main() {
     DefaultLogger logger;
@@ -243,7 +256,7 @@ int main() {
     present_manager.add_color_attachment("color2");
     present_manager.add_depth_attachment("depth1");
 
-    size_t draw_calls;
+    size_t draw_calls = 0;
     while(window_context->is_open()) {
         window_context->poll_events();
         present_manager.wait_for_available_frame();
@@ -331,7 +344,6 @@ int main() {
         // Render ImGui
         ImGui::Render();
         ImGui_ImplPhobos_RenderDrawData(ImGui::GetDrawData(), &frame_info, &render_graph, &renderer);
-
         // Build the rendergraph. This creates resources like VkFramebuffers and a VkRenderPass for each ph::RenderPass.
         // Note that these resources are cached, so you don't need to worry about them being recreated every frame.
         render_graph.build();

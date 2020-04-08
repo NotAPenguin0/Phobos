@@ -101,8 +101,6 @@ void VulkanContext::destroy() {
     }
     pipeline_layout_cache.get_all().clear();
 
-    // Destroys the shader modules
-    pipelines.destroy_all(device);
     // Destroy the actual pipelines
     for (auto&[info, pipeline] : pipeline_cache.get_all()) {
         device.destroyPipeline(pipeline.data);
