@@ -13,3 +13,6 @@
 [submodule "external/stl"]
 	path = external/stl
 	url = https://github.com/NotAPenguin0/stl
+[submodule "external/SPIRV-Cross"]
+	path = external/SPIRV-Cross
+	url = https://github.com/KhronosGroup/SPIRV-Cross
