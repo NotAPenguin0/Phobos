@@ -97,7 +97,10 @@ SwapchainDetails create_swapchain(vk::Device device, WindowContext const& window
     details.images = device.getSwapchainImagesKHR(details.handle);
     details.image_views.resize(details.images.size());
     for (auto[index, view] : stl::enumerate(details.image_views.begin(), details.image_views.end())) {
-        view = create_image_view(device, details.images[index], details.format.format);    
+        RawImage img;
+        img.image = details.images[index];
+        img.format = details.format.format;
+        view = create_image_view(device, img);    
     }
 
     return details;

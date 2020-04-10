@@ -3,11 +3,22 @@
 
 namespace ph {
 
-vk::ImageView create_image_view(vk::Device device, vk::Image image, vk::Format format, vk::ImageAspectFlags aspect) {
+static vk::ImageUsageFlags get_image_usage(ImageType type) {
+    switch (type) {
+    case ImageType::ColorAttachment:
+        return vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
+    case ImageType::DepthStencilAttachment:
+        return vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
+    case ImageType::Texture: 
+        return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
+    }
+}
+
+vk::ImageView create_image_view(vk::Device device, RawImage& image, vk::ImageAspectFlags aspect) {
     vk::ImageViewCreateInfo info;
-    info.image = image;
+    info.image = image.image;
     info.viewType = vk::ImageViewType::e2D;
-    info.format = format;
+    info.format = image.format;
     info.components.r = vk::ComponentSwizzle::eIdentity;
     info.components.g = vk::ComponentSwizzle::eIdentity;
     info.components.b = vk::ComponentSwizzle::eIdentity;
@@ -21,8 +32,11 @@ vk::ImageView create_image_view(vk::Device device, vk::Image image, vk::Format f
     return device.createImageView(info);
 }
 
-void create_image(VulkanContext& ctx, size_t width, size_t height, vk::Format format, vk::ImageTiling tiling,
-     vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::Image& image, vk::DeviceMemory& memory) {
+RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format) {
+    RawImage image;
+    image.format = format;
+    image.size = vk::Extent2D{ width, height };
+    image.type = type;
 
     vk::ImageCreateInfo info;
     info.imageType = vk::ImageType::e2D;
@@ -33,20 +47,18 @@ void create_image(VulkanContext& ctx, size_t width, size_t height, vk::Format fo
     info.arrayLayers = 1;
 
     info.format = format;
-    info.tiling = tiling;
+    info.tiling = vk::ImageTiling::eOptimal;
     info.initialLayout = vk::ImageLayout::eUndefined;
-    info.usage = usage;
+    info.usage = get_image_usage(type);
     info.samples = vk::SampleCountFlagBits::e1;
 
-    image = ctx.device.createImage(info);
+    VmaAllocationCreateInfo alloc_info{};
+    alloc_info.usage = VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;
+    alloc_info.flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT;
+    vmaCreateImage(ctx.allocator, reinterpret_cast<VkImageCreateInfo const*>(&info), &alloc_info, 
+        reinterpret_cast<VkImage*>(&image.image), &image.memory, nullptr);
 
-    // Allocate memory for the image
-    vk::MemoryRequirements const mem_requirements = ctx.device.getImageMemoryRequirements(image);
-    vk::MemoryAllocateInfo alloc_info;
-    alloc_info.allocationSize = mem_requirements.size;
-    alloc_info.memoryTypeIndex = memory_util::find_memory_type(ctx.physical_device, mem_requirements.memoryTypeBits, properties);
-    memory = ctx.device.allocateMemory(alloc_info);
-    ctx.device.bindImageMemory(image, memory, 0);
+    return image;
 }
 
 void transition_image_layout(vk::CommandBuffer cmd_buf, vk::Image image, vk::Format format, 
@@ -101,8 +113,63 @@ void transition_image_layout(vk::CommandBuffer cmd_buf, vk::Image image, vk::For
     cmd_buf.pipelineBarrier(src_stage, dst_stage, vk::DependencyFlagBits::eByRegion, nullptr, nullptr, barrier);
 }
 
-void copy_buffer_to_image(vk::CommandBuffer cmd_buf, vk::Buffer buffer, vk::Image image,
-    vk::ImageLayout image_layout, size_t width, size_t height) {
+void transition_image_layout(vk::CommandBuffer cmd_buf, RawImage& image, vk::ImageLayout final_layout) {
+    vk::ImageMemoryBarrier barrier;
+    barrier.oldLayout = image.current_layout;
+    barrier.newLayout = final_layout;
+    // We don't want to transfer queue family ownership
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+    barrier.image = image.image;
+    barrier.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.layerCount = 1;
+    barrier.subresourceRange.levelCount = 1;
+
+    vk::PipelineStageFlags src_stage;
+    vk::PipelineStageFlags dst_stage;
+
+    // Figure out source and desitionation stage based on image layouts
+    if (image.current_layout == vk::ImageLayout::eUndefined && final_layout == vk::ImageLayout::eTransferDstOptimal) {
+        barrier.srcAccessMask = vk::AccessFlags{};
+        barrier.dstAccessMask = vk::AccessFlagBits::eTransferWrite;
+
+        src_stage = vk::PipelineStageFlagBits::eTopOfPipe;
+        dst_stage = vk::PipelineStageFlagBits::eTransfer;
+    }
+    else if (image.current_layout == vk::ImageLayout::eTransferDstOptimal && final_layout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+        barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+        barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+
+        src_stage = vk::PipelineStageFlagBits::eTransfer;
+        dst_stage = vk::PipelineStageFlagBits::eFragmentShader;
+    }
+    else if (image.current_layout == vk::ImageLayout::ePresentSrcKHR && final_layout == vk::ImageLayout::eColorAttachmentOptimal) {
+        barrier.srcAccessMask = {};
+        barrier.dstAccessMask = vk::AccessFlagBits::eShaderWrite;
+
+        src_stage = vk::PipelineStageFlagBits::eTopOfPipe;
+        dst_stage = vk::PipelineStageFlagBits::eFragmentShader;
+    }
+    else if (image.current_layout == vk::ImageLayout::eColorAttachmentOptimal && final_layout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+        barrier.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+        barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+
+        src_stage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+        dst_stage = vk::PipelineStageFlagBits::eFragmentShader;
+    }
+    else {
+        throw std::invalid_argument("Unsupported image layout transition");
+    }
+
+    cmd_buf.pipelineBarrier(src_stage, dst_stage, vk::DependencyFlagBits::eByRegion, nullptr, nullptr, barrier);
+    // Set correct image layout
+    image.current_layout = final_layout;
+}
+
+void copy_buffer_to_image(vk::CommandBuffer cmd_buf, RawBuffer& buffer, RawImage& image) {
 
     vk::BufferImageCopy copy_region;
     copy_region.bufferOffset = 0;
@@ -116,9 +183,19 @@ void copy_buffer_to_image(vk::CommandBuffer cmd_buf, vk::Buffer buffer, vk::Imag
     copy_region.imageSubresource.mipLevel = 0;
     
     copy_region.imageOffset = vk::Offset3D{0, 0, 0};
-    copy_region.imageExtent = vk::Extent3D{static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1};
+    copy_region.imageExtent = vk::Extent3D{image.size.width, image.size.height, 1};
 
-    cmd_buf.copyBufferToImage(buffer, image, image_layout, copy_region);
+    cmd_buf.copyBufferToImage(buffer.buffer, image.image, image.current_layout, copy_region);
+}
+
+void destroy_image(VulkanContext& ctx, RawImage& image) {
+    vmaDestroyImage(ctx.allocator, image.image, image.memory);
+    image.image = nullptr;
+    image.memory = nullptr;
+    image.size = vk::Extent2D{0, 0};
+    image.type = {};
+    image.current_layout = vk::ImageLayout::eUndefined;
+    image.format = vk::Format::eUndefined;
 }
 
 }

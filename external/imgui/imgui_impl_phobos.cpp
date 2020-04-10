@@ -25,25 +25,15 @@
 
 // TODO: Custom VkAllocationCallbacks
 
-static vk::Sampler g_FontSampler;
-static vk::Image g_FontImage;
-static vk::ImageView g_FontView;
-static vk::DeviceMemory g_FontMemory;
-static vk::Buffer g_UploadBuffer;
-static vk::DeviceMemory g_UploadBufferMemory;
-static vk::DescriptorPool g_DescriptorPool;
 static ph::VulkanContext* g_Context;
 
-namespace {
-struct ImGui_ImplPhobos_Buffer {
-    vk::Buffer buffer;
-    vk::DeviceMemory memory;
-    vk::DeviceSize size = 0;
-};
-}
-
-static stl::vector<ImGui_ImplPhobos_Buffer> g_VertexBuffers;
-static stl::vector<ImGui_ImplPhobos_Buffer> g_IndexBuffers;
+static vk::Sampler g_FontSampler;
+static ph::RawImage g_FontImage;
+static vk::ImageView g_FontView;
+static ph::RawBuffer g_UploadBuffer;
+static vk::DescriptorPool g_DescriptorPool;
+static stl::vector<ph::RawBuffer> g_VertexBuffers;
+static stl::vector<ph::RawBuffer> g_IndexBuffers;
 
 
 // glsl_shader.vert, compiled with:
@@ -231,6 +221,14 @@ static void ImGui_ImplPhobos_CreateDescriptorPool(ImGui_ImplPhobos_InitInfo* ini
 void ImGui_ImplPhobos_InitBuffers(ImGui_ImplPhobos_InitInfo* init_info) {
     g_VertexBuffers.resize(init_info->max_frames_in_flight);
     g_IndexBuffers.resize(init_info->max_frames_in_flight);
+
+    for (auto& buf : g_VertexBuffers) {
+        buf.type = ph::BufferType::VertexBufferDynamic;
+    }
+
+    for (auto& buf : g_IndexBuffers) {
+        buf.type = ph::BufferType::IndexBufferDynamic;
+    }
 }
 
 
@@ -246,26 +244,26 @@ void ImGui_ImplPhobos_Init(ImGui_ImplPhobos_InitInfo* init_info) {
     ImGui_ImplPhobos_CreateDescriptorPool(init_info);
 }
 
-void ImGui_ImplPhobos_EnsureBufferSize(ImGui_ImplPhobos_Buffer& buffer, vk::DeviceSize size, vk::BufferUsageFlags usage) {
+void ImGui_ImplPhobos_EnsureBufferSize(ph::RawBuffer& buffer, vk::DeviceSize size) {
     // Don't resize the buffer if it already has enough capacity
     if (buffer.size >= size) { return; }
 
+    // Only destroy old buffer if there is one
     if (buffer.buffer) {
-        g_Context->device.destroyBuffer(buffer.buffer);
-        g_Context->device.freeMemory(buffer.memory);
+        ph::destroy_buffer(*g_Context, buffer);
     }
 
     // Use the available phobos utilites because we're implementing
     // a phobos backend anyway
-    ph::create_buffer(*g_Context, size, usage, vk::MemoryPropertyFlagBits::eHostVisible, buffer.buffer, buffer.memory);
+    buffer = ph::create_buffer(*g_Context, size, buffer.type);
     buffer.size = size;
 }
 
 
-void ImGui_ImplPhobos_UpdateBuffers(ImGui_ImplPhobos_Buffer& vertex, ImGui_ImplPhobos_Buffer& index, ImDrawData* draw_data) {
+void ImGui_ImplPhobos_UpdateBuffers(ph::RawBuffer& vertex, ph::RawBuffer& index, ImDrawData* draw_data) {
     // Map the buffer memory
-    ImDrawVert* vtx_mem = (ImDrawVert*)g_Context->device.mapMemory(vertex.memory, 0, VK_WHOLE_SIZE);
-    ImDrawIdx* idx_mem = (ImDrawIdx*)g_Context->device.mapMemory(index.memory, 0, VK_WHOLE_SIZE);
+    ImDrawVert* vtx_mem = reinterpret_cast<ImDrawVert*>(ph::map_memory(*g_Context, vertex));
+    ImDrawIdx* idx_mem = reinterpret_cast<ImDrawIdx*>(ph::map_memory(*g_Context, index));
 
     for (size_t i = 0; i < (size_t)draw_data->CmdListsCount; ++i) {
         ImDrawList const* cmd_list = draw_data->CmdLists[i];
@@ -278,16 +276,11 @@ void ImGui_ImplPhobos_UpdateBuffers(ImGui_ImplPhobos_Buffer& vertex, ImGui_ImplP
     }
 
     // Flush the mapped memory range
-    vk::MappedMemoryRange ranges[2];
-    ranges[0].memory = vertex.memory;
-    ranges[0].size = VK_WHOLE_SIZE;
-    ranges[1].memory = index.memory;
-    ranges[1].size = VK_WHOLE_SIZE;
-    g_Context->device.flushMappedMemoryRanges(2, ranges);
-
+    ph::flush_memory(*g_Context, vertex, 0, vertex.size);
+    ph::flush_memory(*g_Context, index, 0, index.size);
     // Unmap memory
-    g_Context->device.unmapMemory(vertex.memory);
-    g_Context->device.unmapMemory(index.memory);
+    ph::unmap_memory(*g_Context, vertex);
+    ph::unmap_memory(*g_Context, index);
 }
 
 void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame, ph::RenderGraph* render_graph, ph::Renderer* renderer) {
@@ -298,14 +291,15 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
         return;
     }
 
-    ImGui_ImplPhobos_Buffer& vertex_buffer = g_VertexBuffers[frame->frame_index];
-    ImGui_ImplPhobos_Buffer& index_buffer = g_IndexBuffers[frame->frame_index];
+    ph::RawBuffer& vertex_buffer = g_VertexBuffers[frame->frame_index];
+    ph::RawBuffer& index_buffer = g_IndexBuffers[frame->frame_index];
 
     size_t const vertex_size = draw_data->TotalVtxCount * sizeof(ImDrawVert);
     size_t const index_size = draw_data->TotalIdxCount * sizeof(ImDrawIdx);
 
-    ImGui_ImplPhobos_EnsureBufferSize(vertex_buffer, vertex_size, vk::BufferUsageFlagBits::eVertexBuffer);
-    ImGui_ImplPhobos_EnsureBufferSize(index_buffer, index_size, vk::BufferUsageFlagBits::eIndexBuffer);
+    // Since we want to be able to map these and update them frequently we have to use the dynamic variant
+    ImGui_ImplPhobos_EnsureBufferSize(vertex_buffer, vertex_size);
+    ImGui_ImplPhobos_EnsureBufferSize(index_buffer, index_size);
 
     ImGui_ImplPhobos_UpdateBuffers(vertex_buffer, index_buffer, draw_data);
 
@@ -342,8 +336,8 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
         ph::ShaderInfo const& shader_info = g_Context->pipelines.get_named_pipeline("ImGui_ImplPhobos_pipeline")->shader_info;
 
         cmd_buf.bind_pipeline(pipeline);
-        ImGui_ImplPhobos_Buffer& vtx_buffer = g_VertexBuffers[frame->frame_index];
-        ImGui_ImplPhobos_Buffer& idx_buffer = g_IndexBuffers[frame->frame_index];
+        ph::RawBuffer& vtx_buffer = g_VertexBuffers[frame->frame_index];
+        ph::RawBuffer& idx_buffer = g_IndexBuffers[frame->frame_index];
 
         cmd_buf.bind_vertex_buffer(0, vtx_buffer.buffer);
         cmd_buf.bind_index_buffer(idx_buffer.buffer, 0, sizeof(ImDrawIdx) == 2 ? vk::IndexType::eUint16 : vk::IndexType::eUint32);
@@ -401,7 +395,7 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
                     // Get descriptor set from the renderer
                     ph::DescriptorSetBinding descriptor_set;
                     descriptor_set.pool = g_DescriptorPool;
-                    descriptor_set.bindings.push_back(ph::make_descriptor(shader_info["sTexture"], img_view, g_FontSampler));
+                    descriptor_set.add(ph::make_descriptor(shader_info["sTexture"], img_view, g_FontSampler));
                     vk::DescriptorSet descr_set = renderer->get_descriptor(*frame, pass, descriptor_set);
 
                     cmd_buf.bind_descriptor_set(0, descr_set)
@@ -424,69 +418,48 @@ bool ImGui_ImplPhobos_CreateFontsTexture(vk::CommandBuffer cmd_buf) {
     io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
     size_t upload_size = width * height * 4 * sizeof(char);
 
-    ph::create_image(*g_Context, width, height, vk::Format::eR8G8B8A8Unorm, vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eDeviceLocal,
-        g_FontImage, g_FontMemory);
-    g_FontView = ph::create_image_view(g_Context->device, g_FontImage, vk::Format::eR8G8B8A8Unorm);
+    g_FontImage = ph::create_image(*g_Context, width, height, ph::ImageType::Texture, vk::Format::eR8G8B8A8Unorm);
+    g_FontView = ph::create_image_view(g_Context->device, g_FontImage);
 
     // Store our identifier
     io.Fonts->TexID = reinterpret_cast<void*>(static_cast<VkImageView>(g_FontView));
 
     // Create the Upload Buffer:
-    ph::create_buffer(*g_Context, upload_size, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible, g_UploadBuffer, g_UploadBufferMemory);
+    g_UploadBuffer = ph::create_buffer(*g_Context, upload_size, ph::BufferType::TransferBuffer);
     // Upload to buffer
-    void* data = g_Context->device.mapMemory(g_UploadBufferMemory, 0, upload_size);
+    std::byte* data = ph::map_memory(*g_Context, g_UploadBuffer);
     memcpy(data, pixels, upload_size);
-    vk::MappedMemoryRange range;
-    range.memory = g_UploadBufferMemory;
-    range.size = upload_size;
-    g_Context->device.flushMappedMemoryRanges(1, &range);
-    g_Context->device.unmapMemory(g_UploadBufferMemory);
+    ph::flush_memory(*g_Context, g_UploadBuffer, 0, upload_size);
+    ph::unmap_memory(*g_Context, g_UploadBuffer);
 
     // Copy to image
-    ph::transition_image_layout(cmd_buf, g_FontImage, vk::Format::eR8G8B8A8Unorm, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
-    ph::copy_buffer_to_image(cmd_buf, g_UploadBuffer, g_FontImage, vk::ImageLayout::eTransferDstOptimal, width, height);
-    ph::transition_image_layout(cmd_buf, g_FontImage, vk::Format::eR8G8B8A8Unorm, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
+    ph::transition_image_layout(cmd_buf, g_FontImage, vk::ImageLayout::eTransferDstOptimal);
+    ph::copy_buffer_to_image(cmd_buf, g_UploadBuffer, g_FontImage);
+    ph::transition_image_layout(cmd_buf, g_FontImage, vk::ImageLayout::eShaderReadOnlyOptimal);
 
     return true;
 }
 
 void ImGui_ImplPhobos_DestroyFontUploadObjects() {
-    if (g_UploadBuffer) {
-        g_Context->device.destroyBuffer(g_UploadBuffer);
-        g_UploadBuffer = nullptr;
+    if (g_UploadBuffer.buffer) {
+        ph::destroy_buffer(*g_Context, g_UploadBuffer);
     }
-    if (g_UploadBufferMemory) {
-        g_Context->device.freeMemory(g_UploadBufferMemory);
-        g_UploadBufferMemory = nullptr;
-    }
-}
-
-ImTextureID ImGui_ImplPhobos_AddTexture(vk::ImageView image_view, vk::ImageLayout image_layout) {
-    return reinterpret_cast<void*>(static_cast<VkImageView>(image_view));
-}
-
-void ImGui_ImplPhobos_RemoveTexture(ImTextureID tex_id) {
-    // TODO: Queue for deletion?
 }
 
 void ImGui_ImplPhobos_Shutdown() {
     ImGui_ImplPhobos_DestroyFontUploadObjects();
     g_Context->device.destroySampler(g_FontSampler);
-    g_Context->device.destroyImage(g_FontImage);
     g_Context->device.destroyImageView(g_FontView);
-    g_Context->device.freeMemory(g_FontMemory);
+    ph::destroy_image(*g_Context, g_FontImage);
     g_Context->device.destroyDescriptorPool(g_DescriptorPool);
 
     for (auto& buf : g_VertexBuffers) {
-        g_Context->device.destroyBuffer(buf.buffer);
-        g_Context->device.freeMemory(buf.memory);
+        ph::destroy_buffer(*g_Context, buf);
     }
     g_VertexBuffers.clear();
 
     for (auto& buf : g_IndexBuffers) {
-        g_Context->device.destroyBuffer(buf.buffer);
-        g_Context->device.freeMemory(buf.memory);
+        ph::destroy_buffer(*g_Context, buf);
     }
     g_IndexBuffers.clear();
 }

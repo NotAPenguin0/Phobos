@@ -186,8 +186,7 @@ void ImGui_ImplMimas_NewFrame() {
 
     // Update deltatime
     auto time = mimas_get_time();
-    io.DeltaTime = (g_Time > 0.0) ? ((float)(time - g_Time) / 1000.0f) : (float)(1.0f/60.0f);
-    io.DeltaTime = std::max(io.DeltaTime, 0.0001f);
+    io.DeltaTime = 1.0f / 60.0f; // Make ImGui run at 60 fps
     g_Time = time;
     ImGui_ImplMimas_UpdateMousePosAndButtons();
 }

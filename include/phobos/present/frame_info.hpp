@@ -4,7 +4,6 @@
 #include <vulkan/vulkan.hpp>
 #include <stl/vector.hpp>
 
-#include <phobos/renderer/mapped_ubo.hpp>
 #include <phobos/renderer/dynamic_gpu_buffer.hpp>
 #include <phobos/renderer/render_attachment.hpp>
 #include <phobos/renderer/render_target.hpp>
@@ -18,6 +17,15 @@ class RenderGraph;
 struct FrameInfo {
     RenderGraph* render_graph;
     PresentManager* present_manager;
+
+    // Other resources
+    RawBuffer vp_ubo;
+    RawBuffer lights;
+    DynamicGpuBuffer transform_ssbo;
+
+    // Non-owning
+    vk::Sampler default_sampler;
+
     // Misc info. Do not modify
     size_t draw_calls;
     size_t frame_index;
@@ -31,13 +39,6 @@ private:
     vk::Fence fence;
     vk::Semaphore image_available;
     vk::Semaphore render_finished;
-
-    // Other resources
-    MappedUBO vp_ubo;
-    DynamicGpuBuffer transform_ssbo;
-    MappedUBO lights;
-    // Non-owning
-    vk::Sampler default_sampler;
 
     vk::CommandBuffer command_buffer;
 

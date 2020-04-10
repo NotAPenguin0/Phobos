@@ -14,10 +14,9 @@ Mesh::Mesh(CreateInfo const& info) : Mesh(*info.ctx) {
 }   
 
 Mesh::Mesh(Mesh&& rhs) : Mesh(*rhs.ctx) {
-    std::swap(buffer, rhs.buffer);
-    std::swap(memory, rhs.memory);
+    std::swap(ctx, rhs.ctx);
+    std::swap(vertex_buffer, rhs.vertex_buffer);
     std::swap(index_buffer, rhs.index_buffer);
-    std::swap(index_buffer_memory, rhs.index_buffer_memory);
     std::swap(vertex_count, rhs.vertex_count);
     std::swap(index_count, rhs.index_count);
 }
@@ -25,10 +24,8 @@ Mesh::Mesh(Mesh&& rhs) : Mesh(*rhs.ctx) {
 Mesh& Mesh::operator=(Mesh&& rhs) {
     if (this != &rhs) {
         std::swap(ctx, rhs.ctx);
-        std::swap(buffer, rhs.buffer);
-        std::swap(memory, rhs.memory);
+        std::swap(vertex_buffer, rhs.vertex_buffer);
         std::swap(index_buffer, rhs.index_buffer);
-        std::swap(index_buffer_memory, rhs.index_buffer_memory);
         std::swap(vertex_count, rhs.vertex_count);
         std::swap(index_count, rhs.index_count);
     }
@@ -47,33 +44,20 @@ void Mesh::create(CreateInfo const& info) {
 }
 
 void Mesh::destroy() {
-    if (buffer) {
-        ctx->device.destroyBuffer(buffer);
-        buffer = nullptr;
+    if (vertex_buffer.buffer) {
+        destroy_buffer(*ctx, vertex_buffer);
     }
-
-    if (index_buffer) {
-        ctx->device.destroyBuffer(index_buffer);
-        index_buffer = nullptr;
-    }
-
-    if (index_buffer_memory) {
-        ctx->device.freeMemory(index_buffer_memory);
-        index_buffer_memory = nullptr;
-    }
-
-    if (memory) {
-        ctx->device.freeMemory(memory);
-        memory = nullptr;
+    if (index_buffer.buffer) {
+        destroy_buffer(*ctx, index_buffer);
     }
 }
 
 vk::Buffer Mesh::get_vertices() const {
-    return buffer;
+    return vertex_buffer.buffer;
 }
 
 vk::Buffer Mesh::get_indices() const {
-    return index_buffer;
+    return index_buffer.buffer;
 }
 
 size_t Mesh::get_vertex_count() const {
@@ -84,59 +68,50 @@ size_t Mesh::get_index_count() const {
     return index_count;
 }
 
-vk::DeviceMemory Mesh::get_memory_handle() const {
-    return memory;
+VmaAllocation Mesh::get_memory_handle() const {
+    return vertex_buffer.memory;
 }
 
-vk::DeviceMemory Mesh::get_index_memory() const {
-    return index_buffer_memory;
+VmaAllocation Mesh::get_index_memory() const {
+    return index_buffer.memory;
 }
 
 void Mesh::create_vertex_buffer(CreateInfo const& info) {
     vertex_count = info.vertex_count;
     vk::DeviceSize byte_size = info.vertex_count * info.vertex_size * sizeof(float);
 
-    vk::Buffer staging_buffer;
-    vk::DeviceMemory staging_buffer_memory;
-
-    create_buffer(*ctx, byte_size, vk::BufferUsageFlagBits::eTransferSrc, 
-        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, staging_buffer, staging_buffer_memory);
+    RawBuffer staging_buffer = create_buffer(*ctx, byte_size, BufferType::TransferBuffer);
 
     // Fill staging buffer
-    void* data_ptr = ctx->device.mapMemory(staging_buffer_memory, 0, byte_size);
+    std::byte* data_ptr = map_memory(*ctx, staging_buffer);
     std::memcpy(data_ptr, info.vertices, byte_size);
-    ctx->device.unmapMemory(staging_buffer_memory);
+    flush_memory(*ctx, staging_buffer, 0, byte_size);
+    unmap_memory(*ctx, staging_buffer);
 
     // Now copy this buffer to device local memory
-    create_buffer(*ctx, byte_size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
-        vk::MemoryPropertyFlagBits::eDeviceLocal, buffer, memory);
-    copy_buffer(*ctx, staging_buffer, buffer, byte_size);
+    vertex_buffer = create_buffer(*ctx, byte_size, BufferType::VertexBuffer);
+    copy_buffer(*ctx, staging_buffer, vertex_buffer, byte_size);
 
-    // Free the staging buffer
-    ctx->device.destroyBuffer(staging_buffer);
-    ctx->device.freeMemory(staging_buffer_memory);
+    destroy_buffer(*ctx, staging_buffer);
 }
 
 void Mesh::create_index_buffer(CreateInfo const& info) {
     index_count = info.index_count;
     vk::DeviceSize byte_size = info.index_count * sizeof(uint32_t);
 
-    vk::Buffer staging_buffer;
-    vk::DeviceMemory staging_buffer_memory;
-    create_buffer(*ctx, byte_size, vk::BufferUsageFlagBits::eTransferSrc, 
-        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, staging_buffer, staging_buffer_memory);
+    RawBuffer staging_buffer = create_buffer(*ctx, byte_size, BufferType::TransferBuffer);
+
     // Fill staging buffer
-    void* data_ptr = ctx->device.mapMemory(staging_buffer_memory, 0, byte_size);
+    std::byte* data_ptr = map_memory(*ctx, staging_buffer);
     std::memcpy(data_ptr, info.indices, byte_size);
-    ctx->device.unmapMemory(staging_buffer_memory);
+    flush_memory(*ctx, staging_buffer, 0, byte_size);
+    unmap_memory(*ctx, staging_buffer);
+
     // Now copy this buffer to device local memory
-    create_buffer(*ctx, byte_size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
-        vk::MemoryPropertyFlagBits::eDeviceLocal, index_buffer, index_buffer_memory);
+    index_buffer = create_buffer(*ctx, byte_size, BufferType::IndexBuffer);
     copy_buffer(*ctx, staging_buffer, index_buffer, byte_size);
 
-    // Free the staging buffer
-    ctx->device.destroyBuffer(staging_buffer);
-    ctx->device.freeMemory(staging_buffer_memory);
+    destroy_buffer(*ctx, staging_buffer);
 }
 
 } // namespace ph

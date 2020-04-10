@@ -7,6 +7,9 @@
 
 #include <stl/enumerate.hpp>
 
+// for std::byte
+#include <cstddef>
+
 namespace ph {
 
 Renderer::Renderer(VulkanContext& context) : ctx(context) {
@@ -165,9 +168,11 @@ void Renderer::on_event(DynamicGpuBufferResizeEvent const& e) {
 
 void Renderer::update_camera_data(FrameInfo& info, RenderGraph const* graph) {
     glm::mat4 pv = graph->projection * graph->view;
-    float* data_ptr = reinterpret_cast<float*>(info.vp_ubo.ptr);
+    // Note that map_memory is a cheap operation here since vp_ubo.type is MappedUniformBuffer. In this case, map_memory will
+    // immediately return the already stored pointer
+    std::byte* data_ptr = map_memory(ctx, info.vp_ubo);
     std::memcpy(data_ptr, &pv[0][0], 16 * sizeof(float));  
-    std::memcpy(data_ptr + 16, &graph->camera_pos.x, sizeof(glm::vec3));
+    std::memcpy(data_ptr + 16 * sizeof(float), &graph->camera_pos.x, sizeof(glm::vec3));
 }
 
 void Renderer::update_model_matrices(FrameInfo& info, RenderGraph const* graph, vk::DescriptorSet descriptor_set) {
@@ -184,12 +189,16 @@ void Renderer::update_model_matrices(FrameInfo& info, RenderGraph const* graph, 
 void Renderer::update_lights(FrameInfo& info, RenderGraph const* graph) {
     if (graph->point_lights.empty()) return;
     // Update point lights
-    std::memcpy(info.lights.ptr, &graph->point_lights[0].position.x, sizeof(PointLight) * graph->point_lights.size());
+
+    // Note that map_memory is a cheap operation here since lights.type is MappedUniformBuffer. In this case, map_memory will
+    // immediately return the already stored pointer. 
+    std::byte* data_ptr = map_memory(ctx, info.lights);
+    std::memcpy(data_ptr, &graph->point_lights[0].position.x, sizeof(PointLight) * graph->point_lights.size());
     // Update point light count. For this, we first need to calculate the offset into the UBO
     size_t const counts_offset = meta::max_lights_per_type * sizeof(PointLight);
-    uint32_t point_light_count = graph->point_lights.size();
+    uint32_t const point_light_count = graph->point_lights.size();
     // Write data
-    std::memcpy(reinterpret_cast<unsigned char*>(info.lights.ptr) + counts_offset, &point_light_count, sizeof(uint32_t));
+    std::memcpy(data_ptr + counts_offset, &point_light_count, sizeof(uint32_t));
 }
 
 vk::DescriptorSet Renderer::get_fixed_descriptor_set(FrameInfo& frame, RenderGraph const* graph) {
@@ -198,13 +207,13 @@ vk::DescriptorSet Renderer::get_fixed_descriptor_set(FrameInfo& frame, RenderGra
     ShaderInfo const& shader_info = pci->shader_info;
 
     DescriptorSetBinding bindings;
-    bindings.bindings.push_back(make_descriptor(shader_info["camera"], frame.vp_ubo.buffer, frame.vp_ubo.size));
-    bindings.bindings.push_back(make_descriptor(shader_info["transforms"], frame.transform_ssbo.buffer_handle(), frame.transform_ssbo.size()));
+    bindings.add(make_descriptor(shader_info["camera"], frame.vp_ubo));
+    bindings.add(make_descriptor(shader_info["transforms"], frame.transform_ssbo.buffer_handle(), frame.transform_ssbo.size()));
     stl::vector<vk::ImageView> texture_views;
     texture_views.reserve(graph->materials.size());
     for (auto const& mat : graph->materials) { texture_views.push_back(mat.texture->view_handle()); }
-    bindings.bindings.push_back(make_descriptor(shader_info["textures"], texture_views, frame.default_sampler));
-    bindings.bindings.push_back(make_descriptor(shader_info["lights"], frame.lights.buffer, frame.lights.size));
+    bindings.add(make_descriptor(shader_info["textures"], texture_views, frame.default_sampler));
+    bindings.add(make_descriptor(shader_info["lights"], frame.lights));
     
     // We need variable count to use descriptor indexing
     vk::DescriptorSetVariableDescriptorCountAllocateInfo variable_count_info;

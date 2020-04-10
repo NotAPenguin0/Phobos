@@ -4,19 +4,37 @@
 #include <vulkan/vulkan.hpp>
 #include <phobos/core/vulkan_context.hpp>
 
+#include <vk_mem_alloc.h>
+
+#include <phobos/util/buffer_util.hpp>
+
 namespace ph {
 
-vk::ImageView create_image_view(vk::Device device, vk::Image image, vk::Format format, 
-    vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor);
+enum class ImageType {
+    ColorAttachment,
+    DepthStencilAttachment,
+    // Gets vk::ImageUsageFlagBits::eSampled and vk::ImageUsageFlagBits::eTransferDst
+    Texture 
+};
 
-void create_image(VulkanContext& ctx, size_t width, size_t height, vk::Format format, vk::ImageTiling tiling,
-     vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::Image& image, vk::DeviceMemory& memory);
+struct RawImage {
+    ImageType type{};
+    vk::Format format = vk::Format::eUndefined;
+    vk::Extent2D size{};
+    vk::ImageLayout current_layout = vk::ImageLayout::eUndefined;
+    vk::Image image = nullptr;
+    VmaAllocation memory = nullptr;
+};
 
-void transition_image_layout(vk::CommandBuffer cmd_buf, vk::Image image, vk::Format format, 
+vk::ImageView create_image_view(vk::Device device, RawImage& image, vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor);
+RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format);
+
+void transition_image_layout(vk::CommandBuffer cmd_buf, vk::Image image, vk::Format format,
     vk::ImageLayout initial_layout, vk::ImageLayout final_layout);
+void transition_image_layout(vk::CommandBuffer cmd_buf, RawImage& image, vk::ImageLayout final_layout);
+void copy_buffer_to_image(vk::CommandBuffer cmd_buf, RawBuffer& buffer, RawImage& image);
 
-void copy_buffer_to_image(vk::CommandBuffer cmd_buf, vk::Buffer buffer, vk::Image image,
-    vk::ImageLayout image_layout, size_t width, size_t height);
+void destroy_image(VulkanContext& ctx, RawImage& image);
 
 } // namespace ph
 

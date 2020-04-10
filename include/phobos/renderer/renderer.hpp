@@ -6,14 +6,13 @@
 
 #include <phobos/renderer/render_graph.hpp>
 #include <phobos/renderer/command_buffer.hpp>
+#include <phobos/renderer/meta.hpp>
 
 #include <phobos/events/event_listener.hpp>
 
-// TODO: Custom command buffer class?
 
 namespace ph {
 
-// TODO: InstancingBufferResizeEvent probably doesn't work correctly with new descriptor system
 class Renderer : public EventListener<DynamicGpuBufferResizeEvent> {
 public:
     Renderer(VulkanContext& context);

@@ -11,6 +11,7 @@
 
 #include <phobos/forward.hpp>
 #include <phobos/pipeline/shader_info.hpp>
+#include <phobos/util/buffer_util.hpp>
 
 namespace ph {
 
@@ -47,8 +48,11 @@ DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, vk::ImageView
 DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, stl::span<vk::ImageView> views, vk::Sampler sampler, 
         vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);
 DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, vk::Buffer buffer, vk::DeviceSize size, vk::DeviceSize offset = 0);
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, RawBuffer& buffer, vk::DeviceSize offset = 0);
 
 struct DescriptorSetBinding {
+    void add(DescriptorBinding binding) { bindings.push_back(stl::move(binding)); }
+
     stl::vector<DescriptorBinding> bindings;
     // Leave this on nullptr to use default pool
     vk::DescriptorPool pool = nullptr;

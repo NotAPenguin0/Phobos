@@ -23,10 +23,10 @@ struct RenderPass {
     // This is the name that will be given to the vk object created from this renderpass
     std::string debug_name;
 
-    stl::vector<RenderAttachment> sampled_attachments;
-    stl::vector<RenderAttachment> outputs;
+    std::vector<RenderAttachment> sampled_attachments;
+    std::vector<RenderAttachment> outputs;
     // Size of this must match the size of the outputs vector
-    stl::vector<vk::ClearValue> clear_values;
+    std::vector<vk::ClearValue> clear_values;
 
     struct DrawCommand {
         Mesh* mesh = nullptr;

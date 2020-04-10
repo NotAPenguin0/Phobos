@@ -12,7 +12,7 @@ namespace ph {
 
 static void create_generic_pipeline(VulkanContext& ctx) {
     using namespace stl::literals;
-
+      
     PipelineCreateInfo info;
 
     info.shaders.emplace_back(load_shader_code("data/shaders/generic.vert.spv"), "main", vk::ShaderStageFlagBits::eVertex);

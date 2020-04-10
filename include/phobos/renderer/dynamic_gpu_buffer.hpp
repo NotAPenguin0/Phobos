@@ -4,6 +4,9 @@
 #include <vulkan/vulkan.hpp>
 
 #include <phobos/core/vulkan_context.hpp>
+#include <phobos/util/buffer_util.hpp>
+
+#include <cstddef>
 
 namespace ph {
 
@@ -22,7 +25,7 @@ public:
     void destroy();
 
     vk::Buffer buffer_handle();
-    vk::DeviceMemory memory_handle();
+    VmaAllocation memory_handle();
 
     size_t size() const;
 
@@ -31,11 +34,8 @@ public:
 private:
     VulkanContext* ctx;
 
-    vk::Buffer buffer = nullptr;
-    vk::DeviceMemory memory = nullptr;
-
-    vk::DeviceSize current_size = 0;
-    void* data_ptr = nullptr;
+    RawBuffer buffer;
+    std::byte* data_ptr = nullptr;
 
 };
 

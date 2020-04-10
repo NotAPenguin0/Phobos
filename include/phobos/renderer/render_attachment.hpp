@@ -4,14 +4,16 @@
 #include <phobos/core/vulkan_context.hpp>
 #include <phobos/events/event_dispatcher.hpp>
 
+#include <phobos/util/image_util.hpp>
+#include <phobos/util/memory_util.hpp>
+
 namespace ph {
 
 class RenderAttachment : public EventListener<SwapchainRecreateEvent> {
 public: 
     RenderAttachment() = default;
     RenderAttachment(VulkanContext* ctx);
-    RenderAttachment(VulkanContext* ctx, vk::Image image, vk::DeviceMemory memory, vk::ImageView view, uint32_t w, uint32_t h,
-        vk::Format format, vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect);
+    RenderAttachment(VulkanContext* ctx, RawImage& image, vk::ImageView view, vk::ImageAspectFlags aspect);
     RenderAttachment(RenderAttachment const& rhs);
     RenderAttachment(RenderAttachment&& rhs);
 
@@ -20,39 +22,42 @@ public:
 
     virtual ~RenderAttachment();
 
-    static RenderAttachment from_ref(VulkanContext* ctx, vk::Image image, vk::DeviceMemory memory, vk::ImageView view, 
-        uint32_t w, uint32_t h, vk::Format fmt = vk::Format::eUndefined);
+    static RenderAttachment from_ref(VulkanContext* ctx, RawImage& image, vk::ImageView view);
 
     void destroy();
 
     void resize(uint32_t new_width, uint32_t new_height);
 
     vk::Image image_handle() const {
-        return image;
+        return image.image;
     }
     
-    vk::DeviceMemory memory_handle() const {
-        return memory;
+    VmaAllocation memory_handle() const {
+        return image.memory;
     }
 
     vk::ImageView image_view() const {
         return view;
     }
 
-    uint32_t get_width() const {
-        return width;
+    vk::Extent2D size() const {
+        return image.size;
     }
 
+    uint32_t get_width() const {
+        return image.size.width;
+    }
+     
     uint32_t get_height() const {
-        return height;
+        return image.size.height;
     }
 
     void* get_imgui_tex_id() const {
-        return imgui_tex_id;
+        return reinterpret_cast<void*>(memory_util::to_vk_type(view));
     }
 
     vk::Format get_format() const {
-        return format;
+        return image.format;
     }
 
 protected:
@@ -63,17 +68,9 @@ private:
     // Specifies whether this RenderAttachment owns the image it stores. We need this flag for cleanup
     bool owning = false;
 
-    vk::Image image = nullptr;
-    vk::DeviceMemory memory = nullptr;
+    RawImage image;
     vk::ImageView view = nullptr;
-
-    vk::Format format = vk::Format::eUndefined;
-    vk::ImageUsageFlags usage = {};
     vk::ImageAspectFlags aspect = {};
-
-    uint32_t width, height;
-
-    void* imgui_tex_id = nullptr;
 };
 
 } // namespace ph 

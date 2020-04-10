@@ -9,21 +9,9 @@
 #include <phobos/util/memory_util.hpp>
 #include <phobos/util/cache_cleanup.hpp>
 
-#undef min
-#undef max
 #include <limits>
 
 namespace ph {
-
-
-static MappedUBO create_mapped_ubo(VulkanContext& ctx, size_t const size) {
-    MappedUBO ubo;
-    create_buffer(ctx, size, vk::BufferUsageFlagBits::eUniformBuffer, 
-        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, ubo.buffer, ubo.memory);
-    ubo.size = size;
-    ubo.ptr = ctx.device.mapMemory(ubo.memory, 0, VK_WHOLE_SIZE);
-    return ubo;
-}
 
 PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight) 
     : context(ctx), max_frames_in_flight(max_frames_in_flight) {
@@ -95,8 +83,8 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
 
         // Create camera UBO for this frame
         // Note that the camera position is a vec3, but it is aligned to a vec4
-        frame_info.vp_ubo = create_mapped_ubo(ctx, sizeof(glm::mat4) + sizeof(glm::vec4));
-        frame_info.lights = create_mapped_ubo(ctx, sizeof(PointLight) * meta::max_lights_per_type + sizeof(uint32_t));
+        frame_info.vp_ubo = create_buffer(ctx, sizeof(glm::mat4) + sizeof(glm::vec4), BufferType::MappedUniformBuffer);
+        frame_info.lights = create_buffer(ctx, sizeof(PointLight) * meta::max_lights_per_type + sizeof(uint32_t), BufferType::MappedUniformBuffer);
 
         // Create transform data SSBO for this frame
         frame_info.transform_ssbo = DynamicGpuBuffer(ctx);
@@ -137,6 +125,7 @@ void PresentManager::present_frame(FrameInfo& frame) {
     present_info.pSwapchains = &context.swapchain.handle;
     present_info.pImageIndices = &image_index;
     context.graphics_queue.presentKHR(present_info);
+
     // Advance to next frame
     frame_index = (frame_index + 1) % max_frames_in_flight;
 
@@ -176,16 +165,12 @@ void PresentManager::wait_for_available_frame() {
 void PresentManager::destroy() {
     context.device.destroySampler(default_sampler);
     for (auto& frame : frames) {
-        context.device.destroyBuffer(frame.lights.buffer);
-        context.device.unmapMemory(frame.lights.memory);
-        context.device.freeMemory(frame.lights.memory);
+        destroy_buffer(context, frame.lights);
+        destroy_buffer(context, frame.vp_ubo);
         frame.transform_ssbo.destroy();
         context.device.destroyFence(frame.fence);
         context.device.destroySemaphore(frame.image_available);
         context.device.destroySemaphore(frame.render_finished);
-        context.device.destroyBuffer(frame.vp_ubo.buffer);
-        context.device.unmapMemory(frame.vp_ubo.memory);
-        context.device.freeMemory(frame.vp_ubo.memory);
         frame.descriptor_cache.get_all().clear();
     }
     for (auto&[name, attachment] : attachments) {
@@ -196,36 +181,19 @@ void PresentManager::destroy() {
     context.device.destroyCommandPool(command_pool);
 }
 
-RenderAttachment PresentManager::add_color_attachment(std::string const& name) {
-    vk::Image image;
-    vk::DeviceMemory memory;
-    vk::ImageUsageFlags const usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc |
-        vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
-    create_image(context, context.swapchain.extent.width, context.swapchain.extent.height,
-        context.swapchain.format.format, vk::ImageTiling::eOptimal, 
-        usage, vk::MemoryPropertyFlagBits::eDeviceLocal,
-        image, memory);
-    vk::ImageView view = create_image_view(context.device, image, context.swapchain.format.format);
-    return attachments[name] = RenderAttachment(&context, image, memory, view, 
-                context.swapchain.extent.width, context.swapchain.extent.height,
-                context.swapchain.format.format, usage,
-                vk::ImageAspectFlagBits::eColor);
+RenderAttachment& PresentManager::add_color_attachment(std::string const& name) {
+    RawImage image = create_image(context, context.swapchain.extent.width, context.swapchain.extent.height, ImageType::ColorAttachment,
+        context.swapchain.format.format);
+    vk::ImageView view = create_image_view(context.device, image);
+    return attachments[name] = RenderAttachment(&context, image, view, vk::ImageAspectFlagBits::eColor);
 }
 
-RenderAttachment PresentManager::add_depth_attachment(std::string const& name) {
-    vk::Image image;
-    vk::DeviceMemory memory;
-    vk::ImageUsageFlags const usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eTransferSrc |
-        vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
-    create_image(context, context.swapchain.extent.width, context.swapchain.extent.height,
-        vk::Format::eD32Sfloat, vk::ImageTiling::eOptimal, 
-        usage, vk::MemoryPropertyFlagBits::eDeviceLocal,
-        image, memory);
-    vk::ImageView view = create_image_view(context.device, image, vk::Format::eD32Sfloat, vk::ImageAspectFlagBits::eDepth);
+RenderAttachment& PresentManager::add_depth_attachment(std::string const& name) {
+    RawImage image = create_image(context, context.swapchain.extent.width, context.swapchain.extent.height, ImageType::DepthStencilAttachment,
+        vk::Format::eD32Sfloat);
+    vk::ImageView view = create_image_view(context.device, image, vk::ImageAspectFlagBits::eDepth);
 
-    return attachments[name] = RenderAttachment(&context, image, memory, view,
-        context.swapchain.extent.width, context.swapchain.extent.height, vk::Format::eD32Sfloat, usage, 
-        vk::ImageAspectFlagBits::eDepth);
+    return attachments[name] = RenderAttachment(&context, image, view, vk::ImageAspectFlagBits::eDepth);
 }
 
 RenderAttachment& PresentManager::get_attachment(std::string const& name) {
@@ -233,9 +201,12 @@ RenderAttachment& PresentManager::get_attachment(std::string const& name) {
 }
 
 RenderAttachment PresentManager::get_swapchain_attachment(FrameInfo& frame) {
-    return RenderAttachment::from_ref(&context, context.swapchain.images[frame.image_index],
-        nullptr, context.swapchain.image_views[frame.image_index], 
-        context.swapchain.extent.width, context.swapchain.extent.height, context.swapchain.format.format);
+    RawImage img;
+    img.image = context.swapchain.images[frame.image_index];
+    img.memory = nullptr;
+    img.size = context.swapchain.extent;
+    img.format = context.swapchain.format.format;
+    return RenderAttachment::from_ref(&context, img, context.swapchain.image_views[frame.image_index]);
 }
 
 void PresentManager::on_event(WindowResizeEvent const& evt) {

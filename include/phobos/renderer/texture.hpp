@@ -2,11 +2,13 @@
 #define PHOBOS_TEXTURE_HPP_
 
 #include <phobos/core/vulkan_context.hpp>
+#include <phobos/util/image_util.hpp>
 
 namespace ph {
 
 class Texture {
 public:
+    Texture() = default;
     Texture(VulkanContext& ctx);
 
     struct CreateInfo {
@@ -33,13 +35,12 @@ public:
 
     vk::Image handle() const;
     vk::ImageView view_handle() const;
-    vk::DeviceMemory memory_handle() const;
+    VmaAllocation memory_handle() const;
 
 private:
     VulkanContext* ctx;
-    vk::Image image;
+    RawImage image;
     vk::ImageView view;
-    vk::DeviceMemory memory;
 };
 
 

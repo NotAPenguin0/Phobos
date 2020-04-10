@@ -27,8 +27,8 @@ public:
 
     void destroy();
 
-    RenderAttachment add_color_attachment(std::string const& name);
-    RenderAttachment add_depth_attachment(std::string const& name);
+    RenderAttachment& add_color_attachment(std::string const& name);
+    RenderAttachment& add_depth_attachment(std::string const& name);
     RenderAttachment& get_attachment(std::string const& name);
     RenderAttachment get_swapchain_attachment(FrameInfo& frame);
 

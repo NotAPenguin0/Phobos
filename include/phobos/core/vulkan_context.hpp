@@ -16,6 +16,8 @@
 
 #include <phobos/util/cache.hpp>
 
+#include <vk_mem_alloc.h>
+
 namespace ph {
 
 struct VulkanContext {
@@ -44,6 +46,8 @@ struct VulkanContext {
     Cache<vk::Pipeline, PipelineCreateInfo> pipeline_cache;
     Cache<PipelineLayout, PipelineLayoutCreateInfo> pipeline_layout_cache;
     Cache<vk::DescriptorSetLayout, DescriptorSetLayoutCreateInfo> set_layout_cache;
+
+    VmaAllocator allocator;
 
     void destroy();
 };

@@ -111,6 +111,7 @@ void VulkanContext::destroy() {
         device.destroyImageView(img_view);
     }
     
+    vmaDestroyAllocator(allocator);
     device.destroyCommandPool(command_pool);
     device.destroySwapchainKHR(swapchain.handle);
     device.destroy();
@@ -169,6 +170,14 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
     context->device = create_device(context->physical_device, device_requirements);
 
     logger->write_fmt(log::Severity::Info, "Created VkDevice");
+
+    VmaAllocatorCreateInfo aci{};
+    aci.device = context->device;
+    aci.physicalDevice = context->physical_device.handle;
+    aci.instance = context->instance;
+    aci.vulkanApiVersion = VK_MAKE_VERSION(1, 2, 0);
+
+    vmaCreateAllocator(&aci, &context->allocator);
 
     // Finally, get the graphics queue
     context->graphics_queue = context->device.getQueue(context->physical_device.queue_families.graphics_family.value(), 0);

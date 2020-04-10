@@ -9,6 +9,6 @@ struct Version {
 
 }
 
-#define PHOBOS_VERSION ::ph::Version{0, 0, 1}
+#define PHOBOS_VERSION ::ph::Version{0, 0, 2}
 
 #endif

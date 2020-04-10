@@ -84,6 +84,11 @@ DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, vk::Buffer bu
     return descriptor_binding;
 }
 
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, RawBuffer& buffer, vk::DeviceSize offset) {
+    return make_descriptor(binding, buffer.buffer, buffer.size, offset);
+}
+
+
 
 vk::GraphicsPipelineCreateInfo PipelineCreateInfo::vk_info() const {
     vk::GraphicsPipelineCreateInfo info;

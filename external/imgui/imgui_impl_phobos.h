@@ -4,7 +4,7 @@
 #include <imgui/imgui.h>
 #include <phobos/forward.hpp>
 
-// meh
+// meh => we can probably get rid of this somehow
 #include <vulkan/vulkan.hpp>
 
 struct ImGui_ImplPhobos_InitInfo {
@@ -18,10 +18,5 @@ void ImGui_ImplPhobos_Shutdown();
 
 bool ImGui_ImplPhobos_CreateFontsTexture(vk::CommandBuffer cmd_buf);
 void ImGui_ImplPhobos_DestroyFontUploadObjects();
-
-// Thread safe
-ImTextureID ImGui_ImplPhobos_AddTexture(vk::ImageView image_view, vk::ImageLayout image_layout);
-// Thread safe
-void ImGui_ImplPhobos_RemoveTexture(ImTextureID tex_id);
 
 #endif
