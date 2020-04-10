@@ -221,14 +221,6 @@ static void ImGui_ImplPhobos_CreateDescriptorPool(ImGui_ImplPhobos_InitInfo* ini
 void ImGui_ImplPhobos_InitBuffers(ImGui_ImplPhobos_InitInfo* init_info) {
     g_VertexBuffers.resize(init_info->max_frames_in_flight);
     g_IndexBuffers.resize(init_info->max_frames_in_flight);
-
-    for (auto& buf : g_VertexBuffers) {
-        buf.type = ph::BufferType::VertexBufferDynamic;
-    }
-
-    for (auto& buf : g_IndexBuffers) {
-        buf.type = ph::BufferType::IndexBufferDynamic;
-    }
 }
 
 
@@ -242,21 +234,6 @@ void ImGui_ImplPhobos_Init(ImGui_ImplPhobos_InitInfo* init_info) {
     ImGui_ImplPhobos_CreatePipeline(init_info->context);
     ImGui_ImplPhobos_InitBuffers(init_info);
     ImGui_ImplPhobos_CreateDescriptorPool(init_info);
-}
-
-void ImGui_ImplPhobos_EnsureBufferSize(ph::RawBuffer& buffer, vk::DeviceSize size) {
-    // Don't resize the buffer if it already has enough capacity
-    if (buffer.size >= size) { return; }
-
-    // Only destroy old buffer if there is one
-    if (buffer.buffer) {
-        ph::destroy_buffer(*g_Context, buffer);
-    }
-
-    // Use the available phobos utilites because we're implementing
-    // a phobos backend anyway
-    buffer = ph::create_buffer(*g_Context, size, buffer.type);
-    buffer.size = size;
 }
 
 
@@ -297,9 +274,17 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
     size_t const vertex_size = draw_data->TotalVtxCount * sizeof(ImDrawVert);
     size_t const index_size = draw_data->TotalIdxCount * sizeof(ImDrawIdx);
 
-    // Since we want to be able to map these and update them frequently we have to use the dynamic variant
-    ImGui_ImplPhobos_EnsureBufferSize(vertex_buffer, vertex_size);
-    ImGui_ImplPhobos_EnsureBufferSize(index_buffer, index_size);
+    auto handle_buffer_resize = [](ph::RawBuffer& buffer, size_t size, ph::BufferType type) {
+        if (!ph::is_valid_buffer(buffer)) {
+            buffer = ph::create_buffer(*g_Context, size, type);
+        }
+        else {
+            ph::ensure_buffer_size(*g_Context, buffer, size);
+        }
+    };
+
+    handle_buffer_resize(vertex_buffer, vertex_size, ph::BufferType::VertexBufferDynamic);
+    handle_buffer_resize(index_buffer, index_size, ph::BufferType::IndexBufferDynamic);
 
     ImGui_ImplPhobos_UpdateBuffers(vertex_buffer, index_buffer, draw_data);
 

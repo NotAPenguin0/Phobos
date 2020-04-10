@@ -20,6 +20,8 @@ static vk::BufferUsageFlags get_usage_flags(BufferType buf_type) {
         case BufferType::IndexBuffer: 
         case BufferType::IndexBufferDynamic:
             return vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer;
+        case BufferType::Undefined:
+            return vk::BufferUsageFlags{};
     }
 }
 
@@ -41,6 +43,8 @@ static VmaMemoryUsage get_memory_usage(BufferType buf_type) {
             return VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;
         case BufferType::MappedUniformBuffer: 
             return VmaMemoryUsage::VMA_MEMORY_USAGE_CPU_TO_GPU;
+        case BufferType::Undefined:
+            return VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;
     }
 }
 
@@ -63,6 +67,7 @@ static const char* buf_type_string(BufferType buf_type) {
     case BufferType::TransferBuffer: return "TransferBuffer";
     case BufferType::VertexBuffer: return "VertexBuffer";
     case BufferType::VertexBufferDynamic: return "VertexBufferDynamic";
+    case BufferType::Undefined: return "Undefined";
     default: return "Unknown";
     }
 }
@@ -88,6 +93,16 @@ static void log_buffer_copy(VulkanContext& ctx, RawBuffer const& src, RawBuffer 
 }
 
 RawBuffer create_buffer(VulkanContext& ctx, vk::DeviceSize size, BufferType buf_type) {
+    if (buf_type == BufferType::Undefined) {
+        ctx.logger->write_fmt(log::Severity::Error, "Tried to create buffer with buffer type Undefined");
+        return {};
+    }
+
+    if (size == 0) {
+        ctx.logger->write_fmt(log::Severity::Warning, "Tried to create buffer with size 0 bytes");
+        return {};
+    }
+
     RawBuffer buffer;
     buffer.size = size;
     buffer.type = buf_type;
@@ -109,11 +124,9 @@ RawBuffer create_buffer(VulkanContext& ctx, vk::DeviceSize size, BufferType buf_
 }
 
 void destroy_buffer(VulkanContext& ctx, RawBuffer& buffer) {
-    if (!buffer.buffer) {
-        ctx.logger->write_fmt(log::Severity::Error, "Tried to free buffer with null handle!");
-    }
-    if (!buffer.memory) {
-        ctx.logger->write_fmt(log::Severity::Error, "Tried to free buffer with null memory handle");
+    if (!is_valid_buffer(buffer)) {
+        ctx.logger->write_fmt(log::Severity::Warning, "Tried to free invalid buffer.");
+        return;
     }
 
     log_buffer_destroy(ctx, buffer);
@@ -123,7 +136,16 @@ void destroy_buffer(VulkanContext& ctx, RawBuffer& buffer) {
     buffer.memory = nullptr;
 }
 
+bool is_valid_buffer(RawBuffer const& buffer) {
+    return buffer.type != BufferType::Undefined && buffer.size > 0 && buffer.buffer && buffer.memory;
+}
+
 std::byte* map_memory(VulkanContext& ctx, RawBuffer& buffer) {
+    if (!is_valid_buffer(buffer)) {
+        ctx.logger->write_fmt(log::Severity::Error, "Tried to obtain memory map of invalid buffer");
+        return nullptr;
+    }
+
     if (has_persistent_mapping(buffer.type)) {
         VmaAllocationInfo alloc_info;
         vmaGetAllocationInfo(ctx.allocator, buffer.memory, &alloc_info);
@@ -136,10 +158,26 @@ std::byte* map_memory(VulkanContext& ctx, RawBuffer& buffer) {
 }
 
 void flush_memory(VulkanContext& ctx, RawBuffer& buffer, vk::DeviceSize offset, vk::DeviceSize size) {
+    if (!is_valid_buffer(buffer)) {
+        ctx.logger->write_fmt(log::Severity::Error, "Tried to flush memory of invalid buffer");
+        return;
+    }
+
+    if (size != VK_WHOLE_SIZE && offset + size > buffer.size) {
+        ctx.logger->write_fmt(log::Severity::Error, "Tried to flush memory range with offset {} bytes and size {} bytes, "
+            "but buffer is only {} bytes large", offset, size, buffer.size);
+        return;
+    }
+
     vmaFlushAllocation(ctx.allocator, buffer.memory, offset, size);
 }
 
 void unmap_memory(VulkanContext& ctx, RawBuffer& buffer) {
+    if (!is_valid_buffer(buffer)) {
+        ctx.logger->write_fmt(log::Severity::Error, "Tried to unmap invalid buffer");
+        return;
+    }
+
     if (has_persistent_mapping(buffer.type)) {
         ctx.logger->write_fmt(log::Severity::Warning, "Unmapping a persistently mapped buffer");
     }
@@ -147,14 +185,29 @@ void unmap_memory(VulkanContext& ctx, RawBuffer& buffer) {
     vmaUnmapMemory(ctx.allocator, buffer.memory);
 }
 
+bool ensure_buffer_size(VulkanContext& ctx, RawBuffer& buffer, vk::DeviceSize requested_size) {
+    if (!is_valid_buffer(buffer)) {
+        ctx.logger->write_fmt(log::Severity::Error, "Tried to resize an invalid buffer");
+    }
+
+    if (buffer.size >= requested_size) { return false; }
+
+    BufferType buf_type = buffer.type;
+    destroy_buffer(ctx, buffer);
+    buffer = create_buffer(ctx, requested_size, buf_type);
+
+    return true;
+}
+
 void copy_buffer(VulkanContext& ctx, RawBuffer const& src, RawBuffer& dst, vk::DeviceSize size) {
     log_buffer_copy(ctx, src, dst, size);
 
-    if (!src.buffer) {
-        ctx.logger->write_fmt(log::Severity::Error, "Tried to do a buffer copy, but source buffer is NULL");
+    if (!is_valid_buffer(src)) {
+        ctx.logger->write_fmt(log::Severity::Error, "Tried to do a buffer copy, but source buffer is invalid");
     }
-    if (!dst.buffer) {
-        ctx.logger->write_fmt(log::Severity::Error, "Tried to do a buffer copy, but destination buffer is NULL");
+
+    if (!is_valid_buffer(dst)) {
+        ctx.logger->write_fmt(log::Severity::Error, "Tried to do a buffer copy, but destination buffer is invalid");
     }
 
     if (size == 0) {

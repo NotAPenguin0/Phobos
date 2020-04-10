@@ -92,6 +92,8 @@ void RenderAttachment::destroy() {
 
     ctx->event_dispatcher.remove_listener(this);
     if (owning) {
+        ctx->device.destroyImageView(view);
+        view = nullptr;
         destroy_image(*ctx, image);
         owning = false;
     }

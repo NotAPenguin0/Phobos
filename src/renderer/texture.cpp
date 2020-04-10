@@ -32,7 +32,7 @@ Texture::~Texture() {
 void Texture::create(CreateInfo const& info) {
     destroy();
 
-    vk::DeviceSize size = info.width * info.height * info.channels;
+    vk::DeviceSize const size = info.width * info.height * info.channels;
     // Create staging buffer
     RawBuffer staging_buffer = create_buffer(*ctx, size, BufferType::TransferBuffer);
     
