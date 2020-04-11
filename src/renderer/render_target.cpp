@@ -19,7 +19,7 @@ RenderTarget::RenderTarget(VulkanContext* ctx, vk::RenderPass render_pass, std::
     stl::vector<vk::ImageView> views;
     views.reserve(attachments.size());
     for (auto const& attachment : attachments) {
-        views.push_back(attachment.image_view());
+        views.push_back(attachment.image_view().view);
         info.width = std::max(attachment.get_width(), info.width);
         info.height = std::max(attachment.get_height(), info.height);
     }

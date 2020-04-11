@@ -9,25 +9,26 @@ RenderAttachment::RenderAttachment(VulkanContext* ctx) : ctx(ctx) {
     ctx->event_dispatcher.add_listener(this);
 }
 
-RenderAttachment::RenderAttachment(VulkanContext* ctx, RawImage& image, vk::ImageView view, vk::ImageAspectFlags aspect)
+RenderAttachment::RenderAttachment(VulkanContext* ctx, RawImage& image, ImageView view, vk::ImageAspectFlags aspect)
         : ctx(ctx), owning(true), image(image), view(view), aspect(aspect) {
-
+    imgui_tex_id = ImGui_ImplPhobos_AddTexture(view);
     ctx->event_dispatcher.add_listener(this);
 }
 
 RenderAttachment::RenderAttachment(RenderAttachment const& rhs) :
-    ctx(rhs.ctx), owning(false), image(rhs.image), aspect(rhs.aspect), view(rhs.view) {
+    ctx(rhs.ctx), owning(false), image(rhs.image), aspect(rhs.aspect), view(rhs.view), imgui_tex_id(rhs.imgui_tex_id) {
     ctx->event_dispatcher.add_listener(this);
 }
 
 RenderAttachment::RenderAttachment(RenderAttachment&& rhs) : 
-    ctx(rhs.ctx), owning(rhs.owning), image(rhs.image), view(rhs.view), aspect(rhs.aspect) {
+    ctx(rhs.ctx), owning(rhs.owning), image(rhs.image), view(rhs.view), aspect(rhs.aspect), imgui_tex_id(rhs.imgui_tex_id) {
     ctx->event_dispatcher.add_listener(this);
     ctx->event_dispatcher.remove_listener(&rhs);
     rhs.owning = false;
-    rhs.view = nullptr;
+    rhs.view = {};
     rhs.image = {};
     rhs.aspect = {};
+    rhs.imgui_tex_id = nullptr;
 }
 
 RenderAttachment& RenderAttachment::operator=(RenderAttachment const& rhs) {
@@ -39,6 +40,7 @@ RenderAttachment& RenderAttachment::operator=(RenderAttachment const& rhs) {
         image = rhs.image;    
         view = rhs.view;
         aspect = rhs.aspect;
+        imgui_tex_id = rhs.imgui_tex_id;
     }
     return *this;
 }
@@ -51,13 +53,15 @@ RenderAttachment& RenderAttachment::operator=(RenderAttachment&& rhs) {
         image = rhs.image;
         view = rhs.view;
         aspect = rhs.aspect;
+        imgui_tex_id = rhs.imgui_tex_id;
 
         ctx->event_dispatcher.add_listener(this);
 
         rhs.owning = false;
         rhs.image = {};
-        rhs.view = nullptr;
+        rhs.view = {};
         rhs.aspect = {};
+        rhs.imgui_tex_id = nullptr;
         ctx->event_dispatcher.remove_listener(&rhs);
     }
     return *this;
@@ -67,7 +71,7 @@ RenderAttachment::~RenderAttachment() {
     destroy();
 }
 
-RenderAttachment RenderAttachment::from_ref(VulkanContext* ctx, RawImage& image, vk::ImageView view) {
+RenderAttachment RenderAttachment::from_ref(VulkanContext* ctx, RawImage& image, ImageView view) {
     RenderAttachment attachment(ctx);
     // NOTE: RenderAttachment constructor already adds the attachment to the listener list!
     attachment.owning = false;
@@ -92,8 +96,8 @@ void RenderAttachment::destroy() {
 
     ctx->event_dispatcher.remove_listener(this);
     if (owning) {
-        ctx->device.destroyImageView(view);
-        view = nullptr;
+        ImGui_ImplPhobos_RemoveTexture(view);
+        destroy_image_view(*ctx, view);
         destroy_image(*ctx, image);
         owning = false;
     }
@@ -116,6 +120,7 @@ void RenderAttachment::resize(uint32_t new_width, uint32_t new_height) {
 
     image = create_image(*ctx, new_width, new_height, old_type, old_format);
     view = create_image_view(ctx->device, image, aspect);
+    imgui_tex_id = ImGui_ImplPhobos_AddTexture(view);
 
     owning = true;
 }

@@ -18,9 +18,8 @@
 #include <phobos/pipeline/shader_info.hpp>
 
 /* Notes
- * In ImGui_ImplPhobos, an ImTextureID is simply a VkImageView handle.
- * To obtain a handle, you can call ImGui_ImplPhobos_AddTexture() or simply do
- * reinterpret_cast<ImTextureID>(my_vk_image_view);
+ * In ImGui_ImplPhobos, an ImTextureID is the unique ID in ph::ImageView
+ * To obtain a handle, you have to call ImGui_ImplPhobos_AddTexture(), since this handle has to be registered internally
  */
 
 // TODO: Custom VkAllocationCallbacks
@@ -29,12 +28,12 @@ static ph::VulkanContext* g_Context;
 
 static vk::Sampler g_FontSampler;
 static ph::RawImage g_FontImage;
-static vk::ImageView g_FontView;
+static ph::ImageView g_FontView;
 static ph::RawBuffer g_UploadBuffer;
 static vk::DescriptorPool g_DescriptorPool;
 static stl::vector<ph::RawBuffer> g_VertexBuffers;
 static stl::vector<ph::RawBuffer> g_IndexBuffers;
-
+static std::unordered_map<ImTextureID, ph::ImageView> g_Textures;
 
 // glsl_shader.vert, compiled with:
 // # glslangValidator -V -x -o glsl_shader.vert.u32 glsl_shader.vert
@@ -376,7 +375,7 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
                     
                     cmd_buf.set_scissor(scissor);
                     // Bind descriptorset with font or user texture
-                    vk::ImageView img_view = static_cast<vk::ImageView>(reinterpret_cast<VkImageView>(cmd->TextureId));
+                    ph::ImageView img_view = g_Textures.at(cmd->TextureId);
                     // Get descriptor set from the renderer
                     ph::DescriptorSetBinding descriptor_set;
                     descriptor_set.pool = g_DescriptorPool;
@@ -407,9 +406,8 @@ bool ImGui_ImplPhobos_CreateFontsTexture(vk::CommandBuffer cmd_buf) {
     g_FontView = ph::create_image_view(g_Context->device, g_FontImage);
 
     // Store our identifier
-    io.Fonts->TexID = reinterpret_cast<void*>(static_cast<VkImageView>(g_FontView));
+    io.Fonts->TexID = ImGui_ImplPhobos_AddTexture(g_FontView);
 
-    // Create the Upload Buffer:
     g_UploadBuffer = ph::create_buffer(*g_Context, upload_size, ph::BufferType::TransferBuffer);
     // Upload to buffer
     std::byte* data = ph::map_memory(*g_Context, g_UploadBuffer);
@@ -431,10 +429,21 @@ void ImGui_ImplPhobos_DestroyFontUploadObjects() {
     }
 }
 
+void* ImGui_ImplPhobos_AddTexture(ph::ImageView view) {
+    ImTextureID id = reinterpret_cast<ImTextureID*>(view.id);
+    g_Textures[id] = view;
+    return id;
+}
+
+void ImGui_ImplPhobos_RemoveTexture(ph::ImageView view) {
+    ImTextureID id = reinterpret_cast<ImTextureID*>(view.id);
+    g_Textures.erase(id);
+}
+
 void ImGui_ImplPhobos_Shutdown() {
     ImGui_ImplPhobos_DestroyFontUploadObjects();
     g_Context->device.destroySampler(g_FontSampler);
-    g_Context->device.destroyImageView(g_FontView);
+    ph::destroy_image_view(*g_Context, g_FontView);
     ph::destroy_image(*g_Context, g_FontImage);
     g_Context->device.destroyDescriptorPool(g_DescriptorPool);
 
@@ -447,4 +456,6 @@ void ImGui_ImplPhobos_Shutdown() {
         ph::destroy_buffer(*g_Context, buf);
     }
     g_IndexBuffers.clear();
+
+    g_Textures.clear();
 }

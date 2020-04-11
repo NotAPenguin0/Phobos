@@ -11,6 +11,7 @@
 
 #include <phobos/forward.hpp>
 #include <phobos/pipeline/shader_info.hpp>
+#include <phobos/util/image_util.hpp>
 #include <phobos/util/buffer_util.hpp>
 
 namespace ph {
@@ -26,26 +27,39 @@ struct DescriptorSetLayoutCreateInfo {
     stl::vector<vk::DescriptorBindingFlags> flags;
 };
 
+// TODO: Custom BufferView?
+struct DescriptorBufferInfo {
+    vk::Buffer buffer = nullptr;
+    vk::DeviceSize offset = 0;
+    vk::DeviceSize range = 0;
+};
+
+struct DescriptorImageInfo {
+    vk::Sampler sampler = nullptr;
+    ImageView view{};
+    vk::ImageLayout layout = vk::ImageLayout::eUndefined;
+};
+
 struct DescriptorBinding {
     stl::size_t binding = 0;
     vk::DescriptorType type;
 
     union DescriptorContents {
-        vk::DescriptorBufferInfo buffer;
-        vk::DescriptorImageInfo image;
+        DescriptorBufferInfo buffer;
+        DescriptorImageInfo image;
     };
 
     stl::vector<DescriptorContents> descriptors;
 };
 
-DescriptorBinding make_image_descriptor(uint32_t binding, vk::ImageView view, vk::Sampler sampler, vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);
-DescriptorBinding make_image_descriptor_array(uint32_t binding, stl::span<vk::ImageView> views, vk::Sampler sampler,
+DescriptorBinding make_image_descriptor(uint32_t binding, ImageView view, vk::Sampler sampler, vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);
+DescriptorBinding make_image_descriptor_array(uint32_t binding, stl::span<ImageView> views, vk::Sampler sampler,
     vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);
 DescriptorBinding make_buffer_descriptor(uint32_t binding, vk::DescriptorType type, vk::Buffer buffer, vk::DeviceSize size, vk::DeviceSize offset = 0);
 
-DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, vk::ImageView view, vk::Sampler sampler, 
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, ImageView view, vk::Sampler sampler, 
         vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);
-DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, stl::span<vk::ImageView> views, vk::Sampler sampler, 
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, stl::span<ImageView> views, vk::Sampler sampler, 
         vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);
 DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, vk::Buffer buffer, vk::DeviceSize size, vk::DeviceSize offset = 0);
 DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, RawBuffer& buffer, vk::DeviceSize offset = 0);

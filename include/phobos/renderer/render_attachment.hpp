@@ -13,7 +13,7 @@ class RenderAttachment : public EventListener<SwapchainRecreateEvent> {
 public: 
     RenderAttachment() = default;
     RenderAttachment(VulkanContext* ctx);
-    RenderAttachment(VulkanContext* ctx, RawImage& image, vk::ImageView view, vk::ImageAspectFlags aspect);
+    RenderAttachment(VulkanContext* ctx, RawImage& image, ImageView view, vk::ImageAspectFlags aspect);
     RenderAttachment(RenderAttachment const& rhs);
     RenderAttachment(RenderAttachment&& rhs);
 
@@ -22,7 +22,7 @@ public:
 
     virtual ~RenderAttachment();
 
-    static RenderAttachment from_ref(VulkanContext* ctx, RawImage& image, vk::ImageView view);
+    static RenderAttachment from_ref(VulkanContext* ctx, RawImage& image, ImageView view);
 
     void destroy();
 
@@ -36,7 +36,7 @@ public:
         return image.memory;
     }
 
-    vk::ImageView image_view() const {
+    ImageView image_view() const {
         return view;
     }
 
@@ -53,7 +53,7 @@ public:
     }
 
     void* get_imgui_tex_id() const {
-        return reinterpret_cast<void*>(memory_util::to_vk_type(view));
+        return imgui_tex_id;
     }
 
     vk::Format get_format() const {
@@ -68,9 +68,11 @@ private:
     // Specifies whether this RenderAttachment owns the image it stores. We need this flag for cleanup
     bool owning = false;
 
-    RawImage image;
-    vk::ImageView view = nullptr;
+    RawImage image{};
+    ImageView view{};
     vk::ImageAspectFlags aspect = {};
+
+    void* imgui_tex_id = nullptr;
 };
 
 } // namespace ph 

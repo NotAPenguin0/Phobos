@@ -34,13 +34,13 @@ public:
     void destroy();
 
     vk::Image handle() const;
-    vk::ImageView view_handle() const;
+    ImageView view_handle() const;
     VmaAllocation memory_handle() const;
 
 private:
     VulkanContext* ctx;
     RawImage image;
-    vk::ImageView view;
+    ImageView view;
 };
 
 

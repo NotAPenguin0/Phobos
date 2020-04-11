@@ -194,7 +194,7 @@ public:
         ph::DescriptorSetBinding bindings;
         bindings.add(ph::make_descriptor(shader_info["camera"], frame.vp_ubo));
         bindings.add(ph::make_descriptor(shader_info["transforms"], frame.transform_ssbo.buffer_handle(), frame.transform_ssbo.size()));
-        stl::vector<vk::ImageView> texture_views;
+        stl::vector<ph::ImageView> texture_views;
         texture_views.reserve(graph.materials.size());
         for (auto const& mat : graph.materials) { texture_views.push_back(mat.texture->view_handle()); }
         bindings.add(ph::make_descriptor(shader_info["textures"], texture_views, frame.default_sampler));

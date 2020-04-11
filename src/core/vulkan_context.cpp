@@ -107,8 +107,8 @@ void VulkanContext::destroy() {
     }
     pipeline_cache.get_all().clear();
 
-    for (auto const& img_view : swapchain.image_views) {
-        device.destroyImageView(img_view);
+    for (auto& img_view : swapchain.image_views) {
+        destroy_image_view(*this, img_view);
     }
     
     vmaDestroyAllocator(allocator);

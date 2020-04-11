@@ -9,6 +9,8 @@
 
 #include <stl/vector.hpp>
 
+#include <phobos/util/image_util.hpp>
+
 namespace ph {
 
 struct SwapchainDetails {
@@ -19,7 +21,7 @@ struct SwapchainDetails {
     vk::Extent2D extent;
 
     std::vector<vk::Image> images;
-    stl::vector<vk::ImageView> image_views;
+    stl::vector<ImageView> image_views;
 };
 
 SwapchainDetails create_swapchain(vk::Device device, WindowContext const& window_ctx, 

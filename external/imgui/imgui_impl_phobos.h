@@ -19,4 +19,7 @@ void ImGui_ImplPhobos_Shutdown();
 bool ImGui_ImplPhobos_CreateFontsTexture(vk::CommandBuffer cmd_buf);
 void ImGui_ImplPhobos_DestroyFontUploadObjects();
 
+void* ImGui_ImplPhobos_AddTexture(ph::ImageView view);
+void ImGui_ImplPhobos_RemoveTexture(ph::ImageView view);
+
 #endif

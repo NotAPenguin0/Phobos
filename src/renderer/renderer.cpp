@@ -64,8 +64,14 @@ vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, DescriptorSetLayout
         // Now we have the set we need to write the requested data to it
         // TODO: Look into vkUpdateDescriptorSetsWithTemplate?
         stl::vector<vk::WriteDescriptorSet> writes;
+        struct DescriptorWriteInfo {
+            stl::vector<vk::DescriptorBufferInfo> buffer_infos;
+            stl::vector<vk::DescriptorImageInfo> image_infos;
+        };
+        stl::vector<DescriptorWriteInfo> write_infos;
         writes.reserve(set_binding.bindings.size());
         for (auto const& binding : set_binding.bindings) {
+            DescriptorWriteInfo write_info;
             vk::WriteDescriptorSet write;
             write.dstSet = set;
             write.dstBinding = binding.binding;
@@ -74,14 +80,43 @@ vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, DescriptorSetLayout
             switch(binding.type) {
                 case vk::DescriptorType::eCombinedImageSampler:
                 case vk::DescriptorType::eSampledImage: {
-                    write.pImageInfo = &binding.descriptors[0].image;
+                    write_info.image_infos.reserve(binding.descriptors.size());
+                    for (auto const& descriptor : binding.descriptors) {
+                        vk::DescriptorImageInfo img;
+                        img.imageLayout = descriptor.image.layout;
+                        img.imageView = descriptor.image.view.view;
+                        img.sampler = descriptor.image.sampler;
+                        write_info.image_infos.push_back(img);
+                        // Push dummy buffer info to make sure indices match
+                        write_info.buffer_infos.emplace_back();
+                    }
                 } break;
                 default: {
-                    write.pBufferInfo = &binding.descriptors[0].buffer;
-                } break;
+                    vk::DescriptorBufferInfo buf;
+                    auto& info = binding.descriptors.front().buffer;
+                    buf.buffer = info.buffer;
+                    buf.offset = info.offset;
+                    buf.range = info.range;
 
+                    write_info.buffer_infos.push_back(buf);
+                    // Push dummy image info to make sure indices match
+                    write_info.image_infos.emplace_back();
+                } break;
             }
+            write_infos.push_back(write_info);
             writes.push_back(stl::move(write));
+        }
+
+        for (size_t i = 0; i < write_infos.size(); ++i) {
+            switch (writes[i].descriptorType) {
+            case vk::DescriptorType::eSampledImage:
+            case vk::DescriptorType::eCombinedImageSampler: {
+                writes[i].pImageInfo = write_infos[i].image_infos.data();
+            } break;
+            default: {
+                writes[i].pBufferInfo = write_infos[i].buffer_infos.data();
+            } break;
+            }
         }
 
         ctx.device.updateDescriptorSets(writes.size(), writes.data(), 0, nullptr);
@@ -158,6 +193,7 @@ void Renderer::on_event(DynamicGpuBufferResizeEvent const& e) {
     buffer.range = e.new_size;
     vk::WriteDescriptorSet write;
     write.pBufferInfo = &buffer;
+    // TODO: This is wrong
     write.dstBinding = 1;
     write.descriptorCount = 1;
     write.descriptorType = vk::DescriptorType::eStorageBuffer;
@@ -209,7 +245,7 @@ vk::DescriptorSet Renderer::get_fixed_descriptor_set(FrameInfo& frame, RenderGra
     DescriptorSetBinding bindings;
     bindings.add(make_descriptor(shader_info["camera"], frame.vp_ubo));
     bindings.add(make_descriptor(shader_info["transforms"], frame.transform_ssbo.buffer_handle(), frame.transform_ssbo.size()));
-    stl::vector<vk::ImageView> texture_views;
+    stl::vector<ImageView> texture_views;
     texture_views.reserve(graph->materials.size());
     for (auto const& mat : graph->materials) { texture_views.push_back(mat.texture->view_handle()); }
     bindings.add(make_descriptor(shader_info["textures"], texture_views, frame.default_sampler));

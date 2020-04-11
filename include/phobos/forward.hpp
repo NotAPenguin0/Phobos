@@ -35,6 +35,9 @@ class RenderGraph;
 struct FrameInfo;
 class Renderer;
 
+struct RawBuffer;
+struct ImageView;
+
 } // namespace ph
 
 

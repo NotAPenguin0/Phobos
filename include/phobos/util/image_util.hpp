@@ -2,13 +2,15 @@
 #define PHOBOS_IMAGE_UTIL_HPP_
 
 #include <vulkan/vulkan.hpp>
-#include <phobos/core/vulkan_context.hpp>
-
 #include <vk_mem_alloc.h>
 
 #include <phobos/util/buffer_util.hpp>
 
+#include <stl/types.hpp>
+
 namespace ph {
+
+struct VulkanContext;
 
 enum class ImageType {
     ColorAttachment,
@@ -26,7 +28,23 @@ struct RawImage {
     VmaAllocation memory = nullptr;
 };
 
-vk::ImageView create_image_view(vk::Device device, RawImage& image, vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor);
+struct ImageView {
+    vk::ImageView view = nullptr;
+    // Id that is guaranteed to be unique for each VkImageView.
+    // We need this because Vulkan doesn't guarantee unique id's for vk handles.
+    stl::uint64_t id = static_cast<stl::uint64_t>(-1);
+
+    bool operator==(ImageView const& rhs) const {
+        return id == rhs.id;
+    }
+};
+
+ImageView create_image_view(vk::Device device, RawImage& image, vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor);
+void destroy_image_view(VulkanContext& ctx, ImageView& view);
+
+// this function is thread safe
+stl::uint64_t get_unique_image_view_id();
+
 RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format);
 
 void transition_image_layout(vk::CommandBuffer cmd_buf, vk::Image image, vk::Format format,

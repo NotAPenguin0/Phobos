@@ -184,14 +184,14 @@ void PresentManager::destroy() {
 RenderAttachment& PresentManager::add_color_attachment(std::string const& name) {
     RawImage image = create_image(context, context.swapchain.extent.width, context.swapchain.extent.height, ImageType::ColorAttachment,
         context.swapchain.format.format);
-    vk::ImageView view = create_image_view(context.device, image);
+    ImageView view = create_image_view(context.device, image);
     return attachments[name] = RenderAttachment(&context, image, view, vk::ImageAspectFlagBits::eColor);
 }
 
 RenderAttachment& PresentManager::add_depth_attachment(std::string const& name) {
     RawImage image = create_image(context, context.swapchain.extent.width, context.swapchain.extent.height, ImageType::DepthStencilAttachment,
         vk::Format::eD32Sfloat);
-    vk::ImageView view = create_image_view(context.device, image, vk::ImageAspectFlagBits::eDepth);
+    ImageView view = create_image_view(context.device, image, vk::ImageAspectFlagBits::eDepth);
 
     return attachments[name] = RenderAttachment(&context, image, view, vk::ImageAspectFlagBits::eDepth);
 }
@@ -217,7 +217,7 @@ void PresentManager::on_event(WindowResizeEvent const& evt) {
     context.device.waitIdle();
 
     for (auto view : context.swapchain.image_views) {
-        context.device.destroyImageView(view);
+        destroy_image_view(context, view);
     }
 
     context.swapchain.image_views.clear();

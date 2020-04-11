@@ -4,15 +4,15 @@
 
 namespace ph {
 
-DescriptorBinding make_image_descriptor(uint32_t binding, vk::ImageView view, vk::Sampler sampler, vk::ImageLayout layout) {
+DescriptorBinding make_image_descriptor(uint32_t binding, ImageView view, vk::Sampler sampler, vk::ImageLayout layout) {
     DescriptorBinding descriptor_binding;
     descriptor_binding.binding = binding;
     // Support for separate image + sampler?
     // #Tag(Sampler)
     descriptor_binding.type = vk::DescriptorType::eCombinedImageSampler;
-    vk::DescriptorImageInfo info;
-    info.imageView = view;
-    info.imageLayout = layout;
+    DescriptorImageInfo info;
+    info.view = view;
+    info.layout = layout;
     info.sampler = sampler;
     auto& descriptor = descriptor_binding.descriptors.emplace_back();
     descriptor.image = info;
@@ -20,15 +20,15 @@ DescriptorBinding make_image_descriptor(uint32_t binding, vk::ImageView view, vk
     return descriptor_binding;
 }
 
-DescriptorBinding make_image_descriptor_array(uint32_t binding, stl::span<vk::ImageView> views, vk::Sampler sampler, vk::ImageLayout layout) {
+DescriptorBinding make_image_descriptor_array(uint32_t binding, stl::span<ImageView> views, vk::Sampler sampler, vk::ImageLayout layout) {
     DescriptorBinding descriptor_binding;
     descriptor_binding.binding = binding;
     descriptor_binding.type = vk::DescriptorType::eCombinedImageSampler;
     descriptor_binding.descriptors.reserve(views.size());
     for (auto img : views) {
-        vk::DescriptorImageInfo info;
-        info.imageView = img;
-        info.imageLayout = layout;
+        DescriptorImageInfo info;
+        info.view = img;
+        info.layout = layout;
         info.sampler = sampler;
         auto& descriptor = descriptor_binding.descriptors.emplace_back();
         descriptor.image = info;
@@ -48,25 +48,25 @@ DescriptorBinding make_buffer_descriptor(uint32_t binding, vk::DescriptorType ty
     return descriptor_binding;
 }
 
-DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, vk::ImageView view, vk::Sampler sampler, vk::ImageLayout layout) {
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, ImageView view, vk::Sampler sampler, vk::ImageLayout layout) {
     DescriptorBinding descriptor_binding;
     descriptor_binding.binding = binding.binding;
     descriptor_binding.type = binding.type;
     auto& descriptor = descriptor_binding.descriptors.emplace_back();
-    descriptor.image.imageView = view;
-    descriptor.image.imageLayout = layout;
+    descriptor.image.view = view;
+    descriptor.image.layout = layout;
     descriptor.image.sampler = sampler;
     return descriptor_binding;
 }
-DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, stl::span<vk::ImageView> views, vk::Sampler sampler, vk::ImageLayout layout) {
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, stl::span<ImageView> views, vk::Sampler sampler, vk::ImageLayout layout) {
     DescriptorBinding descriptor_binding;
     descriptor_binding.binding = binding.binding;
     descriptor_binding.type = binding.type;
     descriptor_binding.descriptors.reserve(views.size());
     for (auto img : views) {
         auto& descriptor = descriptor_binding.descriptors.emplace_back();
-        descriptor.image.imageView = img;
-        descriptor.image.imageLayout = layout;
+        descriptor.image.view = img;
+        descriptor.image.layout = layout;
         descriptor.image.sampler = sampler;
     }
 

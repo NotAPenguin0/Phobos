@@ -313,10 +313,11 @@ struct hash<vk::Sampler> {
 };
 
 template<>
-struct hash<vk::DescriptorImageInfo> {
-    size_t operator()(vk::DescriptorImageInfo const& x) const noexcept {
+struct hash<ph::DescriptorImageInfo> {
+    size_t operator()(ph::DescriptorImageInfo const& x) const noexcept {
         size_t h = 0;
-        ph::hash_combine(h, x.imageView, x.sampler, ph::to_integral(x.imageLayout));
+        // Hash unique ID instead
+        ph::hash_combine(h, x.view.id, x.sampler, ph::to_integral(x.layout));
         return h;
     }
 };
@@ -331,8 +332,8 @@ struct hash<vk::Buffer> {
 };
 
 template<>
-struct hash<vk::DescriptorBufferInfo> {
-    size_t operator()(vk::DescriptorBufferInfo const& x) const noexcept {
+struct hash<ph::DescriptorBufferInfo> {
+    size_t operator()(ph::DescriptorBufferInfo const& x) const noexcept {
         size_t h = 0;
         ph::hash_combine(h, x.buffer, (size_t)x.offset, (size_t)x.range);
         return h;

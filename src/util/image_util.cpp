@@ -1,6 +1,8 @@
 #include <phobos/util/image_util.hpp>
 #include <phobos/util/memory_util.hpp>
 
+#include <atomic>
+
 namespace ph {
 
 static vk::ImageUsageFlags get_image_usage(ImageType type) {
@@ -14,7 +16,14 @@ static vk::ImageUsageFlags get_image_usage(ImageType type) {
     }
 }
 
-vk::ImageView create_image_view(vk::Device device, RawImage& image, vk::ImageAspectFlags aspect) {
+stl::uint64_t get_unique_image_view_id() {
+    static std::atomic<stl::uint64_t> counter = 0;
+    return counter++;
+}
+
+ImageView create_image_view(vk::Device device, RawImage& image, vk::ImageAspectFlags aspect) {
+    ImageView view;
+
     vk::ImageViewCreateInfo info;
     info.image = image.image;
     info.viewType = vk::ImageViewType::e2D;
@@ -29,7 +38,16 @@ vk::ImageView create_image_view(vk::Device device, RawImage& image, vk::ImageAsp
     info.subresourceRange.baseMipLevel = 0;
     info.subresourceRange.levelCount = 1;
 
-    return device.createImageView(info);
+    view.view = device.createImageView(info);
+    view.id = get_unique_image_view_id();
+
+    return view;
+}
+
+void destroy_image_view(VulkanContext& ctx, ImageView& view) {
+    ctx.device.destroyImageView(view.view);
+    view.view = nullptr;
+    view.id = static_cast<stl::uint64_t>(-1);
 }
 
 RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format) {

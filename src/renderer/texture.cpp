@@ -58,9 +58,8 @@ void Texture::create(CreateInfo const& info) {
 
 void Texture::destroy() {
     if (image.image) {
-        ctx->device.destroyImageView(view);
+        destroy_image_view(*ctx, view);
         destroy_image(*ctx, image);
-        view = nullptr;
     }
 }
 
@@ -68,7 +67,7 @@ vk::Image Texture::handle() const {
     return image.image;
 }
 
-vk::ImageView Texture::view_handle() const {
+ImageView Texture::view_handle() const {
     return view;
 }
 
