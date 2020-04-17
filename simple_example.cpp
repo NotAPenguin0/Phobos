@@ -6,42 +6,47 @@
 
 class SimpleExample : public ph::TestApplication {
 private:
-    ph::Mesh cube;
+    ph::Mesh dragon;
+    ph::Texture dragon_color;
+    ph::Texture dragon_normal;
+
     ph::Mesh ground;
+    ph::Texture ground_color;
+    ph::Texture ground_normal;
 
-    ph::Texture texture;
-    ph::Texture specular_map;
+    uint32_t dragon_material_idx;
+    uint32_t ground_material_idx;
+    
+    ph::PointLight light;
 
-    ph::Texture cube_diffuse;
-    ph::Texture cube_specular;
-    ph::Texture cube_normal;
+    float dragon_rotation = 0;
 
-    ph::Material material;
-    ph::Material cube_material;
-
-    ph::DirectionalLight light;
 public:
     SimpleExample() : ph::TestApplication(1280, 720, "Simple Example") {
         present->add_color_attachment("color1");
         present->add_depth_attachment("depth1");
         
-        cube = generate_cube_geometry();
-        ground = generate_plane_geometry();
-        texture = load_texture("data/textures/container.png");
-        specular_map = load_texture("data/textures/spec.png");
-        material.diffuse = &texture;
-        material.specular = &specular_map;
+        dragon = load_obj("data/dragon_scene/meshes/dragon.obj");
+        dragon_color = load_texture("data/dragon_scene/textures/dragon_texture_color.png");
+        dragon_normal = load_texture("data/dragon_scene/textures/dragon_texture_normal.png");
 
-        cube_diffuse = load_texture("data/textures/bricks_color.jpg");
-        cube_specular = load_texture("data/textures/bricks_specular.jpg");
-        cube_normal = load_texture("data/textures/bricks_normal.jpg");
+        ground = load_obj("data/dragon_scene/meshes/plane.obj");
+        ground_color = load_texture("data/dragon_scene/textures/plane_texture_color.png");
+        ground_normal = load_texture("data/dragon_scene/textures/plane_texture_normal.png");
 
-        cube_material.diffuse = &cube_diffuse;
-        cube_material.specular = &cube_specular;
-        cube_material.normal = &cube_normal;
-          
-        light.direction = glm::vec3(0.0f, -1.0f, 0.0f);
+        ph::Material dragon_material;
+        dragon_material.diffuse = &dragon_color;
+        dragon_material.normal = &dragon_normal;
+        dragon_material_idx = add_material(dragon_material);
+
+        ph::Material ground_material;
+        ground_material.diffuse = &ground_color;
+        ground_material.normal = &ground_normal;
+        ground_material_idx = add_material(ground_material);
+
+        light.position = glm::vec3(2, 2, 2);
         light.color = glm::vec3(1.0f, 1.0f, 1.0f);
+        light.intensity = 1.0f;
     }
 
     ~SimpleExample() = default;
@@ -61,32 +66,32 @@ public:
         }
         ImGui::End();
 
-        // Update light position to rotate the direction around
-        light.direction.x = std::sin(time);
-        light.direction.z = std::cos(time);
+        dragon_rotation += frame_time * 6;
 
         // Push info into render graph
-        render_graph.materials.push_back(material);
-        render_graph.materials.push_back(cube_material);
-        render_graph.directional_lights.push_back(light);
+        render_graph.materials = materials;
+        render_graph.point_lights.push_back(light);
 
         // Make renderpasses
         render_graph.projection = projection(glm::radians(45.0f), 0.1f, 100.0f, color1);
         render_graph.camera_pos = { 2.0f, 2.0f, 2.0f };
         render_graph.view = glm::lookAt(render_graph.camera_pos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 
+        glm::mat4 dragon_transform = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f, 0.5f, 0.5f));
+        dragon_transform = glm::rotate(dragon_transform, glm::radians(dragon_rotation), glm::vec3(0.0f, 1.0f, 0.0f));
+
+        glm::mat4 floor_transform = glm::mat4(1.0f);
+        floor_transform = glm::translate(floor_transform, glm::vec3(0, -0.5, 0));
+        floor_transform = glm::rotate(floor_transform, glm::radians(30.0f), glm::vec3(1.0f, 0, 0));
+
         ph::RenderPass main_pass;
         main_pass.debug_name = "Main Pass";
         main_pass.outputs = { color1, depth1 };
         main_pass.clear_values = { vk::ClearColorValue{std::array<float, 4>{{0.427f, 0.427f, 0.427f, 1.0f}}}, clear_depth };
-        main_pass.draw_commands.push_back(ph::RenderPass::DrawCommand{ &cube, 1 });
-        main_pass.draw_commands.push_back(ph::RenderPass::DrawCommand{ &ground, 0 });
-        main_pass.transforms.push_back(glm::scale(glm::mat4(1.0), glm::vec3(0.5, 0.5, 0.5)));
-        main_pass.transforms.push_back(
-            glm::rotate(
-                glm::translate(glm::mat4(1.0), glm::vec3(0.0f, -0.5f, 0.0f)), 
-                glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f))
-        );
+        main_pass.transforms.push_back(dragon_transform);
+        main_pass.transforms.push_back(floor_transform);
+        main_pass.draw_commands.push_back(ph::RenderPass::DrawCommand{ &dragon, dragon_material_idx });
+        main_pass.draw_commands.push_back(ph::RenderPass::DrawCommand{ &ground, ground_material_idx });
         main_pass.callback = [&frame, this](ph::CommandBuffer& cmd_buf) {
             renderer->execute_draw_commands(frame, cmd_buf);
         };

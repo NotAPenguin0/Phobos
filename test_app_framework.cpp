@@ -14,6 +14,10 @@
 
 #include <stb/stb_image.h>
 
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
+#include <assimp/scene.h>
+
 #undef near
 #undef far
 
@@ -261,6 +265,69 @@ glm::mat4 TestApplication::projection(float fov, float near, float far, float as
     // Invert y axis because vulkan
     mat[1][1] *= -1;
     return mat;
+}
+
+static Mesh load_mesh(VulkanContext& ctx, aiMesh* mesh) {
+    Mesh::CreateInfo info;
+
+    info.ctx = &ctx;
+    info.vertex_size = 3 + 3 + 3 + 2;
+    info.vertex_count = mesh->mNumVertices;
+    std::vector<float> verts(info.vertex_count * info.vertex_size);
+    for (size_t i = 0; i < mesh->mNumVertices; ++i) {
+        size_t const index = i * info.vertex_size;
+        // Position
+        verts[index] = mesh->mVertices[i].x;
+        verts[index + 1] = mesh->mVertices[i].y;
+        verts[index + 2] = mesh->mVertices[i].z;
+        // Normal
+        verts[index + 3] = mesh->mNormals[i].x;
+        verts[index + 4] = mesh->mNormals[i].y;
+        verts[index + 5] = mesh->mNormals[i].z;
+        // Tangent
+        verts[index + 6] = mesh->mTangents[i].x;
+        verts[index + 7] = mesh->mTangents[i].y;
+        verts[index + 8] = mesh->mTangents[i].z;
+        // TexCoord
+        verts[index + 9] = mesh->mTextureCoords[0][i].x;
+        verts[index + 10] = mesh->mTextureCoords[0][i].y;
+    }
+    info.vertices = verts.data();
+
+    std::vector<uint32_t> indices;
+    indices.reserve(mesh->mNumFaces * 3);
+    for (stl::size_t i = 0; i < mesh->mNumFaces; ++i) {
+        aiFace const& face = mesh->mFaces[i];
+        for (stl::size_t j = 0; j < face.mNumIndices; ++j) {
+            indices.push_back(face.mIndices[j]);
+        }
+    }
+    info.index_count = indices.size();
+    info.indices = indices.data();
+
+    return Mesh(info);
+}
+
+Mesh TestApplication::load_obj(std::string_view path) {
+    Assimp::Importer importer;
+    constexpr int postprocess = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_CalcTangentSpace;
+    aiScene const* scene = importer.ReadFile(std::string(path), postprocess);
+   
+    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ||
+        !scene->mRootNode) {
+        throw std::runtime_error("Failed to load model");
+    }
+
+    for (size_t i = 0; i < scene->mNumMeshes; ++i) {
+        return load_mesh(*ctx, scene->mMeshes[i]);
+    }
+
+    throw std::runtime_error("model had no meshes to load!");
+}
+
+uint32_t TestApplication::add_material(Material const& material) {
+    materials.push_back(material);
+    return materials.size() - 1;
 }
 
 }

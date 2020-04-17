@@ -9,7 +9,7 @@
 #include <stl/literals.hpp>
 
 namespace ph {
-
+    
 static void create_generic_pipeline(VulkanContext& ctx) {
     using namespace stl::literals;
       

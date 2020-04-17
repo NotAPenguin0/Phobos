@@ -41,14 +41,19 @@ protected:
 	Mesh generate_quad_geometry();
 	Mesh generate_plane_geometry();
 	Texture load_texture(std::string_view path);
-	
+
 	// Returns the new size of the attachment
 	ImVec2 match_attachment_to_window_size(RenderAttachment& attachment);
 
 	// Get projection matrix for camera matching dimensions of this attachment
 	glm::mat4 projection(float fov, float near, float far, RenderAttachment const& attachment);
 	glm::mat4 projection(float fov, float near, float far, float aspect);
-	
+
+	Mesh load_obj(std::string_view path);
+	uint32_t add_material(Material const& mat);
+
+	stl::vector<Material> materials;
+
 	float time;
 	float frame_time;
 
@@ -61,7 +66,7 @@ protected:
 	stl::unique_ptr<Renderer> renderer;
 
 	// Default clearvalues for color and depth
-	vk::ClearColorValue clear_color = vk::ClearColorValue{ std::array<float, 4>{ {0.0f, 0.0f, 0.0f, 1.0F}} };
+	vk::ClearColorValue clear_color = vk::ClearColorValue{ std::array<float, 4>{ {0.0f, 0.0f, 0.0f, 1.0f}} };
 	vk::ClearDepthStencilValue clear_depth = vk::ClearDepthStencilValue{ 1.0f, 0 };
 };
 

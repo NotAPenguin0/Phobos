@@ -87,6 +87,7 @@ vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, DescriptorSetLayout
         stl::vector<DescriptorWriteInfo> write_infos;
         writes.reserve(set_binding.bindings.size());
         for (auto const& binding : set_binding.bindings) {
+            if (binding.descriptors.empty()) continue;
             DescriptorWriteInfo write_info;
             vk::WriteDescriptorSet write;
             write.dstSet = set;
@@ -113,7 +114,7 @@ vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, DescriptorSetLayout
                     buf.buffer = info.buffer;
                     buf.offset = info.offset;
                     buf.range = info.range;
-
+                    
                     write_info.buffer_infos.push_back(buf);
                     // Push dummy image info to make sure indices match
                     write_info.image_infos.emplace_back();
@@ -157,7 +158,7 @@ void Renderer::execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer
     vk::DescriptorSet fixed_set = get_fixed_descriptor_set(frame, frame.render_graph);
     update_model_matrices(frame, frame.render_graph, fixed_set);
     cmd_buffer.bind_descriptor_set(0, fixed_set);
-
+    
     vk::Viewport viewport;
     viewport.x = 0;
     viewport.y = 0;

@@ -9,6 +9,9 @@ layout(location = 0) out vec2 TexCoords;
 layout(location = 1) out vec3 FragPos;
 layout(location = 2) out vec3 ViewPos;
 layout(location = 3) out mat3 TBN;
+layout(location = 6) out vec3 Tangent;
+layout(location = 7) out vec3 Normal;
+
 
 layout(set = 0, binding = 0) uniform CameraData {
     mat4 projection_view;
@@ -26,13 +29,27 @@ layout(push_constant) uniform Indices {
     uint normal_index;
 } indices;
 
+vec3 calculate_tangent(vec3 n) {
+	vec3 v = vec3(1.0, 0.0, 0.0);
+	float d = dot(v, n);
+	if (abs(d) < 1.0e-3) {
+		v = vec3(0.0, 1.0, 0.0);
+		d = dot(v, n);
+	}
+	return normalize(v - d * n);
+}
+
 void main() {
     mat4 model = transforms.models[indices.transform_index];
-    vec3 T = normalize(vec3(model * vec4(iTangent, 0.0)));
-    vec3 N = normalize(vec3(model * vec4(iNormal, 0.0)));
+    mat3 normal = transpose(inverse(mat3(model)));
+    vec3 T = normalize(normal * iTangent);
+    vec3 N = normalize(normal * iNormal);
+//    T = normalize(T - dot(T, N) * N);
     vec3 B = cross(N, T);
     TBN = mat3(T, B, N);
     TexCoords = iTexCoords;
+    Tangent = iTangent;
+    Normal = normal * iNormal;
     FragPos = vec3(model * vec4(iPos, 1.0));
     ViewPos = camera.cam_pos;
 
