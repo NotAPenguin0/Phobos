@@ -17,6 +17,7 @@ public:
 
     stl::vector<Material> materials;
     stl::vector<PointLight> point_lights; 
+    stl::vector<DirectionalLight> directional_lights;
 
     RenderGraph(VulkanContext* ctx);
 

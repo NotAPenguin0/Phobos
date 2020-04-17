@@ -17,11 +17,11 @@ set(PHOBOS_INCLUDE_DIRECTORIES ${PHOBOS_INCLUDE_DIRECTORIES}
 )
 set(PHOBOS_LINK_LIBRARIES ${PHOBOS_LINK_LIBRARIES}
     ${Vulkan_LIBRARY}
-)
+) 
 
 OPTION(PHOBOS_ENABLE_TEST_APP CACHE OFF)
 
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/src")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/src") 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/external")
 
   
@@ -30,7 +30,7 @@ if (CMAKE_CXX_COMPILER_ID MATCHES Clang)
 #    target_compile_options(Phobos PRIVATE 
 #        "-Wall" "-Wextra" "-Werror" "-Wno-reorder" "-Wno-unused-parameter" "-Wno-deprecated-declarations"
 #        "-Wno-enum-compare")
-    target_compile_options(Phobos PRIVATE "-w")
+    target_compile_options(Phobos PRIVATE "-w")  
 endif() 
  
 if (WIN32)
@@ -53,7 +53,11 @@ endforeach()
 # Test Application
 
 if (PHOBOS_ENABLE_TEST_APP)
-    add_executable(App "test_app.cpp" "imgui_style.cpp" "test_app_framework.cpp")
-    target_link_libraries(App PUBLIC Phobos)
-    target_include_directories(App PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" "${Vulkan_INCLUDE_DIR}" ${PHOBOS_TEST_APP_INCLUDE_DIRS})
+    add_executable(SimpleExample "imgui_style.cpp" "test_app_framework.cpp" "simple_example.cpp")
+    target_link_libraries(SimpleExample PUBLIC Phobos)
+    target_include_directories(SimpleExample PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" "${Vulkan_INCLUDE_DIR}" ${PHOBOS_TEST_APP_INCLUDE_DIRS})
+
+    add_executable(DeferredExample "imgui_style.cpp" "test_app_framework.cpp" "deferred_example.cpp")
+    target_link_libraries(DeferredExample PUBLIC Phobos)
+    target_include_directories(DeferredExample PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" "${Vulkan_INCLUDE_DIR}" ${PHOBOS_TEST_APP_INCLUDE_DIRS})
 endif()

@@ -12,8 +12,24 @@
 
 namespace ph {
 
+static Texture create_single_color_texture(VulkanContext& ctx, uint8_t r, uint8_t g, uint8_t b) {
+    Texture::CreateInfo info;
+    info.channels = 4;
+    info.ctx = &ctx;
+    const uint8_t data[] = { r, g, b, 255 };
+    info.data = data;
+    info.width = 1;
+    info.height = 1;
+    info.format = vk::Format::eR8G8B8A8Srgb;
+    return Texture(info);
+}
+
 Renderer::Renderer(VulkanContext& context) : ctx(context) {
     ctx.event_dispatcher.add_listener(this);
+
+    default_color = create_single_color_texture(ctx, 255, 0, 255);
+    default_specular = create_single_color_texture(ctx, 255, 255, 255);
+    default_normal = create_single_color_texture(ctx, 0, 255, 0);
 } 
 
 void Renderer::render_frame(FrameInfo& info) {
@@ -164,8 +180,12 @@ void Renderer::execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer
 
         // update push constant ranges
         stl::uint32_t const transform_index = idx + pass.transforms_offset;
-        cmd_buffer.push_constants(vk::ShaderStageFlagBits::eVertex, sizeof(uint32_t), sizeof(uint32_t), &transform_index);
-        cmd_buffer.push_constants(vk::ShaderStageFlagBits::eFragment, 0, sizeof(uint32_t), &draw.material_index);
+        cmd_buffer.push_constants(vk::ShaderStageFlagBits::eVertex, 0, sizeof(uint32_t), &transform_index);
+        // First texture is diffuse, second is specular. See also get_fixed_descriptor_set() where we fill the textures array
+        // Note: We need some more sophisticated logic for this once we allow switching between raw colors and textures
+        // ==> We can implement raw colors as a 1x1 texture
+        stl::uint32_t const texture_indices[] = { 3 * draw.material_index, 3 * draw.material_index + 1, 3 * draw.material_index + 2 };
+        cmd_buffer.push_constants(vk::ShaderStageFlagBits::eFragment, sizeof(uint32_t), sizeof(texture_indices), &texture_indices);
         // Execute drawcall
         cmd_buffer.draw_indexed(mesh->get_index_count(), 1, 0, 0, 0);
         frame.draw_calls++;
@@ -183,6 +203,9 @@ Pipeline Renderer::get_pipeline(std::string_view name, RenderPass& pass) {
 
 void Renderer::destroy() {
     ctx.event_dispatcher.remove_listener(this);
+    default_color.destroy();
+    default_normal.destroy();
+    default_specular.destroy();
 }
 
 // this should not be in the renderer
@@ -203,7 +226,7 @@ void Renderer::on_event(DynamicGpuBufferResizeEvent const& e) {
 }
 
 void Renderer::update_camera_data(FrameInfo& info, RenderGraph const* graph) {
-    glm::mat4 pv = graph->projection * graph->view;
+    glm::mat4 pv = graph->projection * graph->view; 
     // Note that map_memory is a cheap operation here since vp_ubo.type is MappedUniformBuffer. In this case, map_memory will
     // immediately return the already stored pointer
     std::byte* data_ptr = map_memory(ctx, info.vp_ubo);
@@ -223,18 +246,23 @@ void Renderer::update_model_matrices(FrameInfo& info, RenderGraph const* graph, 
 }
 
 void Renderer::update_lights(FrameInfo& info, RenderGraph const* graph) {
-    if (graph->point_lights.empty()) return;
-    // Update point lights
-
     // Note that map_memory is a cheap operation here since lights.type is MappedUniformBuffer. In this case, map_memory will
     // immediately return the already stored pointer. 
     std::byte* data_ptr = map_memory(ctx, info.lights);
-    std::memcpy(data_ptr, &graph->point_lights[0].position.x, sizeof(PointLight) * graph->point_lights.size());
-    // Update point light count. For this, we first need to calculate the offset into the UBO
-    size_t const counts_offset = meta::max_lights_per_type * sizeof(PointLight);
-    uint32_t const point_light_count = graph->point_lights.size();
+    if (!graph->point_lights.empty()) {
+        std::memcpy(data_ptr, &graph->point_lights[0].position.x, sizeof(PointLight) * graph->point_lights.size());
+    }
+    size_t const dir_light_offset = meta::max_lights_per_type * sizeof(PointLight);
+    if (!graph->directional_lights.empty()) {
+        std::memcpy(data_ptr + dir_light_offset, &graph->directional_lights[0].direction.x,
+            sizeof(DirectionalLight) * graph->directional_lights.size());
+    }
+    // Update count variables. For this, we first need to calculate the offset into the UBO.
+    // Note that we maintain the light structs to match the exact layout in the shader, so this sizeof() is fine.
+    size_t const counts_offset = dir_light_offset + meta::max_lights_per_type * sizeof(DirectionalLight);
+    uint32_t const counts[] = { (uint32_t)graph->point_lights.size(), (uint32_t)graph->directional_lights.size() };
     // Write data
-    std::memcpy(data_ptr + counts_offset, &point_light_count, sizeof(uint32_t));
+    std::memcpy(data_ptr + counts_offset, &counts[0], sizeof(counts));
 }
 
 vk::DescriptorSet Renderer::get_fixed_descriptor_set(FrameInfo& frame, RenderGraph const* graph) {
@@ -246,8 +274,29 @@ vk::DescriptorSet Renderer::get_fixed_descriptor_set(FrameInfo& frame, RenderGra
     bindings.add(make_descriptor(shader_info["camera"], frame.vp_ubo));
     bindings.add(make_descriptor(shader_info["transforms"], frame.transform_ssbo.buffer_handle(), frame.transform_ssbo.size()));
     stl::vector<ImageView> texture_views;
-    texture_views.reserve(graph->materials.size());
-    for (auto const& mat : graph->materials) { texture_views.push_back(mat.texture->view_handle()); }
+    texture_views.reserve(graph->materials.size() * 4);
+    for (auto const& mat : graph->materials) {
+        if (mat.diffuse) {
+            texture_views.push_back(mat.diffuse->view_handle());
+        }
+        else {
+            texture_views.push_back(default_color.view_handle());
+        }
+
+        if (mat.specular) {
+            texture_views.push_back(mat.specular->view_handle());
+        }
+        else {
+            texture_views.push_back(default_specular.view_handle());
+        }
+
+        if (mat.normal) {
+            texture_views.push_back(mat.normal->view_handle());
+        }
+        else {
+            texture_views.push_back(default_normal.view_handle());
+        }
+    }
     bindings.add(make_descriptor(shader_info["textures"], texture_views, frame.default_sampler));
     bindings.add(make_descriptor(shader_info["lights"], frame.lights));
     

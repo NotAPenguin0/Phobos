@@ -39,6 +39,7 @@ protected:
 
 	Mesh generate_cube_geometry();
 	Mesh generate_quad_geometry();
+	Mesh generate_plane_geometry();
 	Texture load_texture(std::string_view path);
 	
 	// Returns the new size of the attachment
@@ -48,6 +49,7 @@ protected:
 	glm::mat4 projection(float fov, float near, float far, RenderAttachment const& attachment);
 	glm::mat4 projection(float fov, float near, float far, float aspect);
 	
+	float time;
 	float frame_time;
 
 	size_t width, height;

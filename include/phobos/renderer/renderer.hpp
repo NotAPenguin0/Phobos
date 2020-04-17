@@ -44,6 +44,10 @@ private:
     void update_lights(FrameInfo& info, RenderGraph const* graph);
 
     vk::DescriptorSet get_fixed_descriptor_set(FrameInfo& frame, RenderGraph const* graph);
+
+    Texture default_color;
+    Texture default_specular;
+    Texture default_normal;
 };
 
 }

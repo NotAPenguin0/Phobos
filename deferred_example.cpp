@@ -1,95 +1,9 @@
 #include "test_app_framework.hpp"
 
-#include <stl/literals.hpp>
-#include <iostream>
+#include <phobos/renderer/renderer.hpp>
 #include <imgui/imgui.h>
 
-class SimpleExample : public ph::TestApplication {
-private:
-    ph::Mesh cube;
-    ph::Texture texture;
-    ph::Material material;
-    ph::PointLight light;
-public:
-    SimpleExample() : ph::TestApplication(1280, 720, "Simple Example") {
-        present->add_color_attachment("color1");
-        present->add_color_attachment("color2");
-        present->add_depth_attachment("depth1");
-        present->add_depth_attachment("depth2");
-
-        cube = generate_cube_geometry();
-        texture = load_texture("data/textures/blank.png");
-        material.texture = &texture;
-
-        light.position = glm::vec3(0.0f, 2.0f, 4.0f);
-        light.ambient = glm::vec3(34.0f / 255.0f, 34.0f / 255.0f, 34.0f / 255.0f);
-        light.diffuse = glm::vec3(185.0f / 255.0f, 194.0f / 255.0f, 32.0f / 255.0f);
-        light.specular = glm::vec3(1.0f, 1.0f, 1.0f);
-    }
-
-    ~SimpleExample() = default;
-
-    void update(ph::FrameInfo& frame, ph::RenderGraph& render_graph) override {
-        // Note that we have to query these every frame if we want the size to update correctly.
-        ph::RenderAttachment& color1 = present->get_attachment("color1");
-        ph::RenderAttachment& color2 = present->get_attachment("color2");
-        ph::RenderAttachment& depth1 = present->get_attachment("depth1");
-        ph::RenderAttachment& depth2 = present->get_attachment("depth2");
-
-        // Make ImGui UI
-        if (ImGui::Begin("color1")) {
-            ImVec2 const size = match_attachment_to_window_size(color1);
-            // Note that we can discard the return value here
-            match_attachment_to_window_size(depth1);
-
-            ImGui::Image(color1.get_imgui_tex_id(), size);
-        }
-        ImGui::End();
-        if (ImGui::Begin("color2")) {
-            ImVec2 const size = match_attachment_to_window_size(color2);
-            // Note that we can discard the return value here
-            match_attachment_to_window_size(depth2);
-
-            ImGui::Image(color2.get_imgui_tex_id(), size);
-        }
-        ImGui::End();
-        if (ImGui::Begin("Renderer stats")) {
-            ImGui::Text("Frametime: %f", frame_time);
-            ImGui::End();
-        }
-
-        // Push info into render graph
-        render_graph.materials.push_back(material);
-        render_graph.point_lights.push_back(light);
-
-        // Make renderpasses
-        render_graph.projection = projection(glm::radians(45.0f), 0.1f, 100.0f, color1);
-        render_graph.camera_pos = { 2.0f, 2.0f, 2.0f };
-        render_graph.view = glm::lookAt(render_graph.camera_pos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
-
-        ph::RenderPass main_pass;
-        main_pass.debug_name = "Main Pass";
-        main_pass.outputs = { color1, depth1 };
-        main_pass.clear_values = { clear_color, clear_depth };
-        main_pass.draw_commands.push_back(ph::RenderPass::DrawCommand{ &cube, 0 });
-        main_pass.transforms.push_back(glm::scale(glm::mat4(1.0), glm::vec3(0.5, 0.5, 0.5)));
-        main_pass.callback = [&frame, this](ph::CommandBuffer& cmd_buf) {
-            renderer->execute_draw_commands(frame, cmd_buf);
-        };
-        render_graph.add_pass(stl::move(main_pass));
-
-        ph::RenderPass second_pass;
-        second_pass.debug_name = "Second Pass";
-        second_pass.outputs = { color2, depth2 };
-        second_pass.clear_values = { clear_color, clear_depth };
-        second_pass.draw_commands.push_back(ph::RenderPass::DrawCommand{ &cube, 0 });
-        second_pass.transforms.push_back(glm::mat4(1.0f));
-        second_pass.callback = [&frame, this](ph::CommandBuffer& cmd_buf) {
-            renderer->execute_draw_commands(frame, cmd_buf);
-        };
-        render_graph.add_pass(stl::move(second_pass));
-    }
-};
+#include <stl/literals.hpp>
 
 class DeferredExample : public ph::TestApplication {
 private:
@@ -103,7 +17,7 @@ public:
         present->add_color_attachment("normal").resize(300, 300);
         present->add_color_attachment("albedo_spec").resize(300, 300);
         present->add_color_attachment("deferred_final").resize(300, 300);
-          
+
         cube = generate_cube_geometry();
         quad = generate_quad_geometry();
         texture = load_texture("data/textures/blank.png");
@@ -112,9 +26,6 @@ public:
         create_deferred_resolve_pipeline();
 
         light.position = glm::vec3(0.0f, 2.0f, 4.0f);
-        light.ambient = glm::vec3(34.0f / 255.0f, 34.0f / 255.0f, 34.0f / 255.0f);
-        light.diffuse = glm::vec3(185.0f / 255.0f, 194.0f / 255.0f, 32.0f / 255.0f);
-        light.specular = glm::vec3(1.0f, 1.0f, 1.0f);
     }
 
     void create_deferred_pipeline() {
@@ -125,7 +36,7 @@ public:
         blend.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
             vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
         blend.blendEnable = false;
-        
+
         pci.blend_attachments.push_back(blend);
         pci.blend_attachments.push_back(blend);
         pci.blend_attachments.push_back(blend);
@@ -149,7 +60,7 @@ public:
 
         // Additional information can be reflected from the shaders
         ph::reflect_shaders(pci);
-        
+
         ctx->pipelines.create_named_pipeline("deferred", stl::move(pci));
     }
 
@@ -188,15 +99,15 @@ public:
         ctx->pipelines.create_named_pipeline("deferred_resolve", stl::move(pci));
     }
 
-    vk::DescriptorSet get_deferred_descriptors(ph::ShaderInfo const& shader_info, ph::RenderGraph& graph, 
-            ph::RenderPass& pass, ph::FrameInfo& frame) {
+    vk::DescriptorSet get_deferred_descriptors(ph::ShaderInfo const& shader_info, ph::RenderGraph& graph,
+        ph::RenderPass& pass, ph::FrameInfo& frame) {
 
         ph::DescriptorSetBinding bindings;
         bindings.add(ph::make_descriptor(shader_info["camera"], frame.vp_ubo));
         bindings.add(ph::make_descriptor(shader_info["transforms"], frame.transform_ssbo.buffer_handle(), frame.transform_ssbo.size()));
         stl::vector<ph::ImageView> texture_views;
         texture_views.reserve(graph.materials.size());
-        for (auto const& mat : graph.materials) { texture_views.push_back(mat.texture->view_handle()); }
+        for (auto const& mat : graph.materials) { texture_views.push_back(mat.diffuse->view_handle()); }
         bindings.add(ph::make_descriptor(shader_info["textures"], texture_views, frame.default_sampler));
 
         // We need variable count to use descriptor indexing

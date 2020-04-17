@@ -84,7 +84,11 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         // Create camera UBO for this frame
         // Note that the camera position is a vec3, but it is aligned to a vec4
         frame_info.vp_ubo = create_buffer(ctx, sizeof(glm::mat4) + sizeof(glm::vec4), BufferType::MappedUniformBuffer);
-        frame_info.lights = create_buffer(ctx, sizeof(PointLight) * meta::max_lights_per_type + sizeof(uint32_t), BufferType::MappedUniformBuffer);
+        frame_info.lights = create_buffer(ctx, 
+            sizeof(PointLight) * meta::max_lights_per_type 
+            + sizeof(DirectionalLight) * meta::max_lights_per_type
+            + 2 * sizeof(uint32_t), 
+            BufferType::MappedUniformBuffer);
 
         // Create transform data SSBO for this frame
         frame_info.transform_ssbo = DynamicGpuBuffer(ctx);

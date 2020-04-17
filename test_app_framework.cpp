@@ -51,7 +51,7 @@ static void load_imgui_fonts(ph::VulkanContext& ctx, vk::CommandPool command_poo
     ctx.device.freeCommandBuffers(command_pool, command_buffer);
 }
 
-TestApplication::TestApplication(size_t width, size_t height, const char* title) :width(width), height(height) {
+TestApplication::TestApplication(size_t width, size_t height, const char* title) : width(width), height(height) {
     logger.set_timestamp(true);
     window = create_window_context(title, width, height);
     ph::AppSettings settings;
@@ -99,7 +99,7 @@ void TestApplication::run() {
     while (window->is_open()) {
         window->poll_events();
 
-        float time = mimas_get_time();
+        time = mimas_get_time();
         frame_time = time - last_time;
         last_time = time;
 
@@ -151,23 +151,24 @@ void TestApplication::run() {
 
 Mesh TestApplication::generate_cube_geometry() {
     static constexpr float vertices[] = {
-        -1, -1, -1, 0, 0, -1, 1, 1,    1, 1, -1, 0, 0, -1, 0, 0,     1,  -1, -1, 0, 0, -1, 0, 1,
-        1,  1, -1, 0, 0, -1, 0, 0,    -1, -1, -1, 0, 0, -1, 1, 1,   -1, 1, -1, 0, 0, -1, 1, 0,
-
-        -1, -1, 1, 0, 0, 1, 0, 1,    1, -1, 1, 0, 0, 1, 1, 1,     1, 1, 1, 0, 0, 1, 1, 0,
-        1,  1,  1, 0, 0, 1, 1, 0,    -1, 1, 1, 0, 0, 1, 0, 0,     -1, -1, 1, 0, 0, 1, 0, 1,
-
-        -1, 1, -1, -1, 0, 0, 0, 0,    -1, -1, -1, -1, 0, 0, 0, 1,   -1, 1, 1, -1, 0, 0, 1, 0,
-        -1, -1, -1, -1, 0, 0, 0, 1,   -1, -1, 1, -1, 0, 0, 1, 1,    -1, 1, 1, -1, 0, 0, 1, 0,
-
-        1, 1, 1, 1, 0, 0, 0, 0,      1, -1, -1, 1, 0, 0, 1, 1,    1, 1, -1, 1, 0, 0, 1, 0,
-        1, -1, -1, 1, 0, 0, 1, 1,    1,  1, 1, 1, 0, 0, 0, 0,     1, -1, 1, 1, 0, 0, 0, 1,
-
-        -1, -1, -1, 0, -1, 0, 0, 1,   1, -1, -1, 0, -1, 0, 1, 1,    1, -1, 1, 0, -1, 0, 1, 0,
-        1, -1, 1, 0, -1, 0, 1, 0,     -1, -1, 1, 0, -1, 0, 0, 0,    -1, -1, -1, 0, -1, 0, 0, 1,
-
-        -1, 1, -1, 0, 1, 0, 0, 0,    1, 1, 1, 0, 1, 0, 1, 1,      1, 1, -1, 0, 1, 0, 1, 0,
-        1,  1, 1, 0, 1, 0, 1, 1,    -1, 1, -1, 0, 1, 0, 0, 0,    -1, 1, 1, 0, 1, 0, 0, 1
+        -1, -1, -1, 0, 0, -1, -1, 0, 0,  1, 0,  1, 1, -1, 0, 0, -1, -1, 0, 0,  0, 1,
+        1, -1, -1, 0, 0, -1, -1, 0, 0,  0, 0,   1, 1, -1, 0, 0, -1, -1, 0, 0,  0, 1,
+        -1, -1, -1, 0, 0, -1, -1, 0, 0,  1, 0,  -1, 1, -1, 0, 0, -1, -1, 0, 0,  1, 1,
+        -1, -1, 1, 0, 0, 1, 1, 0.0, 0,  0, 0,   1, -1, 1, 0, 0, 1,1, 0.0, 0,  1, 0,
+        1, 1, 1, 0, 0, 1, 1, 0.0, 0,  1, 1,     1, 1, 1, 0, 0, 1, 1, 0.0, 0,  1, 1,
+        -1, 1, 1, 0, 0, 1, 1, 0.0, 0,  0, 1,    -1, -1, 1, 0, 0, 1, 1, 0.0, 0,  0, 0,
+        -1, 1, -1, -1, 0, 0, 0, 0, 1, 0, 1,   -1, -1, -1, -1, 0, 0, 0, 0, 1, 0, 0,
+        -1, 1, 1, -1, 0, 0, 0, 0, 1,  1, 1,    -1, -1, -1, -1, 0, 0, 0, 0, 1,  0, 0,
+        -1, -1, 1, -1, 0, 0, 0, 0, 1,  1, 0,   -1, 1, 1, -1, 0, 0, 0, 0, 1,  1, 1,
+        1, 1, 1, 1, 0, 0, 0, 0, -1, 0, 1,     1, -1, -1, 1, 0, 0, 0, 0, -1, 1, 0,
+        1, 1, -1, 1, 0, 0, 0, 0, -1,  1, 1,    1, -1, -1, 1, 0, 0, 0, 0, -1,  1, 0,
+        1, 1, 1, 1, 0, 0, 0, 0, -1,  0, 1,     1, -1, 1, 1, 0, 0, 0, 0, -1,  0, 0,
+        -1, -1, -1, 0, -1, 0, 1, 0, 0,  0, 0, 1, -1, -1, 0, -1, 0, 1, 0, 0,  1, 0,
+        1, -1, 1, 0, -1, 0, 1, 0, 0,  1, 1,   1, -1, 1, 0, -1, 0, 1, 0, 0,  1, 1,
+        -1, -1, 1, 0, -1, 0, 1, 0, 0,  0, 1,  -1, -1, -1, 0, -1, 0, 1, 0, 0,  0, 0,
+        -1, 1, -1, 0, 1, 0, 1, 0, 0,  0, 1,    1, 1, 1, 0, 1, 0, 1, 0, 0,  1, 0,
+        1, 1, -1, 0, 1, 0, 1, 0, 0,  1, 1,     1, 1, 1, 0, 1, 0, 1, 0, 0,  1, 0,
+        -1, 1, -1, 0, 1, 0, 1, 0, 0,  0, 1,    -1, 1, 1, 0, 1, 0, 1, 0, 0,  0, 0
     };
     uint32_t indices[36];
     std::iota(indices, indices + 36, 0);
@@ -175,7 +176,7 @@ Mesh TestApplication::generate_cube_geometry() {
     cube_info.ctx = ctx;
     cube_info.vertices = vertices;
     cube_info.vertex_count = 36;
-    cube_info.vertex_size = 8;
+    cube_info.vertex_size = 11;
     cube_info.indices = indices;
     cube_info.index_count = 36;
     return ph::Mesh(cube_info);
@@ -183,22 +184,39 @@ Mesh TestApplication::generate_cube_geometry() {
 
 Mesh TestApplication::generate_quad_geometry() {
     static constexpr float vertices[] = {
-       -1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
-       -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-        1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
-        1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+        -1, 1, 0, 0, 0, 1, 1, 0, 0,  0, 1, -1, -1, 0, 0, 0, 1, 1, 0, 0,  0, 0,
+        1, -1, 0, 0, 0, 1, 1, 0, 0,  1, 0, -1, 1, 0, 0, 0, 1, 1, 0, 0,  0, 1,
+        1, -1, 0, 0, 0, 1, 1, 0, 0,  1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0,  1, 1
     };
-    uint32_t indices[6] = { 0, 1, 2, 1, 2, 3 };
-    ph::Mesh::CreateInfo cube_info;
-    cube_info.ctx = ctx;
-    cube_info.vertices = vertices;
-    cube_info.vertex_count = 4;
-    cube_info.vertex_size = 5;
-    cube_info.indices = indices;
-    cube_info.index_count = 6;
-    return ph::Mesh(cube_info);
+    uint32_t indices[6];
+    std::iota(indices, indices + 6, 0);
+    ph::Mesh::CreateInfo quad_info;
+    quad_info.ctx = ctx;
+    quad_info.vertices = vertices;
+    quad_info.vertex_count = 6;
+    quad_info.vertex_size = 11;
+    quad_info.indices = indices;
+    quad_info.index_count = 6;
+    return ph::Mesh(quad_info);
 }
 
+Mesh TestApplication::generate_plane_geometry() {
+    static constexpr float vertices[] = {
+        -1, 1, 0, 0, 0, 1, 1, 0, 0,  0, 1, -1, -1, 0, 0, 0, 1, 1, 0, 0,  0, 0,
+        1, -1, 0, 0, 0, 1, 1, 0, 0,  1, 0, -1, 1, 0, 0, 0, 1, 1, 0, 0,  0, 1,
+        1, -1, 0, 0, 0, 1, 1, 0, 0,  1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0,  1, 1
+    };
+    uint32_t indices[6];
+    std::iota(indices, indices + 6, 0);
+    ph::Mesh::CreateInfo plane_info;
+    plane_info.ctx = ctx;
+    plane_info.vertices = vertices;
+    plane_info.vertex_count = 6;
+    plane_info.vertex_size = 11;
+    plane_info.indices = indices;
+    plane_info.index_count = 6;
+    return ph::Mesh(plane_info);
+}
 
 static vk::Format get_image_format(int channels) {
     switch (channels) {

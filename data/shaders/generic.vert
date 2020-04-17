@@ -2,12 +2,13 @@
 
 layout(location = 0) in vec3 iPos;
 layout(location = 1) in vec3 iNormal;
-layout(location = 2) in vec2 iTexCoords;
+layout(location = 2) in vec3 iTangent;
+layout(location = 3) in vec2 iTexCoords;
 
-layout(location = 0) out vec3 Normal;
-layout(location = 1) out vec2 TexCoords;
-layout(location = 2) out vec3 FragPos;
-layout(location = 3) out vec3 ViewPos;
+layout(location = 0) out vec2 TexCoords;
+layout(location = 1) out vec3 FragPos;
+layout(location = 2) out vec3 ViewPos;
+layout(location = 3) out mat3 TBN;
 
 layout(set = 0, binding = 0) uniform CameraData {
     mat4 projection_view;
@@ -19,13 +20,18 @@ layout(std430, set = 0, binding = 1) buffer readonly TransformData {
 } transforms;
 
 layout(push_constant) uniform Indices {
-    uint texture_index;
     uint transform_index;
+    uint diffuse_index;
+    uint specular_index;
+    uint normal_index;
 } indices;
 
 void main() {
     mat4 model = transforms.models[indices.transform_index];
-    Normal = mat3(transpose(inverse(model))) * iNormal; 
+    vec3 T = normalize(vec3(model * vec4(iTangent, 0.0)));
+    vec3 N = normalize(vec3(model * vec4(iNormal, 0.0)));
+    vec3 B = cross(N, T);
+    TBN = mat3(T, B, N);
     TexCoords = iTexCoords;
     FragPos = vec3(model * vec4(iPos, 1.0));
     ViewPos = camera.cam_pos;
