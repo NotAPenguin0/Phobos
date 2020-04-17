@@ -27,10 +27,12 @@ public:
 
     void destroy();
 
-    RenderAttachment add_color_attachment(std::string const& name);
-    RenderAttachment add_depth_attachment(std::string const& name);
+    RenderAttachment& add_color_attachment(std::string const& name);
+    RenderAttachment& add_depth_attachment(std::string const& name);
     RenderAttachment& get_attachment(std::string const& name);
     RenderAttachment get_swapchain_attachment(FrameInfo& frame);
+
+    std::unordered_map<std::string, RenderAttachment> const& get_all_attachments() const { return attachments; }
 
 protected:
     void on_event(WindowResizeEvent const& evt) override;
@@ -47,7 +49,7 @@ private:
     std::vector<vk::CommandBuffer> command_buffers;
 
     // Pool for all "fixed" descriptors
-    vk::DescriptorPool fixed_descriptor_pool;
+    vk::DescriptorPool main_descriptor_pool;
 
     // Samplers
     vk::Sampler default_sampler;

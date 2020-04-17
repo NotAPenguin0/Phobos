@@ -9,23 +9,24 @@ set(PHOBOS_SOURCES
 
     "${CMAKE_CURRENT_SOURCE_DIR}/events/event_dispatcher.cpp"
 
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/layouts.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/pipeline.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/pipelines.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/pipeline_layout.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/default_pipelines.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/shader_info.cpp"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/present/present_manager.cpp"
 
+    "${CMAKE_CURRENT_SOURCE_DIR}/renderer/command_buffer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/renderer.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/renderer/imgui_renderer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/mesh.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/renderer/instancing_buffer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/renderer/dynamic_gpu_buffer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/texture.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/render_attachment.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/renderer/render_graph.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/render_target.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/stb_image.cpp"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/util/cmdbuf_util.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/util/cache_cleanup.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/image_util.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/shader_util.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/memory_util.cpp"

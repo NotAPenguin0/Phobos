@@ -1,36 +1,34 @@
 #ifndef PHOBOS_RENDER_GRAPH_HPP_
 #define PHOBOS_RENDER_GRAPH_HPP_
 
-#include <vulkan/vulkan.hpp>
-#include <glm/mat4x4.hpp>
-
-#include <phobos/renderer/mesh.hpp>
-#include <phobos/renderer/material.hpp>
-#include <phobos/renderer/light.hpp>
-
+#include <phobos/renderer/render_pass.hpp>
+#include <phobos/present/frame_info.hpp>
 #include <stl/vector.hpp>
 
 namespace ph {
 
-struct RenderGraph {
-    vk::ClearColorValue clear_color = vk::ClearColorValue{std::array<float, 4>{{0.0f, 0.0f, 0.0f, 1.0f}}};
+class RenderGraph {
+public:
+    friend class Renderer;
 
-    // Camera data
     glm::mat4 projection;
     glm::mat4 view;
     glm::vec3 camera_pos;
 
     stl::vector<Material> materials;
     stl::vector<PointLight> point_lights; 
-    // Must have the same size as draw_commands
-    stl::vector<glm::mat4> transforms;
+    stl::vector<DirectionalLight> directional_lights;
 
-    struct DrawCommand {
-        Mesh* mesh;
-        uint32_t material_index;
-    };
+    RenderGraph(VulkanContext* ctx);
 
-    stl::vector<DrawCommand> draw_commands;
+    void add_pass(RenderPass&& pass);
+    void build();
+
+private:
+    VulkanContext* ctx;
+    stl::vector<RenderPass> passes;
+
+    void create_render_passes();
 };
 
 }

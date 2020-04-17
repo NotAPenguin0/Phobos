@@ -140,7 +140,6 @@ static void ImGui_ImplMimas_UpdateMousePosAndButtons() {
         g_MouseJustPressed[i] = false;
     }
 
-    ImVec2 const mouse_pos_backup = io.MousePos;
     io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
     io.MouseHoveredViewport = 0;
     ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
@@ -179,8 +178,6 @@ static void ImGui_ImplMimas_UpdateMousePosAndButtons() {
 void ImGui_ImplMimas_NewFrame() {
     ImGuiIO& io = ImGui::GetIO();
     IM_ASSERT(io.Fonts->IsBuilt() && "Font atlas not built! It is generally built by the renderer back-end. Missing call to renderer _NewFrame() function? e.g. ImGui_ImplOpenGL3_NewFrame().");
-    // TODO (compare with glfw impl)
-    int w, h;
     int display_w, display_h;
     mimas_get_window_content_size(g_Window, &display_w, &display_h);
     io.DisplaySize = ImVec2((float)display_w, (float)display_h);
@@ -188,13 +185,9 @@ void ImGui_ImplMimas_NewFrame() {
     io.DisplayFramebufferScale = ImVec2(1, 1);
 
     // Update deltatime
-    std::chrono::milliseconds time = std::chrono::duration_cast<std::chrono::milliseconds>
-        (std::chrono::system_clock::now().time_since_epoch());
-    long long time_cnt = time.count();
-    // DeltaTime is in seconds, which is why we divide by 1000
-    io.DeltaTime = (g_Time > 0.0) ? ((float)(time_cnt - g_Time) / 1000.0f) : (float)(1.0f/60.0f);
-    io.DeltaTime = std::max(io.DeltaTime, 0.0001f);
-    g_Time = time_cnt;
+    auto time = mimas_get_time();
+    io.DeltaTime = 1.0f / 60.0f; // Make ImGui run at 60 fps
+    g_Time = time;
     ImGui_ImplMimas_UpdateMousePosAndButtons();
 }
 

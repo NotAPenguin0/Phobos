@@ -6,7 +6,9 @@
 namespace ph {
 
 struct Material {
-   Texture* texture;
+    Texture* diffuse = nullptr;
+    Texture* specular = nullptr;
+    Texture* normal = nullptr;
 };
 
 } // namespace ph

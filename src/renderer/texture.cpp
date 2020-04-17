@@ -14,7 +14,6 @@ Texture::Texture(CreateInfo const& info) : Texture(*info.ctx) {
 Texture::Texture(Texture&& rhs) : Texture(*rhs.ctx) {
     std::swap(image, rhs.image);
     std::swap(view, rhs.view);
-    std::swap(memory, rhs.memory);
 }
 
 Texture& Texture::operator=(Texture&& rhs) {
@@ -22,7 +21,6 @@ Texture& Texture::operator=(Texture&& rhs) {
         ctx = rhs.ctx;
         std::swap(image, rhs.image);
         std::swap(view, rhs.view);
-        std::swap(memory, rhs.memory);
     }
     return *this;
 }
@@ -33,61 +31,48 @@ Texture::~Texture() {
 
 void Texture::create(CreateInfo const& info) {
     destroy();
+
+    vk::DeviceSize const size = info.width * info.height * info.channels;
+    // Create staging buffer
+    RawBuffer staging_buffer = create_buffer(*ctx, size, BufferType::TransferBuffer);
     
-    vk::Buffer staging_buffer;
-    vk::DeviceMemory staging_buffer_memory;
-
-    vk::DeviceSize size = info.width * info.height * info.channels;
-    create_buffer(*ctx, size, vk::BufferUsageFlagBits::eTransferSrc, 
-        vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, 
-        staging_buffer, staging_buffer_memory);
-    void* data_ptr = ctx->device.mapMemory(staging_buffer_memory, 0, size);
+    std::byte* data_ptr = map_memory(*ctx, staging_buffer);
     std::memcpy(data_ptr, info.data, size);
-    ctx->device.unmapMemory(staging_buffer_memory);
+    flush_memory(*ctx, staging_buffer, 0, VK_WHOLE_SIZE);
+    unmap_memory(*ctx, staging_buffer);
 
-    create_image(*ctx, info.width, info.height, info.format, vk::ImageTiling::eOptimal, 
-        vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled, 
-        vk::MemoryPropertyFlagBits::eDeviceLocal, image, memory);
+    image = create_image(*ctx, info.width, info.height, ImageType::Texture, info.format);
     
     vk::CommandBuffer cmd_buf = begin_single_time_command_buffer(*ctx);
     // Transition image layout to TransferDst so we can start fillig the image with data
-    transition_image_layout(cmd_buf, image, info.format, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
-    copy_buffer_to_image(cmd_buf, staging_buffer, image, vk::ImageLayout::eTransferDstOptimal, info.width, info.height);
+    transition_image_layout(cmd_buf, image, vk::ImageLayout::eTransferDstOptimal);
+    copy_buffer_to_image(cmd_buf, staging_buffer, image);
     // Transition image layout to ShaderReadOnlyOptimal so we can start sampling from it
-    transition_image_layout(cmd_buf, image, info.format, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
+    transition_image_layout(cmd_buf, image, vk::ImageLayout::eShaderReadOnlyOptimal);
     end_single_time_command_buffer(*ctx, cmd_buf);
 
-    ctx->device.destroyBuffer(staging_buffer);
-    ctx->device.freeMemory(staging_buffer_memory);
+    destroy_buffer(*ctx, staging_buffer);
 
-    view = create_image_view(ctx->device, image, info.format);
+    view = create_image_view(ctx->device, image);
 }
 
 void Texture::destroy() {
-    if (image) {
-        ctx->device.destroyImage(image);
-        image = nullptr;
-    }
-    if (view) {
-        ctx->device.destroyImageView(view);
-        view = nullptr;
-    }
-    if (memory) {
-        ctx->device.freeMemory(memory);
-        memory = nullptr;
+    if (image.image) {
+        destroy_image_view(*ctx, view);
+        destroy_image(*ctx, image);
     }
 }
 
 vk::Image Texture::handle() const {
-    return image;
+    return image.image;
 }
 
-vk::ImageView Texture::view_handle() const {
+ImageView Texture::view_handle() const {
     return view;
 }
 
-vk::DeviceMemory Texture::memory_handle() const {
-    return memory;
+VmaAllocation Texture::memory_handle() const {
+    return image.memory;
 }
 
 } // namespace ph

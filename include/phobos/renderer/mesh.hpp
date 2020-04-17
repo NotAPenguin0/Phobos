@@ -1,18 +1,19 @@
 #ifndef PHOBOS_MESH_HPP_
 #define PHOBOS_MESH_HPP_
 
-#include <vulkan/vulkan.hpp>
 #include <phobos/core/vulkan_context.hpp>
+#include <phobos/util/buffer_util.hpp>
 
 namespace ph {
 
 class Mesh {
 public:
+    Mesh() = default;
     Mesh(VulkanContext& ctx);
 
     struct CreateInfo {
         VulkanContext* ctx;
-        float* vertices;
+        float const* vertices;
         size_t vertex_count;
         uint32_t* indices;
         size_t index_count;
@@ -35,19 +36,17 @@ public:
     size_t get_vertex_count() const;
     size_t get_index_count() const;
 
-    vk::DeviceMemory get_memory_handle() const;
-    vk::DeviceMemory get_index_memory() const;
+    VmaAllocation get_memory_handle() const;
+    VmaAllocation get_index_memory() const;
 
 private:
     VulkanContext* ctx = nullptr;
 
     size_t vertex_count = 0;
     size_t index_count;
-    vk::Buffer buffer = nullptr;
-    vk::DeviceMemory memory = nullptr;
 
-    vk::Buffer index_buffer = nullptr;
-    vk::DeviceMemory index_buffer_memory = nullptr;
+    RawBuffer vertex_buffer;
+    RawBuffer index_buffer;
 
     void create_vertex_buffer(CreateInfo const& info);
     void create_index_buffer(CreateInfo const& info);

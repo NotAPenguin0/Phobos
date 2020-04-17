@@ -6,8 +6,7 @@
 #include <vector>
 #include <iostream>
 
-#include <phobos/pipeline/pipelines.hpp>
-#include <phobos/pipeline/layouts.hpp>
+#include <phobos/util/memory_util.hpp>
 
 namespace ph {
 
@@ -80,146 +79,50 @@ static vk::DebugUtilsMessengerEXT create_debug_messenger(VulkanContext* ctx) {
     return ctx->instance.createDebugUtilsMessengerEXT(info, nullptr, ctx->dynamic_dispatcher);
 }
 
-static vk::RenderPass create_default_render_pass(VulkanContext& ctx) {
-    // Create attachment
-    vk::AttachmentDescription color_attachment;
-    color_attachment.format = ctx.swapchain.format.format;
-    color_attachment.samples = vk::SampleCountFlagBits::e1;
-    color_attachment.loadOp = vk::AttachmentLoadOp::eClear;
-    color_attachment.storeOp = vk::AttachmentStoreOp::eStore;
-    color_attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-    color_attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-    color_attachment.initialLayout = vk::ImageLayout::eUndefined;
-    color_attachment.finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-
-    vk::AttachmentReference color_attachment_ref;
-    color_attachment_ref.attachment = 0;
-    color_attachment_ref.layout = vk::ImageLayout::eColorAttachmentOptimal;
-
-    vk::AttachmentDescription depth_attachment;
-    depth_attachment.format = vk::Format::eD32Sfloat;
-    depth_attachment.samples = vk::SampleCountFlagBits::e1;
-    depth_attachment.loadOp = vk::AttachmentLoadOp::eClear;
-    depth_attachment.storeOp = vk::AttachmentStoreOp::eDontCare;
-    depth_attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-    depth_attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-    depth_attachment.initialLayout = vk::ImageLayout::eUndefined;
-    depth_attachment.finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-
-    vk::AttachmentReference depth_attachment_ref;
-    depth_attachment_ref.attachment = 1;
-    depth_attachment_ref.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-
-    // Create subpass
-    vk::SubpassDescription subpass;
-    subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &color_attachment_ref;
-    subpass.pDepthStencilAttachment = &depth_attachment_ref;
-
-    // Setup subpass dependencies
-    vk::SubpassDependency dependency;
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass = 0;
-    dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-    dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-    dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite;
-
-    vk::AttachmentDescription attachments[2] = { color_attachment, depth_attachment };
-
-    vk::RenderPassCreateInfo info;
-    info.attachmentCount = 2;
-    info.pAttachments = attachments;
-    info.subpassCount = 1;
-    info.pSubpasses = &subpass;
-    info.dependencyCount = 1;
-    info.pDependencies = &dependency;
-
-    return ctx.device.createRenderPass(info);
-}
-
-static vk::RenderPass create_swapchain_renderpass(VulkanContext& ctx) {
-    // Create attachment
-    vk::AttachmentDescription color_attachment;
-    color_attachment.format = ctx.swapchain.format.format;
-    color_attachment.samples = vk::SampleCountFlagBits::e1;
-    color_attachment.loadOp = vk::AttachmentLoadOp::eClear;
-    color_attachment.storeOp = vk::AttachmentStoreOp::eStore;
-    color_attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-    color_attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-    color_attachment.initialLayout = vk::ImageLayout::eUndefined;
-    color_attachment.finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-
-    vk::AttachmentReference color_attachment_ref;
-    color_attachment_ref.attachment = 0;
-    color_attachment_ref.layout = vk::ImageLayout::eColorAttachmentOptimal;
-
-    // Create subpass
-    vk::SubpassDescription subpass;
-    subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &color_attachment_ref;
-    subpass.pDepthStencilAttachment = nullptr;
-
-    // Setup subpass dependencies
-    vk::SubpassDependency dependency;
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass = 0;
-    dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-    dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-    dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite;
-
-    vk::AttachmentDescription attachments[1] = { color_attachment };
-
-    vk::RenderPassCreateInfo info;
-    info.attachmentCount = 1;
-    info.pAttachments = attachments;
-    info.subpassCount = 1;
-    info.pSubpasses = &subpass;
-    info.dependencyCount = 1;
-    info.pDependencies = &dependency;
-
-    return ctx.device.createRenderPass(info);
-}
 
 void VulkanContext::destroy() { 
-    pipelines.destroy_all(device);
-    pipeline_layouts.destroy_all(device);
-    device.destroyRenderPass(default_render_pass);
-    device.destroyRenderPass(swapchain_render_pass);
-
-    for (auto const& framebuf : swapchain.framebuffers) {
-        device.destroyFramebuffer(framebuf);
+    for (auto&[info, pass] : renderpass_cache.get_all()) {
+        device.destroyRenderPass(pass.data);
     }
+    renderpass_cache.get_all().clear();
 
-    for (auto const& img_view : swapchain.image_views) {
-        device.destroyImageView(img_view);
+    for (auto&[info, framebuf] : framebuffer_cache.get_all()) {
+        device.destroyFramebuffer(framebuf.data);
+    }
+    framebuffer_cache.get_all().clear();
+    
+    for (auto&[hash, set_layout] : set_layout_cache.get_all()) {
+        device.destroyDescriptorSetLayout(set_layout.data);
+    }
+    set_layout_cache.get_all().clear();
+
+    for (auto&[hash, layout] : pipeline_layout_cache.get_all()) {
+        device.destroyPipelineLayout(layout.data.layout);
+    }
+    pipeline_layout_cache.get_all().clear();
+
+    // Destroy the actual pipelines
+    for (auto&[info, pipeline] : pipeline_cache.get_all()) {
+        device.destroyPipeline(pipeline.data);
+    }
+    pipeline_cache.get_all().clear();
+
+    for (auto& img_view : swapchain.image_views) {
+        destroy_image_view(*this, img_view);
     }
     
+    vmaDestroyAllocator(allocator);
     device.destroyCommandPool(command_pool);
-
     device.destroySwapchainKHR(swapchain.handle);
-    // Destroy the device
     device.destroy();
-    // Destroy the surface
     instance.destroySurfaceKHR(physical_device.surface_details.handle);
-    // Destroy the debug messenger
     instance.destroyDebugUtilsMessengerEXT(debug_messenger, nullptr, dynamic_dispatcher);
-    // Finally, destroy the VkInstance
     instance.destroy();
-}
-
-void VulkanContext::on_event(SwapchainRecreateEvent const& evt) {
-    if (evt.window_ctx != window_ctx) return;
-
-    device.destroyRenderPass(swapchain_render_pass);
-    swapchain_render_pass = create_swapchain_renderpass(*this);
 }
 
 VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterface* logger, AppSettings settings) {
     VulkanContext* context = new VulkanContext;
     context->window_ctx = &window_ctx;
-    context->event_dispatcher.add_listener(context);
 
     mimas_set_window_resize_callback(window_ctx.handle, window_resize_callback, context);
 
@@ -230,7 +133,7 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
 
     static constexpr Version version = PHOBOS_VERSION;
     app_info.engineVersion = VK_MAKE_VERSION(version.major, version.minor, version.patch);
-    app_info.apiVersion = VK_VERSION_1_2;
+    app_info.apiVersion = VK_API_VERSION_1_2;
 
     context->logger = logger;
     context->instance = create_vulkan_instance(app_info, settings);
@@ -268,6 +171,14 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
 
     logger->write_fmt(log::Severity::Info, "Created VkDevice");
 
+    VmaAllocatorCreateInfo aci{};
+    aci.device = context->device;
+    aci.physicalDevice = context->physical_device.handle;
+    aci.instance = context->instance;
+    aci.vulkanApiVersion = VK_MAKE_VERSION(1, 2, 0);
+
+    vmaCreateAllocator(&aci, &context->allocator);
+
     // Finally, get the graphics queue
     context->graphics_queue = context->device.getQueue(context->physical_device.queue_families.graphics_family.value(), 0);
 
@@ -276,19 +187,7 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
     logger->write_fmt(log::Severity::Info, "Created swapchain. Dimensions are {}x{}", 
         context->swapchain.extent.width, context->swapchain.extent.height);
 
-    // We have to create the renderpass before creating the pipeline. 
-    context->default_render_pass = create_default_render_pass(*context);
-    context->swapchain_render_pass = create_swapchain_renderpass(*context);
-
-    logger->write_fmt(log::Severity::Info, "Created renderpass");
-
-    // Only after the renderpass as been created, we can create the swapchain framebuffers
-    create_swapchain_framebuffers(*context, context->swapchain);
-
-    logger->write_fmt(log::Severity::Info, "Created framebuffers");
-
-    create_pipeline_layouts(context->device, context->pipeline_layouts);
-    create_pipelines(*context, context->pipelines);
+    create_default_pipelines(*context, context->pipelines);
 
     logger->write_fmt(log::Severity::Info, "Created pipelines");
 
@@ -296,6 +195,10 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
     cmd_pool_info.flags = vk::CommandPoolCreateFlagBits::eTransient | vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
     cmd_pool_info.queueFamilyIndex = context->physical_device.queue_families.graphics_family.value();
     context->command_pool = context->device.createCommandPool(cmd_pool_info);
+    vk::DebugUtilsObjectNameInfoEXT cmd_pool_name_info;
+    cmd_pool_name_info.objectHandle = memory_util::vk_to_u64(context->command_pool);
+    cmd_pool_name_info.objectType = vk::ObjectType::eCommandPool;
+    cmd_pool_name_info.pObjectName = "Main command pool";
 
     logger->write_fmt(log::Severity::Info, "Created command pool");
 

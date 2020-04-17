@@ -6,15 +6,18 @@
 
 namespace ph {
 
-struct alignas(4 * sizeof(glm::vec4)) PointLight {
+struct alignas(2 * sizeof(glm::vec4)) PointLight {
     glm::vec3 position;
     float _pad0;
-    glm::vec3 ambient;
+    glm::vec3 color;
+    float intensity;
+};
+
+struct alignas(2 * sizeof(glm::vec4)) DirectionalLight {
+    glm::vec3 direction;
+    float _pad0;
+    glm::vec3 color;
     float _pad1;
-    glm::vec3 diffuse;
-    float _pad2;
-    glm::vec3 specular;
-    float _pad3;
 };
 
 } // namespace ph 

@@ -7,96 +7,216 @@
 
 #include <stl/enumerate.hpp>
 
+// for std::byte
+#include <cstddef>
+
 namespace ph {
+
+static Texture create_single_color_texture(VulkanContext& ctx, uint8_t r, uint8_t g, uint8_t b) {
+    Texture::CreateInfo info;
+    info.channels = 4;
+    info.ctx = &ctx;
+    const uint8_t data[] = { r, g, b, 255 };
+    info.data = data;
+    info.width = 1;
+    info.height = 1;
+    info.format = vk::Format::eR8G8B8A8Srgb;
+    return Texture(info);
+}
 
 Renderer::Renderer(VulkanContext& context) : ctx(context) {
     ctx.event_dispatcher.add_listener(this);
+
+    default_color = create_single_color_texture(ctx, 255, 0, 255);
+    default_specular = create_single_color_texture(ctx, 255, 255, 255);
+    default_normal = create_single_color_texture(ctx, 0, 255, 0);
 } 
 
-void Renderer::render_frame(FrameInfo& info, RenderGraph& graph) {
-    // https://discordapp.com/channels/427551838099996672/427951526967902218/680723607831314527
-    vk::CommandBuffer cmd_buffer = info.command_buffer;
-    // Record command buffer
-    vk::CommandBufferBeginInfo begin_info;
-    begin_info.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
-    cmd_buffer.begin(begin_info);
+void Renderer::render_frame(FrameInfo& info) {
+    CommandBuffer cmd_buffer { info.command_buffer };
+    cmd_buffer.begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 
-    // Start render pass
-    vk::RenderPassBeginInfo render_pass_info;
-    render_pass_info.renderPass = ctx.default_render_pass;
-    render_pass_info.framebuffer = info.offscreen_target.get_framebuf();
-    render_pass_info.renderArea.offset = vk::Offset2D{ 0, 0 };
-    render_pass_info.renderArea.extent = vk::Extent2D{ info.offscreen_target.get_width(), info.offscreen_target.get_height() };
+    update_camera_data(info, info.render_graph);
+    update_lights(info, info.render_graph);
 
-    render_pass_info.clearValueCount = 2;
-    vk::ClearValue clear_values[2];
-    clear_values[0].color = graph.clear_color;
-    clear_values[1].depthStencil = vk::ClearDepthStencilValue {1.0f, 0};
-    render_pass_info.pClearValues = clear_values;
-
-    cmd_buffer.beginRenderPass(render_pass_info, vk::SubpassContents::eInline);
-    
-    vk::Pipeline pipeline = ctx.pipelines.get_pipeline(PipelineID::eGeneric);
-    cmd_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
-
-    auto const& pipeline_layout = ctx.pipeline_layouts.get_layout(PipelineLayoutID::eDefault);
-    cmd_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout.handle, 0, info.fixed_descriptor_set, nullptr);
-
-    update_camera_data(info, graph);
-    update_materials(info, graph);
-    update_lights(info, graph);
-
-    vk::Viewport viewport;
-    viewport.x = 0;
-    viewport.y = 0;
-    viewport.width = info.offscreen_target.get_width();
-    viewport.height = info.offscreen_target.get_height();
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-    cmd_buffer.setViewport(0, viewport);
-
-    vk::Rect2D scissor;
-    scissor.offset = vk::Offset2D{0, 0};
-    scissor.extent = vk::Extent2D{ info.offscreen_target.get_width(), info.offscreen_target.get_height() };
-    cmd_buffer.setScissor(0, scissor);
-
-    update_model_matrices(info, graph);
-
-    for (auto[idx, draw] : stl::enumerate(graph.draw_commands.begin(), graph.draw_commands.end())) {
-        Mesh* mesh = draw.mesh;
-        Material material = graph.materials[draw.material_index];
-        // Bind draw data
-        vk::DeviceSize const offset = 0;
-        cmd_buffer.bindVertexBuffers(0, mesh->get_vertices(), offset);
-        cmd_buffer.bindIndexBuffer(mesh->get_indices(), 0, vk::IndexType::eUint32);
-
-        // update push constant ranges
-        uint32_t push_indices[2] { draw.material_index, static_cast<uint32_t>(idx) };
-        cmd_buffer.pushConstants(pipeline_layout.handle, 
-            vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eVertex, 0, 2 * sizeof(uint32_t), push_indices);
-
-        // Execute drawcall
-        cmd_buffer.drawIndexed(mesh->get_index_count(), 1, 0, 0, 0);
-
-        info.draw_calls++;
+    for (auto& pass : info.render_graph->passes) {
+        cmd_buffer.begin_renderpass(pass);
+        pass.callback(cmd_buffer);
+        cmd_buffer.end_renderpass();
     }
-    
-    cmd_buffer.endRenderPass();
 
     cmd_buffer.end();
 }
 
-void Renderer::destroy() {
-    ctx.event_dispatcher.remove_listener(this);
+vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, RenderPass& pass, DescriptorSetBinding set_binding, void* pNext) {
+    STL_ASSERT(pass.active, "get_descriptor called on inactive renderpass");
+    auto const& set_layout_info = ctx.pipelines.get_named_pipeline(pass.active_pipeline.name)->layout.set_layout;
+    return get_descriptor(frame, set_layout_info, stl::move(set_binding), pNext);
 }
 
-void Renderer::on_event(InstancingBufferResizeEvent const& e) {
+
+vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, DescriptorSetLayoutCreateInfo const& set_layout_info, 
+    DescriptorSetBinding set_binding, void* pNext) {
+        
+    set_binding.set_layout = set_layout_info;
+    auto set_opt = frame.descriptor_cache.get(set_binding);
+    if (!set_opt) {
+        // Create descriptor set layout and issue writes
+        vk::DescriptorSetAllocateInfo alloc_info;
+        // Get set layout. We can assume that it has already been created. If not, something went very wrong
+        vk::DescriptorSetLayout* set_layout = ctx.set_layout_cache.get(set_binding.set_layout);
+        STL_ASSERT(set_layout, "Descriptor requested without creating desctiptor set layout first. This can happen if there is"
+            " no active pipeline bound, or get_descriptor was called outside a valid ph::RenderPass callback.");
+        alloc_info.pSetLayouts = set_layout;
+        // add default descriptor pool if no custom one was specified
+        if (!set_binding.pool) { set_binding.pool = frame.descriptor_pool; };
+        alloc_info.descriptorPool = set_binding.pool;
+        alloc_info.descriptorSetCount = 1;
+        alloc_info.pNext = pNext;
+
+        // allocateDescriptorSets returns an array of descriptor sets, but we only allocate one, so we need to index it with 0
+        vk::DescriptorSet set = ctx.device.allocateDescriptorSets(alloc_info)[0];
+
+        // Now we have the set we need to write the requested data to it
+        // TODO: Look into vkUpdateDescriptorSetsWithTemplate?
+        stl::vector<vk::WriteDescriptorSet> writes;
+        struct DescriptorWriteInfo {
+            stl::vector<vk::DescriptorBufferInfo> buffer_infos;
+            stl::vector<vk::DescriptorImageInfo> image_infos;
+        };
+        stl::vector<DescriptorWriteInfo> write_infos;
+        writes.reserve(set_binding.bindings.size());
+        for (auto const& binding : set_binding.bindings) {
+            DescriptorWriteInfo write_info;
+            vk::WriteDescriptorSet write;
+            write.dstSet = set;
+            write.dstBinding = binding.binding;
+            write.descriptorType = binding.type;
+            write.descriptorCount = binding.descriptors.size();
+            switch(binding.type) {
+                case vk::DescriptorType::eCombinedImageSampler:
+                case vk::DescriptorType::eSampledImage: {
+                    write_info.image_infos.reserve(binding.descriptors.size());
+                    for (auto const& descriptor : binding.descriptors) {
+                        vk::DescriptorImageInfo img;
+                        img.imageLayout = descriptor.image.layout;
+                        img.imageView = descriptor.image.view.view;
+                        img.sampler = descriptor.image.sampler;
+                        write_info.image_infos.push_back(img);
+                        // Push dummy buffer info to make sure indices match
+                        write_info.buffer_infos.emplace_back();
+                    }
+                } break;
+                default: {
+                    vk::DescriptorBufferInfo buf;
+                    auto& info = binding.descriptors.front().buffer;
+                    buf.buffer = info.buffer;
+                    buf.offset = info.offset;
+                    buf.range = info.range;
+
+                    write_info.buffer_infos.push_back(buf);
+                    // Push dummy image info to make sure indices match
+                    write_info.image_infos.emplace_back();
+                } break;
+            }
+            write_infos.push_back(write_info);
+            writes.push_back(stl::move(write));
+        }
+
+        for (size_t i = 0; i < write_infos.size(); ++i) {
+            switch (writes[i].descriptorType) {
+            case vk::DescriptorType::eSampledImage:
+            case vk::DescriptorType::eCombinedImageSampler: {
+                writes[i].pImageInfo = write_infos[i].image_infos.data();
+            } break;
+            default: {
+                writes[i].pBufferInfo = write_infos[i].buffer_infos.data();
+            } break;
+            }
+        }
+
+        ctx.device.updateDescriptorSets(writes.size(), writes.data(), 0, nullptr);
+
+        // Insert into cache and return the set to the user
+        vk::DescriptorSet backup = set;
+        frame.descriptor_cache.insert(set_binding, stl::move(backup));
+        return set;
+    } else {
+        return *set_opt;
+    }
+}
+
+void Renderer::execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer) {
+    ph::RenderPass* pass_ptr = cmd_buffer.get_active_renderpass();
+    STL_ASSERT(pass_ptr, "execute_draw_commands called outside of an active renderpass");
+    ph::RenderPass& pass = *pass_ptr;
+    Pipeline pipeline = get_pipeline("generic", pass);
+    cmd_buffer.bind_pipeline(pipeline);
+
+    // Allocate fixed descriptor set and bind it
+    vk::DescriptorSet fixed_set = get_fixed_descriptor_set(frame, frame.render_graph);
+    update_model_matrices(frame, frame.render_graph, fixed_set);
+    cmd_buffer.bind_descriptor_set(0, fixed_set);
+
+    vk::Viewport viewport;
+    viewport.x = 0;
+    viewport.y = 0;
+    viewport.width = pass.target.get_width();
+    viewport.height = pass.target.get_height();
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    cmd_buffer.set_viewport(viewport);
+
+    vk::Rect2D scissor;
+    scissor.offset = vk::Offset2D{0, 0};
+    scissor.extent = vk::Extent2D{ pass.target.get_width(), pass.target.get_height() };
+    cmd_buffer.set_scissor(scissor);
+
+    for (auto[idx, draw] : stl::enumerate(pass.draw_commands.begin(), pass.draw_commands.end())) {
+        Mesh* mesh = draw.mesh;
+        // Bind draw data
+        cmd_buffer.bind_vertex_buffer(0, mesh->get_vertices());
+        cmd_buffer.bind_index_buffer(mesh->get_indices());
+
+        // update push constant ranges
+        stl::uint32_t const transform_index = idx + pass.transforms_offset;
+        cmd_buffer.push_constants(vk::ShaderStageFlagBits::eVertex, 0, sizeof(uint32_t), &transform_index);
+        // First texture is diffuse, second is specular. See also get_fixed_descriptor_set() where we fill the textures array
+        // Note: We need some more sophisticated logic for this once we allow switching between raw colors and textures
+        // ==> We can implement raw colors as a 1x1 texture
+        stl::uint32_t const texture_indices[] = { 3 * draw.material_index, 3 * draw.material_index + 1, 3 * draw.material_index + 2 };
+        cmd_buffer.push_constants(vk::ShaderStageFlagBits::eFragment, sizeof(uint32_t), sizeof(texture_indices), &texture_indices);
+        // Execute drawcall
+        cmd_buffer.draw_indexed(mesh->get_index_count(), 1, 0, 0, 0);
+        frame.draw_calls++;
+    }
+}
+
+Pipeline Renderer::get_pipeline(std::string_view name, RenderPass& pass) {
+    ph::PipelineCreateInfo const* pci = ctx.pipelines.get_named_pipeline(std::string(name));
+    STL_ASSERT(pci, "Pipeline not found");
+    STL_ASSERT(pass.active, "Cannot get pipeline handle without an active renderpass");
+    Pipeline pipeline = create_or_get_pipeline(&ctx, &pass, *pci);
+    pipeline.name = name;
+    return pipeline;
+}
+
+void Renderer::destroy() {
+    ctx.event_dispatcher.remove_listener(this);
+    default_color.destroy();
+    default_normal.destroy();
+    default_specular.destroy();
+}
+
+// this should not be in the renderer
+void Renderer::on_event(DynamicGpuBufferResizeEvent const& e) {
     vk::DescriptorBufferInfo buffer;
     buffer.buffer = e.buffer_handle;
     buffer.offset = 0;
     buffer.range = e.new_size;
     vk::WriteDescriptorSet write;
     write.pBufferInfo = &buffer;
+    // TODO: This is wrong
     write.dstBinding = 1;
     write.descriptorCount = 1;
     write.descriptorType = vk::DescriptorType::eStorageBuffer;
@@ -105,49 +225,89 @@ void Renderer::on_event(InstancingBufferResizeEvent const& e) {
     ctx.device.updateDescriptorSets(write, nullptr);
 }
 
-void Renderer::update_camera_data(FrameInfo& info, RenderGraph const& graph) {
-    glm::mat4 pv = graph.projection * graph.view;
-    float* data_ptr = reinterpret_cast<float*>(info.vp_ubo.ptr);
+void Renderer::update_camera_data(FrameInfo& info, RenderGraph const* graph) {
+    glm::mat4 pv = graph->projection * graph->view; 
+    // Note that map_memory is a cheap operation here since vp_ubo.type is MappedUniformBuffer. In this case, map_memory will
+    // immediately return the already stored pointer
+    std::byte* data_ptr = map_memory(ctx, info.vp_ubo);
     std::memcpy(data_ptr, &pv[0][0], 16 * sizeof(float));  
-    std::memcpy(data_ptr + 16, &graph.camera_pos.x, sizeof(glm::vec3));
+    std::memcpy(data_ptr + 16 * sizeof(float), &graph->camera_pos.x, sizeof(glm::vec3));
 }
 
-void Renderer::update_model_matrices(FrameInfo& info, RenderGraph const& graph) {
-    info.instance_ssbo.write_data(info.fixed_descriptor_set, 
-        &graph.transforms[0], graph.transforms.size() * sizeof(graph.transforms[0]));
-}
-
-void Renderer::update_materials(FrameInfo& info, RenderGraph const& graph) {
-    if (graph.materials.empty()) return;
-
-    std::vector<vk::DescriptorImageInfo> img_info(graph.materials.size());
-    for (size_t i = 0; i < graph.materials.size(); ++i) {
-        Texture* texture = graph.materials[i].texture;
-        img_info[i].imageView = texture->view_handle();
-        img_info[i].imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-        img_info[i].sampler = info.default_sampler;
+void Renderer::update_model_matrices(FrameInfo& info, RenderGraph const* graph, vk::DescriptorSet descriptor_set) {
+    for (auto const& pass : graph->passes) {
+        // Don't write when there are no transforms to avoid out of bounds indexing
+        if (!pass.transforms.empty()) {
+            constexpr stl::size_t sz = sizeof(pass.transforms[0]);
+            info.transform_ssbo.write_data(descriptor_set, &pass.transforms[0], 
+                pass.transforms.size() * sz, pass.transforms_offset * sz);
+        }
     }
-
-    vk::WriteDescriptorSet write;
-    write.dstSet = info.fixed_descriptor_set;
-    write.dstBinding = meta::bindings::generic::textures;
-    write.descriptorCount = graph.materials.size();
-    write.dstArrayElement = 0;
-    write.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-    write.pImageInfo = img_info.data();
-
-    ctx.device.updateDescriptorSets(write, nullptr);
 }
 
-void Renderer::update_lights(FrameInfo& info, RenderGraph const& graph) {
-    if (graph.point_lights.empty()) return;
-    // Update point lights
-    std::memcpy(info.lights.ptr, &graph.point_lights[0].position.x, sizeof(PointLight) * graph.point_lights.size());
-    // Update point light count. For this, we first need to calculate the offset into the UBO
-    size_t const counts_offset = meta::max_lights_per_type * sizeof(PointLight);
-    uint32_t point_light_count = graph.point_lights.size();
+void Renderer::update_lights(FrameInfo& info, RenderGraph const* graph) {
+    // Note that map_memory is a cheap operation here since lights.type is MappedUniformBuffer. In this case, map_memory will
+    // immediately return the already stored pointer. 
+    std::byte* data_ptr = map_memory(ctx, info.lights);
+    if (!graph->point_lights.empty()) {
+        std::memcpy(data_ptr, &graph->point_lights[0].position.x, sizeof(PointLight) * graph->point_lights.size());
+    }
+    size_t const dir_light_offset = meta::max_lights_per_type * sizeof(PointLight);
+    if (!graph->directional_lights.empty()) {
+        std::memcpy(data_ptr + dir_light_offset, &graph->directional_lights[0].direction.x,
+            sizeof(DirectionalLight) * graph->directional_lights.size());
+    }
+    // Update count variables. For this, we first need to calculate the offset into the UBO.
+    // Note that we maintain the light structs to match the exact layout in the shader, so this sizeof() is fine.
+    size_t const counts_offset = dir_light_offset + meta::max_lights_per_type * sizeof(DirectionalLight);
+    uint32_t const counts[] = { (uint32_t)graph->point_lights.size(), (uint32_t)graph->directional_lights.size() };
     // Write data
-    std::memcpy(reinterpret_cast<unsigned char*>(info.lights.ptr) + counts_offset, &point_light_count, sizeof(uint32_t));
+    std::memcpy(data_ptr + counts_offset, &counts[0], sizeof(counts));
 }
 
+vk::DescriptorSet Renderer::get_fixed_descriptor_set(FrameInfo& frame, RenderGraph const* graph) {
+    PipelineCreateInfo const* pci = ctx.pipelines.get_named_pipeline("generic");
+    STL_ASSERT(pci, "Generic pipeline not created");
+    ShaderInfo const& shader_info = pci->shader_info;
+
+    DescriptorSetBinding bindings;
+    bindings.add(make_descriptor(shader_info["camera"], frame.vp_ubo));
+    bindings.add(make_descriptor(shader_info["transforms"], frame.transform_ssbo.buffer_handle(), frame.transform_ssbo.size()));
+    stl::vector<ImageView> texture_views;
+    texture_views.reserve(graph->materials.size() * 4);
+    for (auto const& mat : graph->materials) {
+        if (mat.diffuse) {
+            texture_views.push_back(mat.diffuse->view_handle());
+        }
+        else {
+            texture_views.push_back(default_color.view_handle());
+        }
+
+        if (mat.specular) {
+            texture_views.push_back(mat.specular->view_handle());
+        }
+        else {
+            texture_views.push_back(default_specular.view_handle());
+        }
+
+        if (mat.normal) {
+            texture_views.push_back(mat.normal->view_handle());
+        }
+        else {
+            texture_views.push_back(default_normal.view_handle());
+        }
+    }
+    bindings.add(make_descriptor(shader_info["textures"], texture_views, frame.default_sampler));
+    bindings.add(make_descriptor(shader_info["lights"], frame.lights));
+    
+    // We need variable count to use descriptor indexing
+    vk::DescriptorSetVariableDescriptorCountAllocateInfo variable_count_info;
+    uint32_t counts[1] { meta::max_unbounded_array_size };
+    variable_count_info.descriptorSetCount = 1;
+    variable_count_info.pDescriptorCounts = counts;
+
+    // use default descriptor pool and internal version of get_descriptor to specify a pipeline manually
+    return get_descriptor(frame, pci->layout.set_layout, stl::move(bindings), &variable_count_info);
 }
+
+} // namespace ph

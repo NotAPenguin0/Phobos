@@ -1,28 +1,31 @@
-#ifndef PHOBOS_INSTANCING_BUFFER_HPP_
-#define PHOBOS_INSTANCING_BUFFER_HPP_
+#ifndef PHOBOS_DYNAMIC_GPU_BUFFER_HPP_
+#define PHOBOS_DYNAMIC_GPU_BUFFER_HPP_
 
 #include <vulkan/vulkan.hpp>
 
 #include <phobos/core/vulkan_context.hpp>
+#include <phobos/util/buffer_util.hpp>
+
+#include <cstddef>
 
 namespace ph {
 
 // Buffer class capable of storing instance data on the GPU in a shader storage buffer. Reallocates memory when nessecary.
 // TODO: If a max_size is specified, the buffer can assume that this size will never be exceeded. 
-class InstancingBuffer {
+class DynamicGpuBuffer {
 public:
-    InstancingBuffer() = default;
-    InstancingBuffer(VulkanContext& ctx);
+    DynamicGpuBuffer() = default;
+    DynamicGpuBuffer(VulkanContext& ctx);
 
-    InstancingBuffer(InstancingBuffer&&) = default;
-    InstancingBuffer& operator=(InstancingBuffer&&) = default;
+    DynamicGpuBuffer(DynamicGpuBuffer&&) = default;
+    DynamicGpuBuffer& operator=(DynamicGpuBuffer&&) = default;
 
     // TODO: Implement max_size
     void create(size_t initial_size, size_t max_size = 0);
     void destroy();
 
     vk::Buffer buffer_handle();
-    vk::DeviceMemory memory_handle();
+    VmaAllocation memory_handle();
 
     size_t size() const;
 
@@ -31,11 +34,8 @@ public:
 private:
     VulkanContext* ctx;
 
-    vk::Buffer buffer = nullptr;
-    vk::DeviceMemory memory = nullptr;
-
-    vk::DeviceSize current_size = 0;
-    void* data_ptr = nullptr;
+    RawBuffer buffer;
+    std::byte* data_ptr = nullptr;
 
 };
 
