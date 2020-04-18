@@ -222,13 +222,24 @@ Mesh TestApplication::generate_plane_geometry() {
     return ph::Mesh(plane_info);
 }
 
-static vk::Format get_image_format(int channels) {
-    switch (channels) {
-    case 1: return vk::Format::eR8Srgb;
-    case 2: return vk::Format::eR8G8Srgb;
-    case 3: return vk::Format::eR8G8B8Srgb;
-    case 4: return vk::Format::eR8G8B8A8Srgb;
-    default: return vk::Format::eUndefined;
+static vk::Format get_image_format(int channels, bool srgb) {
+    if (srgb) {
+        switch (channels) {
+        case 1: return vk::Format::eR8Srgb;
+        case 2: return vk::Format::eR8G8Srgb;
+        case 3: return vk::Format::eR8G8B8Srgb;
+        case 4: return vk::Format::eR8G8B8A8Srgb;
+        default: return vk::Format::eUndefined;
+        }
+    }
+    else {
+        switch (channels) {
+        case 1: return vk::Format::eR8Unorm;
+        case 2: return vk::Format::eR8G8Unorm;
+        case 3: return vk::Format::eR8G8B8Unorm;
+        case 4: return vk::Format::eR8G8B8A8Unorm;
+        default: return vk::Format::eUndefined;
+        }
     }
 }
 
@@ -239,7 +250,23 @@ Texture TestApplication::load_texture(std::string_view path) {
     ph::Texture::CreateInfo tex_info;
     tex_info.ctx = ctx;
     tex_info.channels = 4;
-    tex_info.format = get_image_format(4);
+    tex_info.format = get_image_format(4, true);
+    tex_info.width = w;
+    tex_info.height = h;
+    tex_info.data = img;
+    ph::Texture tex(tex_info);
+    stbi_image_free(img);
+
+    return stl::move(tex);
+}
+Texture TestApplication::load_texture_map(std::string_view path) {
+    int w, h, channels = 4;
+    uint8_t* img = stbi_load(path.data(), &w, &h, &channels, 4);
+    if (!img) { throw std::runtime_error("failed to load image"); }
+    ph::Texture::CreateInfo tex_info;
+    tex_info.ctx = ctx;
+    tex_info.channels = 4;
+    tex_info.format = get_image_format(4, false);
     tex_info.width = w;
     tex_info.height = h;
     tex_info.data = img;

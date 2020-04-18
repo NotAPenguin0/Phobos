@@ -83,6 +83,8 @@ static void process_vertex_input(spirv_cross::Compiler& refl, spirv_cross::Shade
 
 static std::unique_ptr<spirv_cross::Compiler> reflect_shader_stage(PipelineCreateInfo& pci, ShaderModuleCreateInfo const& shader) {
     auto refl = std::make_unique<spirv_cross::Compiler>(shader.code);
+
+    STL_ASSERT(refl, "Failed to reflect shader");
     spirv_cross::ShaderResources res = refl->get_shader_resources();
     
     auto const shader_stage = get_shader_stage(*refl);

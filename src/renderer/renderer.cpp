@@ -12,7 +12,7 @@
 
 namespace ph {
 
-static Texture create_single_color_texture(VulkanContext& ctx, uint8_t r, uint8_t g, uint8_t b) {
+static Texture create_single_color_texture(VulkanContext& ctx, uint8_t r, uint8_t g, uint8_t b, vk::Format fmt) {
     Texture::CreateInfo info;
     info.channels = 4;
     info.ctx = &ctx;
@@ -20,16 +20,16 @@ static Texture create_single_color_texture(VulkanContext& ctx, uint8_t r, uint8_
     info.data = data;
     info.width = 1;
     info.height = 1;
-    info.format = vk::Format::eR8G8B8A8Srgb;
+    info.format = fmt;
     return Texture(info);
 }
 
 Renderer::Renderer(VulkanContext& context) : ctx(context) {
     ctx.event_dispatcher.add_listener(this);
 
-    default_color = create_single_color_texture(ctx, 255, 0, 255);
-    default_specular = create_single_color_texture(ctx, 255, 255, 255);
-    default_normal = create_single_color_texture(ctx, 0, 255, 0);
+    default_color = create_single_color_texture(ctx, 255, 0, 255, vk::Format::eR8G8B8A8Srgb);
+    default_specular = create_single_color_texture(ctx, 255, 255, 255, vk::Format::eR8G8B8A8Srgb);
+    default_normal = create_single_color_texture(ctx, 0, 255, 0, vk::Format::eR8G8B8A8Unorm);
 } 
 
 void Renderer::render_frame(FrameInfo& info) {
@@ -135,7 +135,7 @@ vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, DescriptorSetLayout
             } break;
             }
         }
-
+        
         ctx.device.updateDescriptorSets(writes.size(), writes.data(), 0, nullptr);
 
         // Insert into cache and return the set to the user
@@ -167,7 +167,7 @@ void Renderer::execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
     cmd_buffer.set_viewport(viewport);
-
+    
     vk::Rect2D scissor;
     scissor.offset = vk::Offset2D{0, 0};
     scissor.extent = vk::Extent2D{ pass.target.get_width(), pass.target.get_height() };
@@ -232,7 +232,8 @@ void Renderer::update_camera_data(FrameInfo& info, RenderGraph const* graph) {
     // immediately return the already stored pointer
     std::byte* data_ptr = map_memory(ctx, info.vp_ubo);
     std::memcpy(data_ptr, &pv[0][0], 16 * sizeof(float));  
-    std::memcpy(data_ptr + 16 * sizeof(float), &graph->camera_pos.x, sizeof(glm::vec3));
+    std::memcpy(data_ptr + 16 * sizeof(float), &graph->view[0][0], 16 * sizeof(float));
+    std::memcpy(data_ptr + 32 * sizeof(float), &graph->camera_pos.x, sizeof(glm::vec3));
 }
 
 void Renderer::update_model_matrices(FrameInfo& info, RenderGraph const* graph, vk::DescriptorSet descriptor_set) {

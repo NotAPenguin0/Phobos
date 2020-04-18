@@ -8,8 +8,6 @@ layout(location = 0) in vec2 TexCoords;
 layout(location = 1) in vec3 FragPos;
 layout(location = 2) in vec3 ViewPos;
 layout(location = 3) in mat3 TBN;
-layout(location = 6) in vec3 Tangent;
-layout(location = 7) in vec3 Normal;
 
 layout(location = 0) out vec4 FragColor;
 
@@ -42,7 +40,6 @@ layout(push_constant) uniform Indices {
 } indices;
 
 vec3 apply_point_light(vec3 norm, vec3 in_color, PointLight light) {
-    vec3 ambient = in_color * 0.1f; // fixed ambient component for now
     vec3 light_dir = normalize(light.position - FragPos);
     float diff = max(dot(norm, light_dir), 0.0);
     vec3 diffuse = in_color * diff * light.color;
@@ -55,7 +52,7 @@ vec3 apply_point_light(vec3 norm, vec3 in_color, PointLight light) {
     float dist = length(FragPos - light.position);
     float falloff = 1.0f / dist; // linear falloff :/
 
-    return (ambient + diffuse + specular) * falloff * light.intensity;
+    return (diffuse + specular) * falloff * light.intensity;
 }
 
 vec3 apply_directional_light(vec3 norm, vec3 in_color, DirectionalLight light) {
@@ -75,7 +72,7 @@ vec3 apply_directional_light(vec3 norm, vec3 in_color, DirectionalLight light) {
 void main() {
     vec3 color = texture(textures[indices.diffuse_index], TexCoords).rgb;
     vec3 ambient = 0.1 * color; // fixed ambient component
-    vec3 norm = normalize(texture(textures[indices.normal_index], TexCoords).rgb * 2.0 - 1.0);
+    vec3 norm = texture(textures[indices.normal_index], TexCoords).rgb * 2.0 - vec3(1, 1, 1);
     norm = normalize(TBN * norm);
     for (uint i = 0; i < lights.point_light_count; ++i) {
         color = apply_point_light(norm, color, lights.point_lights[i]);
@@ -84,10 +81,4 @@ void main() {
         color = apply_directional_light(norm, color, lights.directional_lights[i]);
     }
     FragColor = vec4(color + ambient, 1.0);
-    FragColor = vec4(norm, 1.0);
-    FragColor = vec4((Tangent + 1) * 0.5, 1.0);
-    FragColor = vec4((Normal + 1) * 0.5, 1.0);
-    FragColor = vec4(TexCoords, 0.0, 1.0);
-    FragColor = vec4(color, 1.0);
-    FragColor = vec4((norm + 1) * 0.5, 1.0);
 }

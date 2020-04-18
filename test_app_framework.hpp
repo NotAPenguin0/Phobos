@@ -41,6 +41,8 @@ protected:
 	Mesh generate_quad_geometry();
 	Mesh generate_plane_geometry();
 	Texture load_texture(std::string_view path);
+	// Loads as non-srgb
+	Texture load_texture_map(std::string_view path);
 
 	// Returns the new size of the attachment
 	ImVec2 match_attachment_to_window_size(RenderAttachment& attachment);
