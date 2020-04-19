@@ -99,7 +99,7 @@ TestApplication::~TestApplication() {
 }
 
 void TestApplication::run() {
-    float last_time = 0;
+    double last_time = 0;
     while (window->is_open()) {
         window->poll_events();
 
@@ -259,6 +259,7 @@ Texture TestApplication::load_texture(std::string_view path) {
 
     return stl::move(tex);
 }
+
 Texture TestApplication::load_texture_map(std::string_view path) {
     int w, h, channels = 4;
     uint8_t* img = stbi_load(path.data(), &w, &h, &channels, 4);
@@ -274,6 +275,28 @@ Texture TestApplication::load_texture_map(std::string_view path) {
     stbi_image_free(img);
 
     return stl::move(tex);
+}
+
+Cubemap TestApplication::load_cubemap(std::array<std::string_view, 6> faces) {
+    int w, h, channels = 4;
+    std::array<uint8_t*, 6> data;
+    for (size_t i = 0; i < 6; ++i) {
+        uint8_t* img = stbi_load(faces[i].data(), &w, &h, &channels, 4);
+        if (!img) { throw std::runtime_error("failed to load image"); }
+        data[i] = img;
+    }
+
+    ph::Cubemap::CreateInfo info;
+    info.ctx = ctx;
+    info.channels = 4;
+    for (size_t i = 0; i < 6; ++i) { info.faces[i] = data[i]; }
+    info.format = get_image_format(4, true);
+    info.width = w;
+    info.height = h;
+    ph::Cubemap cubemap(info);
+    for (auto img : data) { stbi_image_free(img); }
+
+    return stl::move(cubemap);
 }
 
 ImVec2 TestApplication::match_attachment_to_window_size(RenderAttachment& attachment) {

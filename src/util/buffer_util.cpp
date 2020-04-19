@@ -123,6 +123,10 @@ RawBuffer create_buffer(VulkanContext& ctx, vk::DeviceSize size, BufferType buf_
     return buffer;
 }
 
+BufferSlice whole_buffer_slice(RawBuffer& buffer) {
+    return BufferSlice{ buffer.buffer, 0, buffer.size };
+}
+
 void destroy_buffer(VulkanContext& ctx, RawBuffer& buffer) {
     if (!is_valid_buffer(buffer)) {
         ctx.logger->write_fmt(log::Severity::Warning, "Tried to free invalid buffer.");

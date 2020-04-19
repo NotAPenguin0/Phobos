@@ -3,6 +3,8 @@
 
 #include <atomic>
 
+#include <stl/enumerate.hpp>
+
 namespace ph {
 
 static vk::ImageUsageFlags get_image_usage(ImageType type) {
@@ -13,6 +15,16 @@ static vk::ImageUsageFlags get_image_usage(ImageType type) {
         return vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
     case ImageType::Texture: 
         return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
+    case ImageType::Cubemap:
+        return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
+    }
+}
+
+static vk::ImageCreateFlags get_image_flags(ImageType type) {
+    switch (type) {
+    case ImageType::Cubemap:
+        return vk::ImageCreateFlagBits::eCubeCompatible;
+    default: return {};
     }
 }
 
@@ -21,12 +33,23 @@ stl::uint64_t get_unique_image_view_id() {
     return counter++;
 }
 
+vk::ImageViewType get_view_type(ImageType type) {
+    switch (type) {
+    case ImageType::Cubemap:
+        return vk::ImageViewType::eCube;
+    case ImageType::Texture:
+    case ImageType::ColorAttachment:
+    case ImageType::DepthStencilAttachment:
+        return vk::ImageViewType::e2D;
+    }
+}
+
 ImageView create_image_view(vk::Device device, RawImage& image, vk::ImageAspectFlags aspect) {
     ImageView view;
 
     vk::ImageViewCreateInfo info;
     info.image = image.image;
-    info.viewType = vk::ImageViewType::e2D;
+    info.viewType = get_view_type(image.type);
     info.format = image.format;
     info.components.r = vk::ComponentSwizzle::eIdentity;
     info.components.g = vk::ComponentSwizzle::eIdentity;
@@ -34,7 +57,7 @@ ImageView create_image_view(vk::Device device, RawImage& image, vk::ImageAspectF
     info.components.a = vk::ComponentSwizzle::eIdentity;
     info.subresourceRange.aspectMask = aspect;
     info.subresourceRange.baseArrayLayer = 0;
-    info.subresourceRange.layerCount = 1;
+    info.subresourceRange.layerCount = image.layers;
     info.subresourceRange.baseMipLevel = 0;
     info.subresourceRange.levelCount = 1;
 
@@ -50,11 +73,12 @@ void destroy_image_view(VulkanContext& ctx, ImageView& view) {
     view.id = static_cast<stl::uint64_t>(-1);
 }
 
-RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format) {
+RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format, uint32_t layers) {
     RawImage image;
     image.format = format;
     image.size = vk::Extent2D{ width, height };
     image.type = type;
+    image.layers = layers;
 
     vk::ImageCreateInfo info;
     info.imageType = vk::ImageType::e2D;
@@ -62,13 +86,14 @@ RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, Image
     info.extent.height = height;
     info.extent.depth = 1;
     info.mipLevels = 1;
-    info.arrayLayers = 1;
+    info.arrayLayers = layers;
 
     info.format = format;
     info.tiling = vk::ImageTiling::eOptimal;
     info.initialLayout = vk::ImageLayout::eUndefined;
     info.usage = get_image_usage(type);
     info.samples = vk::SampleCountFlagBits::e1;
+    info.flags = get_image_flags(type);
 
     VmaAllocationCreateInfo alloc_info{};
     alloc_info.usage = VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;
@@ -143,7 +168,7 @@ void transition_image_layout(vk::CommandBuffer cmd_buf, RawImage& image, vk::Ima
     barrier.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.layerCount = 1;
+    barrier.subresourceRange.layerCount = image.layers;
     barrier.subresourceRange.levelCount = 1;
 
     vk::PipelineStageFlags src_stage;
@@ -188,22 +213,52 @@ void transition_image_layout(vk::CommandBuffer cmd_buf, RawImage& image, vk::Ima
 }
 
 void copy_buffer_to_image(vk::CommandBuffer cmd_buf, RawBuffer& buffer, RawImage& image) {
+    copy_buffer_to_image(cmd_buf, whole_buffer_slice(buffer), image);
+}
 
+void copy_buffer_to_image(vk::CommandBuffer cmd_buf, BufferSlice slice, RawImage& image) {
     vk::BufferImageCopy copy_region;
-    copy_region.bufferOffset = 0;
+    copy_region.bufferOffset = slice.offset;
     // Values of 0 means tightly packed here
     copy_region.bufferRowLength = 0;
     copy_region.bufferImageHeight = 0;
 
     copy_region.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
     copy_region.imageSubresource.baseArrayLayer = 0;
-    copy_region.imageSubresource.layerCount = 1;
+    copy_region.imageSubresource.layerCount = image.layers;
     copy_region.imageSubresource.mipLevel = 0;
-    
-    copy_region.imageOffset = vk::Offset3D{0, 0, 0};
-    copy_region.imageExtent = vk::Extent3D{image.size.width, image.size.height, 1};
 
-    cmd_buf.copyBufferToImage(buffer.buffer, image.image, image.current_layout, copy_region);
+    copy_region.imageOffset = vk::Offset3D{ 0, 0, 0 };
+    copy_region.imageExtent = vk::Extent3D{ image.size.width, image.size.height, 1 };
+
+    cmd_buf.copyBufferToImage(slice.buffer, image.image, image.current_layout, copy_region);
+}
+
+void copy_buffer_to_image(vk::CommandBuffer cmd_buf, stl::span<BufferSlice> slices, RawImage& image) {
+    // #Tag(Mipmaps)
+    STL_ASSERT(slices.size() == image.layers, "Must specify as many buffer slices as there are array layers in the image");
+  
+    std::vector<vk::BufferImageCopy> copy_regions;
+    for (auto[idx, slice] : stl::enumerate(slices.begin(), slices.end())) {
+        vk::BufferImageCopy copy;
+        copy.bufferOffset = slice.offset;
+        copy.bufferRowLength = 0;
+        copy.bufferImageHeight = 0;
+        copy.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+        copy.imageSubresource.baseArrayLayer = idx;
+        // #Tag(Mipmaps)
+        copy.imageSubresource.layerCount = 1;
+        copy.imageSubresource.mipLevel = 0;
+
+        copy.imageOffset = vk::Offset3D{ 0, 0, 0 };
+        copy.imageExtent = vk::Extent3D{ image.size.width, image.size.height, 1 };
+
+        copy_regions.push_back(copy);
+    }
+
+    // Note that all buffers have to be the same
+    vk::Buffer src_buffer = slices.begin()->buffer;
+    cmd_buf.copyBufferToImage(src_buffer, image.image, image.current_layout, copy_regions.size(), copy_regions.data());
 }
 
 void destroy_image(VulkanContext& ctx, RawImage& image) {

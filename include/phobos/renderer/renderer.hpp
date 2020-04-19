@@ -42,12 +42,15 @@ private:
     void update_camera_data(FrameInfo& info, RenderGraph const* graph);
     void update_model_matrices(FrameInfo& info, RenderGraph const* graph, vk::DescriptorSet descriptor_set);
     void update_lights(FrameInfo& info, RenderGraph const* graph);
+    void update_skybox_ubo(FrameInfo& info, RenderGraph const* graph);
 
     vk::DescriptorSet get_fixed_descriptor_set(FrameInfo& frame, RenderGraph const* graph);
 
     Texture default_color;
     Texture default_specular;
     Texture default_normal;
+
+    Mesh skybox;
 };
 
 }

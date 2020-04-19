@@ -5,6 +5,7 @@
 #include <phobos/core/window_context.hpp>
 #include <phobos/renderer/renderer.hpp>
 #include <phobos/renderer/render_graph.hpp>
+#include <phobos/renderer/cubemap.hpp>
 #include <phobos/present/present_manager.hpp>
 #include <phobos/pipeline/pipeline.hpp>
 
@@ -43,6 +44,9 @@ protected:
 	Texture load_texture(std::string_view path);
 	// Loads as non-srgb
 	Texture load_texture_map(std::string_view path);
+	// Faces must be specified in order +X, -X, +Y, -Y, +Z, -Z
+	// = Right, Left, Up, Down, Back, Front
+	Cubemap load_cubemap(std::array<std::string_view, 6> faces);
 
 	// Returns the new size of the attachment
 	ImVec2 match_attachment_to_window_size(RenderAttachment& attachment);
@@ -56,8 +60,8 @@ protected:
 
 	stl::vector<Material> materials;
 
-	float time;
-	float frame_time;
+	double time;
+	double frame_time;
 
 	size_t width, height;
 	VulkanContext* ctx;

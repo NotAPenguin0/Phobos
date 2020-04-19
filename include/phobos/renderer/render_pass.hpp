@@ -11,6 +11,7 @@
 #include <phobos/renderer/mesh.hpp>
 #include <phobos/renderer/material.hpp>
 #include <phobos/renderer/light.hpp>
+#include <phobos/renderer/cubemap.hpp>
 
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
@@ -19,6 +20,7 @@
 
 namespace ph {
 
+// TODO: Draw commands should be separeted from the renderpass
 struct RenderPass {
     // This is the name that will be given to the vk object created from this renderpass
     std::string debug_name;
@@ -36,6 +38,7 @@ struct RenderPass {
     // Must have the same size as draw_commands
     stl::vector<glm::mat4> transforms;
 
+    Cubemap* skybox = nullptr;
 
     // This callback is called right when executing the renderpass
     std::function<void(CommandBuffer&)> callback = [](CommandBuffer&) {};

@@ -7,6 +7,7 @@
 #include <phobos/util/buffer_util.hpp>
 
 #include <stl/types.hpp>
+#include <stl/span.hpp>
 
 namespace ph {
 
@@ -16,13 +17,15 @@ enum class ImageType {
     ColorAttachment,
     DepthStencilAttachment,
     // Gets vk::ImageUsageFlagBits::eSampled and vk::ImageUsageFlagBits::eTransferDst
-    Texture 
+    Texture,
+    Cubemap
 };
 
 struct RawImage {
     ImageType type{};
     vk::Format format = vk::Format::eUndefined;
     vk::Extent2D size{};
+    uint32_t layers = 1;
     vk::ImageLayout current_layout = vk::ImageLayout::eUndefined;
     vk::Image image = nullptr;
     VmaAllocation memory = nullptr;
@@ -45,12 +48,15 @@ void destroy_image_view(VulkanContext& ctx, ImageView& view);
 // this function is thread safe
 stl::uint64_t get_unique_image_view_id();
 
-RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format);
+RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format, uint32_t layers = 1);
 
 void transition_image_layout(vk::CommandBuffer cmd_buf, vk::Image image, vk::Format format,
     vk::ImageLayout initial_layout, vk::ImageLayout final_layout);
 void transition_image_layout(vk::CommandBuffer cmd_buf, RawImage& image, vk::ImageLayout final_layout);
 void copy_buffer_to_image(vk::CommandBuffer cmd_buf, RawBuffer& buffer, RawImage& image);
+
+void copy_buffer_to_image(vk::CommandBuffer cmd_buf, BufferSlice slice, RawImage& image);
+void copy_buffer_to_image(vk::CommandBuffer cmd_buf, stl::span<BufferSlice> slices, RawImage& image);
 
 void destroy_image(VulkanContext& ctx, RawImage& image);
 

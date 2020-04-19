@@ -21,6 +21,7 @@ struct FrameInfo {
     // Other resources
     RawBuffer vp_ubo;
     RawBuffer lights;
+    RawBuffer skybox_ubo;
     DynamicGpuBuffer transform_ssbo;
 
     // Non-owning

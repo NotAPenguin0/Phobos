@@ -31,8 +31,16 @@ struct RawBuffer {
     VmaAllocation memory = nullptr;
 };
 
+struct BufferSlice {
+    vk::Buffer buffer = nullptr;
+    vk::DeviceSize offset = 0;
+    vk::DeviceSize range = 0;
+};
+
 RawBuffer create_buffer(VulkanContext& ctx, vk::DeviceSize size, BufferType buf_type);
 void destroy_buffer(VulkanContext& ctx, RawBuffer& buffer);
+
+BufferSlice whole_buffer_slice(RawBuffer& buffer);
 
 bool is_valid_buffer(RawBuffer const& buffer);
 

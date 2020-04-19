@@ -89,6 +89,7 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
             + sizeof(DirectionalLight) * meta::max_lights_per_type
             + 2 * sizeof(uint32_t), 
             BufferType::MappedUniformBuffer);
+        frame_info.skybox_ubo = create_buffer(ctx, sizeof(glm::mat4), BufferType::MappedUniformBuffer);
 
         // Create transform data SSBO for this frame
         frame_info.transform_ssbo = DynamicGpuBuffer(ctx);
@@ -171,6 +172,7 @@ void PresentManager::destroy() {
     for (auto& frame : frames) {
         destroy_buffer(context, frame.lights);
         destroy_buffer(context, frame.vp_ubo);
+        destroy_buffer(context, frame.skybox_ubo);
         frame.transform_ssbo.destroy();
         context.device.destroyFence(frame.fence);
         context.device.destroySemaphore(frame.image_available);
@@ -210,6 +212,7 @@ RenderAttachment PresentManager::get_swapchain_attachment(FrameInfo& frame) {
     img.memory = nullptr;
     img.size = context.swapchain.extent;
     img.format = context.swapchain.format.format;
+    img.layers = 1;
     return RenderAttachment::from_ref(&context, img, context.swapchain.image_views[frame.image_index]);
 }
 

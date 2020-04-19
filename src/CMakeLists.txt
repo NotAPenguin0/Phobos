@@ -24,6 +24,7 @@ set(PHOBOS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/render_graph.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/render_target.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/stb_image.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/renderer/cubemap.cpp"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/util/cmdbuf_util.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/cache_cleanup.cpp"

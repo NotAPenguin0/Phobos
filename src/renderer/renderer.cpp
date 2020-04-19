@@ -9,6 +9,7 @@
 
 // for std::byte
 #include <cstddef>
+#include <numeric>
 
 namespace ph {
 
@@ -24,12 +25,47 @@ static Texture create_single_color_texture(VulkanContext& ctx, uint8_t r, uint8_
     return Texture(info);
 }
 
+static Mesh create_skybox_mesh(VulkanContext& ctx) {
+    static constexpr float vertices[] = {
+        -1, -1, -1,   1, 1, -1, 
+        1, -1, -1,    1, 1, -1, 
+        -1, -1, -1,   -1, 1, -1, 
+        -1, -1, 1,    1, -1, 1, 
+        1, 1, 1,      1, 1, 1, 
+        -1, 1, 1,      -1, -1, 1, 
+        -1, 1, -1,    -1, -1, -1, 
+        -1, 1, 1,     -1, -1, -1, 
+        -1, -1, 1,   -1, 1, 1, 
+        1, 1, 1,    1, -1, -1, 
+        1, 1, -1,     1, -1, -1, 
+        1, 1, 1,      1, -1, 1, 
+        -1, -1, -1,  1, -1, -1, 
+        1, -1, 1,    1, -1, 1, 
+        -1, -1, 1,  -1, -1, -1, 
+        -1, 1, -1,     1, 1, 1,
+        1, 1, -1,     1, 1, 1, 
+        -1, 1, -1,     -1, 1, 1,
+    };
+    uint32_t indices[36];
+    std::iota(indices, indices + 36, 0);
+    ph::Mesh::CreateInfo cube_info;
+    cube_info.ctx = &ctx;
+    cube_info.vertices = vertices;
+    cube_info.vertex_count = 36;
+    cube_info.vertex_size = 3;
+    cube_info.indices = indices;
+    cube_info.index_count = 36;
+    return ph::Mesh(cube_info);
+}
+
 Renderer::Renderer(VulkanContext& context) : ctx(context) {
     ctx.event_dispatcher.add_listener(this);
 
     default_color = create_single_color_texture(ctx, 255, 0, 255, vk::Format::eR8G8B8A8Srgb);
     default_specular = create_single_color_texture(ctx, 255, 255, 255, vk::Format::eR8G8B8A8Srgb);
     default_normal = create_single_color_texture(ctx, 0, 255, 0, vk::Format::eR8G8B8A8Unorm);
+
+    skybox = create_skybox_mesh(ctx);
 } 
 
 void Renderer::render_frame(FrameInfo& info) {
@@ -151,14 +187,7 @@ void Renderer::execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer
     ph::RenderPass* pass_ptr = cmd_buffer.get_active_renderpass();
     STL_ASSERT(pass_ptr, "execute_draw_commands called outside of an active renderpass");
     ph::RenderPass& pass = *pass_ptr;
-    Pipeline pipeline = get_pipeline("generic", pass);
-    cmd_buffer.bind_pipeline(pipeline);
 
-    // Allocate fixed descriptor set and bind it
-    vk::DescriptorSet fixed_set = get_fixed_descriptor_set(frame, frame.render_graph);
-    update_model_matrices(frame, frame.render_graph, fixed_set);
-    cmd_buffer.bind_descriptor_set(0, fixed_set);
-    
     vk::Viewport viewport;
     viewport.x = 0;
     viewport.y = 0;
@@ -167,11 +196,41 @@ void Renderer::execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
     cmd_buffer.set_viewport(viewport);
-    
+
     vk::Rect2D scissor;
-    scissor.offset = vk::Offset2D{0, 0};
+    scissor.offset = vk::Offset2D{ 0, 0 };
     scissor.extent = vk::Extent2D{ pass.target.get_width(), pass.target.get_height() };
     cmd_buffer.set_scissor(scissor);
+
+    if (pass.skybox) {
+        update_skybox_ubo(frame, frame.render_graph);
+
+        Pipeline pipeline = get_pipeline("builtin_skybox", pass);
+        PipelineCreateInfo const* pci = ctx.pipelines.get_named_pipeline("builtin_skybox");
+        STL_ASSERT(pci, "skybox pipeline not created");
+        ShaderInfo const& shader_info = pci->shader_info;
+
+        cmd_buffer.bind_pipeline(pipeline);
+        DescriptorSetBinding bindings;
+        bindings.add(make_descriptor(shader_info["transform"], frame.skybox_ubo));
+        // TODO: Custom sampler?
+        bindings.add(make_descriptor(shader_info["skybox"], pass.skybox->view_handle(), frame.default_sampler));
+        vk::DescriptorSet set = get_descriptor(frame, pass, bindings);
+
+        cmd_buffer.bind_descriptor_set(0, set);
+        cmd_buffer.bind_vertex_buffer(0, skybox.get_vertices());
+        cmd_buffer.bind_index_buffer(skybox.get_indices());
+        cmd_buffer.draw_indexed(skybox.get_index_count(), 1, 0, 0, 0);
+        frame.draw_calls++;
+    }
+
+    Pipeline pipeline = get_pipeline("generic", pass);
+    cmd_buffer.bind_pipeline(pipeline);
+
+    // Allocate fixed descriptor set and bind it
+    vk::DescriptorSet fixed_set = get_fixed_descriptor_set(frame, frame.render_graph);
+    update_model_matrices(frame, frame.render_graph, fixed_set);
+    cmd_buffer.bind_descriptor_set(0, fixed_set);
 
     for (auto[idx, draw] : stl::enumerate(pass.draw_commands.begin(), pass.draw_commands.end())) {
         Mesh* mesh = draw.mesh;
@@ -183,8 +242,6 @@ void Renderer::execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer
         stl::uint32_t const transform_index = idx + pass.transforms_offset;
         cmd_buffer.push_constants(vk::ShaderStageFlagBits::eVertex, 0, sizeof(uint32_t), &transform_index);
         // First texture is diffuse, second is specular. See also get_fixed_descriptor_set() where we fill the textures array
-        // Note: We need some more sophisticated logic for this once we allow switching between raw colors and textures
-        // ==> We can implement raw colors as a 1x1 texture
         stl::uint32_t const texture_indices[] = { 3 * draw.material_index, 3 * draw.material_index + 1, 3 * draw.material_index + 2 };
         cmd_buffer.push_constants(vk::ShaderStageFlagBits::eFragment, sizeof(uint32_t), sizeof(texture_indices), &texture_indices);
         // Execute drawcall
@@ -207,6 +264,7 @@ void Renderer::destroy() {
     default_color.destroy();
     default_normal.destroy();
     default_specular.destroy();
+    skybox.destroy();
 }
 
 // this should not be in the renderer
@@ -265,6 +323,11 @@ void Renderer::update_lights(FrameInfo& info, RenderGraph const* graph) {
     uint32_t const counts[] = { (uint32_t)graph->point_lights.size(), (uint32_t)graph->directional_lights.size() };
     // Write data
     std::memcpy(data_ptr + counts_offset, &counts[0], sizeof(counts));
+}
+
+void Renderer::update_skybox_ubo(FrameInfo& info, RenderGraph const* graph) {
+    std::byte* data_ptr = map_memory(ctx, info.skybox_ubo);
+    std::memcpy(data_ptr, &graph->projection[0][0], 16 * sizeof(float));
 }
 
 vk::DescriptorSet Renderer::get_fixed_descriptor_set(FrameInfo& frame, RenderGraph const* graph) {
