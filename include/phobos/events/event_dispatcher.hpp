@@ -19,12 +19,10 @@ namespace ph {
 class EventDispatcher {
 public:
 
-    EVENT_DISPATCH_FUNCS(DynamicGpuBufferResizeEvent);
     EVENT_DISPATCH_FUNCS(WindowResizeEvent);
     EVENT_DISPATCH_FUNCS(SwapchainRecreateEvent);
 
 private:
-    EVENT_LISTENERS(DynamicGpuBufferResizeEvent, dynamic_gpu_buffer_resize);
     EVENT_LISTENERS(WindowResizeEvent, window_resize);
     EVENT_LISTENERS(SwapchainRecreateEvent, swapchain_recreate);
 };

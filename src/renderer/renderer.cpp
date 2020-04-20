@@ -59,8 +59,6 @@ static Mesh create_skybox_mesh(VulkanContext& ctx) {
 }
 
 Renderer::Renderer(VulkanContext& context) : ctx(context) {
-    ctx.event_dispatcher.add_listener(this);
-
     default_color = create_single_color_texture(ctx, 255, 0, 255, vk::Format::eR8G8B8A8Srgb);
     default_specular = create_single_color_texture(ctx, 255, 255, 255, vk::Format::eR8G8B8A8Srgb);
     default_normal = create_single_color_texture(ctx, 0, 255, 0, vk::Format::eR8G8B8A8Unorm);
@@ -230,9 +228,10 @@ void Renderer::execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer
     Pipeline pipeline = get_pipeline("generic", pass);
     cmd_buffer.bind_pipeline(pipeline);
 
+    update_model_matrices(cmd_buffer, frame.render_graph);
+
     // Allocate fixed descriptor set and bind it
     vk::DescriptorSet fixed_set = get_fixed_descriptor_set(frame, frame.render_graph);
-    update_model_matrices(frame, frame.render_graph, fixed_set);
     cmd_buffer.bind_descriptor_set(0, fixed_set);
 
     for (auto[idx, draw] : stl::enumerate(pass.draw_commands.begin(), pass.draw_commands.end())) {
@@ -263,50 +262,37 @@ Pipeline Renderer::get_pipeline(std::string_view name, RenderPass& pass) {
 }
 
 void Renderer::destroy() {
-    ctx.event_dispatcher.remove_listener(this);
     default_color.destroy();
     default_normal.destroy();
     default_specular.destroy();
     skybox.destroy();
 }
 
-// this should not be in the renderer
-void Renderer::on_event(DynamicGpuBufferResizeEvent const& e) {
-    vk::DescriptorBufferInfo buffer;
-    buffer.buffer = e.buffer_handle;
-    buffer.offset = 0;
-    buffer.range = e.new_size;
-    vk::WriteDescriptorSet write;
-    write.pBufferInfo = &buffer;
-    // TODO: This is wrong
-    write.dstBinding = 1;
-    write.descriptorCount = 1;
-    write.descriptorType = vk::DescriptorType::eStorageBuffer;
-    write.dstSet = e.descriptor_set;
-    write.dstArrayElement = 0;
-    ctx.device.updateDescriptorSets(write, nullptr);
-}
-
 void Renderer::update_camera_data(CommandBuffer& cmd_buf, RenderGraph const* graph) {
     glm::mat4 pv = graph->projection * graph->view; 
-    // Note that map_memory is a cheap operation here since vp_ubo.type is MappedUniformBuffer. In this case, map_memory will
-    // immediately return the already stored pointer
-    per_frame_buffers.camera = cmd_buf.allocate_scratch_ubo(2 * sizeof(glm::mat4) + sizeof(glm::vec4));
-    std::byte* data_ptr = per_frame_buffers.camera.data;
+
+    BufferSlice ubo = cmd_buf.allocate_scratch_ubo(2 * sizeof(glm::mat4) + sizeof(glm::vec4));
+    std::byte* data_ptr = ubo.data;
     std::memcpy(data_ptr, &pv[0][0], 16 * sizeof(float));  
     std::memcpy(data_ptr + 16 * sizeof(float), &graph->view[0][0], 16 * sizeof(float));
     std::memcpy(data_ptr + 32 * sizeof(float), &graph->camera_pos.x, sizeof(glm::vec3));
+    per_frame_buffers.camera = ubo;
 }
 
-void Renderer::update_model_matrices(FrameInfo& info, RenderGraph const* graph, vk::DescriptorSet descriptor_set) {
+void Renderer::update_model_matrices(CommandBuffer& cmd_buf, RenderGraph const* graph) {
+    vk::DeviceSize size = 0;
     for (auto const& pass : graph->passes) {
-        // Don't write when there are no transforms to avoid out of bounds indexing
-        if (!pass.transforms.empty()) {
-            constexpr stl::size_t sz = sizeof(pass.transforms[0]);
-            info.transform_ssbo.write_data(descriptor_set, &pass.transforms[0], 
-                pass.transforms.size() * sz, pass.transforms_offset * sz);
-        }
+        size += pass.transforms.size() * sizeof(glm::mat4);
     }
+
+    vk::DeviceSize offset = 0;
+    BufferSlice buffer = cmd_buf.allocate_scratch_ssbo(size);
+    for (auto const& pass : graph->passes) {
+        vk::DeviceSize this_size = pass.transforms.size() * sizeof(glm::mat4);
+        std::memcpy(buffer.data + offset, pass.transforms.data(), this_size);
+        offset += this_size;
+    }
+    per_frame_buffers.transform_ssbo = buffer;
 }
 
 void Renderer::update_lights(CommandBuffer& cmd_buf, RenderGraph const* graph) {
@@ -345,7 +331,7 @@ vk::DescriptorSet Renderer::get_fixed_descriptor_set(FrameInfo& frame, RenderGra
 
     DescriptorSetBinding bindings;
     bindings.add(make_descriptor(shader_info["camera"], per_frame_buffers.camera));
-    bindings.add(make_descriptor(shader_info["transforms"], frame.transform_ssbo.buffer_handle(), frame.transform_ssbo.size()));
+    bindings.add(make_descriptor(shader_info["transforms"], per_frame_buffers.transform_ssbo));
     stl::vector<ImageView> texture_views;
     texture_views.reserve(graph->materials.size() * 4);
     for (auto const& mat : graph->materials) {

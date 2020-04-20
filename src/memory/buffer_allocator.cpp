@@ -64,7 +64,7 @@ BufferSlice BufferAllocator::allocate(vk::DeviceSize size) {
 	current_offset += aligned_size;
 	
 	std::byte* data = base_pointer + offset;
-	return BufferSlice{ buffer.buffer, offset, size, data };
+	return BufferSlice{ buffer.buffer, offset, size, buffer.memory, data };
 }
 
 void BufferAllocator::reset() {

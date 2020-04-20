@@ -1,7 +1,6 @@
 #include <phobos/present/present_manager.hpp>
 
 #include <phobos/util/buffer_util.hpp>
-#include <phobos/renderer/dynamic_gpu_buffer.hpp>
 #include <phobos/renderer/render_graph.hpp>
 #include <phobos/renderer/meta.hpp>
 #include <phobos/util/image_util.hpp>
@@ -81,24 +80,14 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         frame_info.image_available = ctx.device.createSemaphore(semaphore_info);
         frame_info.render_finished = ctx.device.createSemaphore(semaphore_info);
 
-        // Create camera UBO for this frame
-        // Note that the camera position is a vec3, but it is aligned to a vec4
-        frame_info.vp_ubo = create_buffer(ctx, 2 * sizeof(glm::mat4) + sizeof(glm::vec4), BufferType::MappedUniformBuffer);
-        frame_info.lights = create_buffer(ctx, 
-            sizeof(PointLight) * meta::max_lights_per_type 
-            + sizeof(DirectionalLight) * meta::max_lights_per_type
-            + 2 * sizeof(uint32_t), 
-            BufferType::MappedUniformBuffer);
-        frame_info.skybox_ubo = create_buffer(ctx, sizeof(glm::mat4), BufferType::MappedUniformBuffer);
-
         vk::DeviceSize const ubo_alignment = context.physical_device.properties.limits.minUniformBufferOffsetAlignment;
         frame_info.ubo_allocator = BufferAllocator(&context, 128 * 1024, ubo_alignment, BufferType::MappedUniformBuffer);
 
-        // Create transform data SSBO for this frame
-        frame_info.transform_ssbo = DynamicGpuBuffer(ctx);
-        // Start with 32 transforms (arbitrary number)
-        static constexpr stl::size_t transforms_begin_size = 32;
-        frame_info.transform_ssbo.create(transforms_begin_size * sizeof(glm::mat4));
+        vk::DeviceSize const ssbo_alignment = context.physical_device.properties.limits.minStorageBufferOffsetAlignment;
+        frame_info.ssbo_allocator = BufferAllocator(&context, 256 * 1024, ssbo_alignment, BufferType::StorageBufferDynamic);
+
+        frame_info.vbo_allocator = BufferAllocator(&context, 64 * 1024, 16, BufferType::VertexBufferDynamic);
+        frame_info.ibo_allocator = BufferAllocator(&context, 64 * 1024, 16, BufferType::IndexBufferDynamic);
     }
 }
 
@@ -109,6 +98,9 @@ FrameInfo& PresentManager::get_frame_info() {
     frame.image_index = image_index;
     frame.draw_calls = 0;
     frame.ubo_allocator.reset();
+    frame.ssbo_allocator.reset();
+    frame.vbo_allocator.reset();
+    frame.ibo_allocator.reset();
     return frame;
 }
 
@@ -174,15 +166,14 @@ void PresentManager::wait_for_available_frame() {
 void PresentManager::destroy() {
     context.device.destroySampler(default_sampler);
     for (auto& frame : frames) {
-        destroy_buffer(context, frame.lights);
-        destroy_buffer(context, frame.vp_ubo);
-        destroy_buffer(context, frame.skybox_ubo);
-        frame.transform_ssbo.destroy();
         context.device.destroyFence(frame.fence);
         context.device.destroySemaphore(frame.image_available);
         context.device.destroySemaphore(frame.render_finished);
         frame.descriptor_cache.get_all().clear();
         frame.ubo_allocator.destroy();
+        frame.ssbo_allocator.destroy();
+        frame.vbo_allocator.destroy();
+        frame.ibo_allocator.destroy();
     }
     for (auto&[name, attachment] : attachments) {
         attachment.destroy();

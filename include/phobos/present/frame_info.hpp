@@ -4,7 +4,6 @@
 #include <vulkan/vulkan.hpp>
 #include <stl/vector.hpp>
 
-#include <phobos/renderer/dynamic_gpu_buffer.hpp>
 #include <phobos/renderer/render_attachment.hpp>
 #include <phobos/renderer/render_target.hpp>
 #include <phobos/pipeline/pipeline.hpp>
@@ -19,12 +18,6 @@ class RenderGraph;
 struct FrameInfo {
     RenderGraph* render_graph;
     PresentManager* present_manager;
-
-    // Other resources
-    RawBuffer vp_ubo;
-    RawBuffer lights;
-    RawBuffer skybox_ubo;
-    DynamicGpuBuffer transform_ssbo;
 
     // Non-owning
     vk::Sampler default_sampler;
@@ -52,6 +45,9 @@ private:
     vk::DescriptorPool descriptor_pool;
 
     BufferAllocator ubo_allocator;
+    BufferAllocator ssbo_allocator;
+    BufferAllocator vbo_allocator;
+    BufferAllocator ibo_allocator;
 };
 
 }

@@ -36,6 +36,8 @@ struct BufferSlice {
     vk::DeviceSize offset = 0;
     vk::DeviceSize range = 0;
 
+    VmaAllocation memory = nullptr;
+
     // Only present on buffers that are mappable
     std::byte* data = nullptr;
 };
@@ -55,6 +57,7 @@ std::byte* map_memory(VulkanContext& ctx, RawBuffer& buffer);
 // Flushes memory owned by the buffer passed in. For memory that is not host-coherent, this is required to make
 // changes visible to the gpu after writing to mapped memory. If you want to flush the whole mapped range, size can be VK_WHOLE_SIZE
 void flush_memory(VulkanContext& ctx, RawBuffer& buffer, vk::DeviceSize offset, vk::DeviceSize size);
+void flush_memory(VulkanContext& ctx, BufferSlice slice);
 void unmap_memory(VulkanContext& ctx, RawBuffer& buffer);
 
 // Resizes the raw buffer to be able to hold at least requested_size bytes. Returns whether a reallocation occured. 

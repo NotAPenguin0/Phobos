@@ -31,8 +31,6 @@ static ph::RawImage g_FontImage;
 static ph::ImageView g_FontView;
 static ph::RawBuffer g_UploadBuffer;
 static vk::DescriptorPool g_DescriptorPool;
-static stl::vector<ph::RawBuffer> g_VertexBuffers;
-static stl::vector<ph::RawBuffer> g_IndexBuffers;
 static std::unordered_map<ImTextureID, ph::ImageView> g_Textures;
 
 // glsl_shader.vert, compiled with:
@@ -217,12 +215,6 @@ static void ImGui_ImplPhobos_CreateDescriptorPool(ImGui_ImplPhobos_InitInfo* ini
     g_DescriptorPool = init_info->context->device.createDescriptorPool(pool_info);
 }
 
-void ImGui_ImplPhobos_InitBuffers(ImGui_ImplPhobos_InitInfo* init_info) {
-    g_VertexBuffers.resize(init_info->max_frames_in_flight);
-    g_IndexBuffers.resize(init_info->max_frames_in_flight);
-}
-
-
 void ImGui_ImplPhobos_Init(ImGui_ImplPhobos_InitInfo* init_info) {
     g_Context = init_info->context;
     ImGuiIO& io = ImGui::GetIO();
@@ -231,15 +223,13 @@ void ImGui_ImplPhobos_Init(ImGui_ImplPhobos_InitInfo* init_info) {
 
     ImGui_ImplPhobos_CreateSampler(init_info->context);
     ImGui_ImplPhobos_CreatePipeline(init_info->context);
-    ImGui_ImplPhobos_InitBuffers(init_info);
     ImGui_ImplPhobos_CreateDescriptorPool(init_info);
 }
 
-
-void ImGui_ImplPhobos_UpdateBuffers(ph::RawBuffer& vertex, ph::RawBuffer& index, ImDrawData* draw_data) {
+void ImGui_ImplPhobos_UpdateBuffers(ph::BufferSlice& vertex, ph::BufferSlice& index, ImDrawData* draw_data) {
     // Map the buffer memory
-    ImDrawVert* vtx_mem = reinterpret_cast<ImDrawVert*>(ph::map_memory(*g_Context, vertex));
-    ImDrawIdx* idx_mem = reinterpret_cast<ImDrawIdx*>(ph::map_memory(*g_Context, index));
+    ImDrawVert* vtx_mem = reinterpret_cast<ImDrawVert*>(vertex.data);
+    ImDrawIdx* idx_mem = reinterpret_cast<ImDrawIdx*>(index.data);
 
     for (size_t i = 0; i < (size_t)draw_data->CmdListsCount; ++i) {
         ImDrawList const* cmd_list = draw_data->CmdLists[i];
@@ -252,11 +242,8 @@ void ImGui_ImplPhobos_UpdateBuffers(ph::RawBuffer& vertex, ph::RawBuffer& index,
     }
 
     // Flush the mapped memory range
-    ph::flush_memory(*g_Context, vertex, 0, vertex.size);
-    ph::flush_memory(*g_Context, index, 0, index.size);
-    // Unmap memory
-    ph::unmap_memory(*g_Context, vertex);
-    ph::unmap_memory(*g_Context, index);
+    ph::flush_memory(*g_Context, vertex);
+    ph::flush_memory(*g_Context, index);
 }
 
 void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame, ph::RenderGraph* render_graph, ph::Renderer* renderer) {
@@ -266,26 +253,6 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
     if (fb_width <= 0 || fb_height <= 0 || draw_data->TotalVtxCount == 0) {
         return;
     }
-
-    ph::RawBuffer& vertex_buffer = g_VertexBuffers[frame->frame_index];
-    ph::RawBuffer& index_buffer = g_IndexBuffers[frame->frame_index];
-
-    size_t const vertex_size = draw_data->TotalVtxCount * sizeof(ImDrawVert);
-    size_t const index_size = draw_data->TotalIdxCount * sizeof(ImDrawIdx);
-
-    auto handle_buffer_resize = [](ph::RawBuffer& buffer, size_t size, ph::BufferType type) {
-        if (!ph::is_valid_buffer(buffer)) {
-            buffer = ph::create_buffer(*g_Context, size, type);
-        }
-        else {
-            ph::ensure_buffer_size(*g_Context, buffer, size);
-        }
-    };
-
-    handle_buffer_resize(vertex_buffer, vertex_size, ph::BufferType::VertexBufferDynamic);
-    handle_buffer_resize(index_buffer, index_size, ph::BufferType::IndexBufferDynamic);
-
-    ImGui_ImplPhobos_UpdateBuffers(vertex_buffer, index_buffer, draw_data);
 
     ph::RenderPass render_pass;
     render_pass.debug_name = "Imgui - Renderpass";
@@ -320,11 +287,16 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
         ph::ShaderInfo const& shader_info = g_Context->pipelines.get_named_pipeline("ImGui_ImplPhobos_pipeline")->shader_info;
 
         cmd_buf.bind_pipeline(pipeline);
-        ph::RawBuffer& vtx_buffer = g_VertexBuffers[frame->frame_index];
-        ph::RawBuffer& idx_buffer = g_IndexBuffers[frame->frame_index];
 
-        cmd_buf.bind_vertex_buffer(0, vtx_buffer.buffer);
-        cmd_buf.bind_index_buffer(idx_buffer.buffer, 0, sizeof(ImDrawIdx) == 2 ? vk::IndexType::eUint16 : vk::IndexType::eUint32);
+        // Write vertex and index buffers
+        ph::BufferSlice vertex_buffer = cmd_buf.allocate_scratch_vbo(draw_data->TotalVtxCount * sizeof(ImDrawVert));
+        ph::BufferSlice index_buffer = cmd_buf.allocate_scratch_ibo(draw_data->TotalIdxCount * sizeof(ImDrawIdx));
+
+        ImGui_ImplPhobos_UpdateBuffers(vertex_buffer, index_buffer, draw_data);
+
+        cmd_buf.bind_vertex_buffer(0, vertex_buffer);
+        cmd_buf.bind_index_buffer(index_buffer, sizeof(ImDrawIdx) == 2 ? vk::IndexType::eUint16 : vk::IndexType::eUint32);
+
         vk::Viewport viewport;
         viewport.x = 0;
         viewport.y = 0;
@@ -446,16 +418,6 @@ void ImGui_ImplPhobos_Shutdown() {
     ph::destroy_image_view(*g_Context, g_FontView);
     ph::destroy_image(*g_Context, g_FontImage);
     g_Context->device.destroyDescriptorPool(g_DescriptorPool);
-
-    for (auto& buf : g_VertexBuffers) {
-        ph::destroy_buffer(*g_Context, buf);
-    }
-    g_VertexBuffers.clear();
-
-    for (auto& buf : g_IndexBuffers) {
-        ph::destroy_buffer(*g_Context, buf);
-    }
-    g_IndexBuffers.clear();
 
     g_Textures.clear();
 }

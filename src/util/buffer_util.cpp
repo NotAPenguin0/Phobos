@@ -52,6 +52,8 @@ static VmaAllocationCreateFlags get_allocation_flags(BufferType buf_type) {
     switch (buf_type) {
     case BufferType::MappedUniformBuffer: return VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_MAPPED_BIT;
     case BufferType::StorageBufferDynamic: return VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    case BufferType::IndexBufferDynamic: return VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    case BufferType::VertexBufferDynamic: return VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_MAPPED_BIT;
     default:
         return {};
     }
@@ -124,7 +126,7 @@ RawBuffer create_buffer(VulkanContext& ctx, vk::DeviceSize size, BufferType buf_
 }
 
 BufferSlice whole_buffer_slice(VulkanContext& ctx, RawBuffer& buffer) {
-    return BufferSlice{ buffer.buffer, 0, buffer.size, nullptr};
+    return BufferSlice{ buffer.buffer, 0, buffer.size, buffer.memory, nullptr};
 }
 
 void destroy_buffer(VulkanContext& ctx, RawBuffer& buffer) {
@@ -174,6 +176,10 @@ void flush_memory(VulkanContext& ctx, RawBuffer& buffer, vk::DeviceSize offset, 
     }
 
     vmaFlushAllocation(ctx.allocator, buffer.memory, offset, size);
+}
+
+void flush_memory(VulkanContext& ctx, BufferSlice slice) {
+    vmaFlushAllocation(ctx.allocator, slice.memory, slice.offset, slice.range);
 }
 
 void unmap_memory(VulkanContext& ctx, RawBuffer& buffer) {

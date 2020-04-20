@@ -49,6 +49,10 @@ CommandBuffer& CommandBuffer::bind_vertex_buffer(uint32_t first_binding, vk::Buf
     return *this;
 }
 
+CommandBuffer& CommandBuffer::bind_vertex_buffer(uint32_t first_binding, BufferSlice slice) {
+    return bind_vertex_buffer(first_binding, slice.buffer, slice.offset);
+}
+
 CommandBuffer& CommandBuffer::bind_vertex_buffers(uint32_t first_binding, stl::span<vk::Buffer> buffers, stl::span<vk::DeviceSize> offsets) {
     STL_ASSERT(active_renderpass, "bind_vertex_buffers called without an active renderpass");
     STL_ASSERT(buffers.size() > 0, "bind_vertex_buffers called without buffers");
@@ -62,6 +66,10 @@ CommandBuffer& CommandBuffer::bind_index_buffer(vk::Buffer buffer, vk::DeviceSiz
     STL_ASSERT(active_renderpass, "bind_index_buffer called without an active renderpass");
     cmd_buf.bindIndexBuffer(buffer, offset, type);
     return *this;
+}
+
+CommandBuffer& CommandBuffer::bind_index_buffer(BufferSlice slice, vk::IndexType type) {
+    return bind_index_buffer(slice.buffer, slice.offset, type);
 }
 
 CommandBuffer& CommandBuffer::push_constants(vk::ShaderStageFlags stage_flags, uint32_t offset, uint32_t size, void const* data) {
@@ -79,6 +87,18 @@ CommandBuffer& CommandBuffer::draw_indexed(uint32_t index_count, uint32_t instan
 
 BufferSlice CommandBuffer::allocate_scratch_ubo(vk::DeviceSize size) {
     return frame->ubo_allocator.allocate(size);
+}
+
+BufferSlice CommandBuffer::allocate_scratch_ssbo(vk::DeviceSize size) {
+    return frame->ssbo_allocator.allocate(size);
+}
+
+BufferSlice CommandBuffer::allocate_scratch_vbo(vk::DeviceSize size) {
+    return frame->vbo_allocator.allocate(size);
+}
+
+BufferSlice CommandBuffer::allocate_scratch_ibo(vk::DeviceSize size) {
+    return frame->ibo_allocator.allocate(size);
 }
 
 RenderPass* CommandBuffer::get_active_renderpass() {

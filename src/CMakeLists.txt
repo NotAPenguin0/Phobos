@@ -20,7 +20,6 @@ set(PHOBOS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/command_buffer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/renderer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/mesh.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/renderer/dynamic_gpu_buffer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/texture.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/render_attachment.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/render_graph.cpp"
