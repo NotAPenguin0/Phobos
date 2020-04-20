@@ -120,8 +120,6 @@ public:
 
 		main_pass.skybox = &skybox;
 
-		// Add draw commands
-
 		// Dragon
 		main_pass.draw_commands.push_back(ph::RenderPass::DrawCommand{ &dragon, dragon_material });
 		glm::mat4 dragon_transform = glm::translate(glm::mat4(1.0f), dragon_pos);

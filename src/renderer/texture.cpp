@@ -46,7 +46,7 @@ void Texture::create(CreateInfo const& info) {
     vk::CommandBuffer cmd_buf = begin_single_time_command_buffer(*ctx);
     // Transition image layout to TransferDst so we can start fillig the image with data
     transition_image_layout(cmd_buf, image, vk::ImageLayout::eTransferDstOptimal);
-    copy_buffer_to_image(cmd_buf, staging_buffer, image);
+    copy_buffer_to_image(cmd_buf, whole_buffer_slice(*ctx, staging_buffer), image);
     // Transition image layout to ShaderReadOnlyOptimal so we can start sampling from it
     transition_image_layout(cmd_buf, image, vk::ImageLayout::eShaderReadOnlyOptimal);
     end_single_time_command_buffer(*ctx, cmd_buf);

@@ -60,7 +60,7 @@ TestApplication::TestApplication(size_t width, size_t height, const char* title)
     window = create_window_context(title, width, height);
     ph::AppSettings settings;
     settings.enable_validation_layers = true;
-    settings.version = ph::Version{ 0, 0, 2 };
+    settings.version = ph::Version{ 0, 0, 3 };
     ctx = create_vulkan_context(*window, &logger, settings);
 
     present = stl::make_unique<PresentManager>(*ctx);

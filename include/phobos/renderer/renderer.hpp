@@ -34,15 +34,22 @@ public:
 protected:
     void on_event(DynamicGpuBufferResizeEvent const& e) override;
 private:
+    // Reset every frame
+    struct PerFrameBuffers {
+        BufferSlice camera;
+        BufferSlice lights;
+        BufferSlice skybox_data;
+    } per_frame_buffers;
+
     VulkanContext& ctx;
 
     vk::DescriptorSet get_descriptor(FrameInfo& frame, DescriptorSetLayoutCreateInfo const& set_layout, 
         DescriptorSetBinding set_binding, void* pNext = nullptr);
 
-    void update_camera_data(FrameInfo& info, RenderGraph const* graph);
+    void update_camera_data(CommandBuffer& cmd_buf, RenderGraph const* graph);
     void update_model_matrices(FrameInfo& info, RenderGraph const* graph, vk::DescriptorSet descriptor_set);
-    void update_lights(FrameInfo& info, RenderGraph const* graph);
-    void update_skybox_ubo(FrameInfo& info, RenderGraph const* graph);
+    void update_lights(CommandBuffer& cmd_buf, RenderGraph const* graph);
+    void update_skybox_ubo(CommandBuffer& cmd_buf, RenderGraph const* graph);
 
     vk::DescriptorSet get_fixed_descriptor_set(FrameInfo& frame, RenderGraph const* graph);
 

@@ -212,10 +212,6 @@ void transition_image_layout(vk::CommandBuffer cmd_buf, RawImage& image, vk::Ima
     image.current_layout = final_layout;
 }
 
-void copy_buffer_to_image(vk::CommandBuffer cmd_buf, RawBuffer& buffer, RawImage& image) {
-    copy_buffer_to_image(cmd_buf, whole_buffer_slice(buffer), image);
-}
-
 void copy_buffer_to_image(vk::CommandBuffer cmd_buf, BufferSlice slice, RawImage& image) {
     vk::BufferImageCopy copy_region;
     copy_region.bufferOffset = slice.offset;

@@ -116,13 +116,17 @@ void VulkanContext::destroy() {
     device.destroySwapchainKHR(swapchain.handle);
     device.destroy();
     instance.destroySurfaceKHR(physical_device.surface_details.handle);
-    instance.destroyDebugUtilsMessengerEXT(debug_messenger, nullptr, dynamic_dispatcher);
+    if (debug_messenger) {
+        instance.destroyDebugUtilsMessengerEXT(debug_messenger, nullptr, dynamic_dispatcher);
+    }
     instance.destroy();
 }
 
 VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterface* logger, AppSettings settings) {
     VulkanContext* context = new VulkanContext;
     context->window_ctx = &window_ctx;
+
+    context->has_validation = settings.enable_validation_layers;
 
     mimas_set_window_resize_callback(window_ctx.handle, window_resize_callback, context);
 

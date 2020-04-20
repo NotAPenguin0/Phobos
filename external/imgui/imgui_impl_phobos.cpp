@@ -417,7 +417,7 @@ bool ImGui_ImplPhobos_CreateFontsTexture(vk::CommandBuffer cmd_buf) {
 
     // Copy to image
     ph::transition_image_layout(cmd_buf, g_FontImage, vk::ImageLayout::eTransferDstOptimal);
-    ph::copy_buffer_to_image(cmd_buf, g_UploadBuffer, g_FontImage);
+    ph::copy_buffer_to_image(cmd_buf, ph::whole_buffer_slice(*g_Context, g_UploadBuffer), g_FontImage);
     ph::transition_image_layout(cmd_buf, g_FontImage, vk::ImageLayout::eShaderReadOnlyOptimal);
 
     return true;

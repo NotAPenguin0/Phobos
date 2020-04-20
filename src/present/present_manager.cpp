@@ -91,6 +91,9 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
             BufferType::MappedUniformBuffer);
         frame_info.skybox_ubo = create_buffer(ctx, sizeof(glm::mat4), BufferType::MappedUniformBuffer);
 
+        vk::DeviceSize const ubo_alignment = context.physical_device.properties.limits.minUniformBufferOffsetAlignment;
+        frame_info.ubo_allocator = BufferAllocator(&context, 128 * 1024, ubo_alignment, BufferType::MappedUniformBuffer);
+
         // Create transform data SSBO for this frame
         frame_info.transform_ssbo = DynamicGpuBuffer(ctx);
         // Start with 32 transforms (arbitrary number)
@@ -105,6 +108,7 @@ FrameInfo& PresentManager::get_frame_info() {
     frame.frame_index = frame_index;
     frame.image_index = image_index;
     frame.draw_calls = 0;
+    frame.ubo_allocator.reset();
     return frame;
 }
 
@@ -178,6 +182,7 @@ void PresentManager::destroy() {
         context.device.destroySemaphore(frame.image_available);
         context.device.destroySemaphore(frame.render_finished);
         frame.descriptor_cache.get_all().clear();
+        frame.ubo_allocator.destroy();
     }
     for (auto&[name, attachment] : attachments) {
         attachment.destroy();

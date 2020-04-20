@@ -35,14 +35,19 @@ struct BufferSlice {
     vk::Buffer buffer = nullptr;
     vk::DeviceSize offset = 0;
     vk::DeviceSize range = 0;
+
+    // Only present on buffers that are mappable
+    std::byte* data = nullptr;
 };
 
 RawBuffer create_buffer(VulkanContext& ctx, vk::DeviceSize size, BufferType buf_type);
 void destroy_buffer(VulkanContext& ctx, RawBuffer& buffer);
 
-BufferSlice whole_buffer_slice(RawBuffer& buffer);
+BufferSlice whole_buffer_slice(VulkanContext& ctx, RawBuffer& buffer);
 
 bool is_valid_buffer(RawBuffer const& buffer);
+
+bool has_persistent_mapping(RawBuffer const& buffer);
 
 // For a persistently mapped buffer, this does not remap memory, and instead returns the pointer immediately.
 // Persistently mapped buffers are buffers with BufferType MappedUniformBuffer and StorageBufferDynamic

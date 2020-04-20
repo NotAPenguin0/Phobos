@@ -215,7 +215,7 @@ void RenderGraph::create_render_passes() {
         else { 
             // Create the renderpass and insert it into the caches
             vk::RenderPass render_pass = ctx->device.createRenderPass(info);
-            if (it->debug_name != "") {
+            if (ctx->has_validation && it->debug_name != "") {
                 vk::DebugUtilsObjectNameInfoEXT name_info;
                 name_info.pObjectName = it->debug_name.c_str();
                 name_info.objectHandle = memory_util::vk_to_u64(render_pass);

@@ -25,6 +25,9 @@ struct VulkanContext {
     vk::DispatchLoaderDynamic dynamic_dispatcher;
     // Only available if enable_validation_layers is set to true
     vk::DebugUtilsMessengerEXT debug_messenger;
+
+    bool has_validation = false;
+
     PhysicalDeviceDetails physical_device;
     vk::Device device;
 

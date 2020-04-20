@@ -1,10 +1,11 @@
 #include <phobos/renderer/command_buffer.hpp>
 
 #include <phobos/renderer/render_pass.hpp>
+#include <phobos/present/frame_info.hpp>
 
 namespace ph {
 
-CommandBuffer::CommandBuffer(vk::CommandBuffer cbuf) : cmd_buf(cbuf) {
+CommandBuffer::CommandBuffer(FrameInfo* frame, vk::CommandBuffer cbuf) : frame(frame), cmd_buf(cbuf) {
 
 }
 
@@ -76,6 +77,9 @@ CommandBuffer& CommandBuffer::draw_indexed(uint32_t index_count, uint32_t instan
     return *this;
 }
 
+BufferSlice CommandBuffer::allocate_scratch_ubo(vk::DeviceSize size) {
+    return frame->ubo_allocator.allocate(size);
+}
 
 RenderPass* CommandBuffer::get_active_renderpass() {
     return active_renderpass;

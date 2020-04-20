@@ -69,11 +69,14 @@ Renderer::Renderer(VulkanContext& context) : ctx(context) {
 } 
 
 void Renderer::render_frame(FrameInfo& info) {
-    CommandBuffer cmd_buffer { info.command_buffer };
+    // Reset buffers struct
+    per_frame_buffers = {};
+
+    CommandBuffer cmd_buffer { &info, info.command_buffer };
     cmd_buffer.begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 
-    update_camera_data(info, info.render_graph);
-    update_lights(info, info.render_graph);
+    update_camera_data(cmd_buffer, info.render_graph);
+    update_lights(cmd_buffer, info.render_graph);
 
     for (auto& pass : info.render_graph->passes) {
         cmd_buffer.begin_renderpass(pass);
@@ -203,7 +206,7 @@ void Renderer::execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer
     cmd_buffer.set_scissor(scissor);
 
     if (pass.skybox) {
-        update_skybox_ubo(frame, frame.render_graph);
+        update_skybox_ubo(cmd_buffer, frame.render_graph);
 
         Pipeline pipeline = get_pipeline("builtin_skybox", pass);
         PipelineCreateInfo const* pci = ctx.pipelines.get_named_pipeline("builtin_skybox");
@@ -212,7 +215,7 @@ void Renderer::execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer
 
         cmd_buffer.bind_pipeline(pipeline);
         DescriptorSetBinding bindings;
-        bindings.add(make_descriptor(shader_info["transform"], frame.skybox_ubo));
+        bindings.add(make_descriptor(shader_info["transform"], per_frame_buffers.skybox_data));
         // TODO: Custom sampler?
         bindings.add(make_descriptor(shader_info["skybox"], pass.skybox->view_handle(), frame.default_sampler));
         vk::DescriptorSet set = get_descriptor(frame, pass, bindings);
@@ -284,11 +287,12 @@ void Renderer::on_event(DynamicGpuBufferResizeEvent const& e) {
     ctx.device.updateDescriptorSets(write, nullptr);
 }
 
-void Renderer::update_camera_data(FrameInfo& info, RenderGraph const* graph) {
+void Renderer::update_camera_data(CommandBuffer& cmd_buf, RenderGraph const* graph) {
     glm::mat4 pv = graph->projection * graph->view; 
     // Note that map_memory is a cheap operation here since vp_ubo.type is MappedUniformBuffer. In this case, map_memory will
     // immediately return the already stored pointer
-    std::byte* data_ptr = map_memory(ctx, info.vp_ubo);
+    per_frame_buffers.camera = cmd_buf.allocate_scratch_ubo(2 * sizeof(glm::mat4) + sizeof(glm::vec4));
+    std::byte* data_ptr = per_frame_buffers.camera.data;
     std::memcpy(data_ptr, &pv[0][0], 16 * sizeof(float));  
     std::memcpy(data_ptr + 16 * sizeof(float), &graph->view[0][0], 16 * sizeof(float));
     std::memcpy(data_ptr + 32 * sizeof(float), &graph->camera_pos.x, sizeof(glm::vec3));
@@ -305,10 +309,13 @@ void Renderer::update_model_matrices(FrameInfo& info, RenderGraph const* graph, 
     }
 }
 
-void Renderer::update_lights(FrameInfo& info, RenderGraph const* graph) {
-    // Note that map_memory is a cheap operation here since lights.type is MappedUniformBuffer. In this case, map_memory will
-    // immediately return the already stored pointer. 
-    std::byte* data_ptr = map_memory(ctx, info.lights);
+void Renderer::update_lights(CommandBuffer& cmd_buf, RenderGraph const* graph) {
+    vk::DeviceSize const size = 
+        sizeof(PointLight) * graph->point_lights.size() 
+        + sizeof(DirectionalLight) * graph->directional_lights.size()
+        + 2 * sizeof(uint32_t);
+    per_frame_buffers.lights = cmd_buf.allocate_scratch_ubo(size);
+    std::byte* data_ptr = per_frame_buffers.lights.data;
     if (!graph->point_lights.empty()) {
         std::memcpy(data_ptr, &graph->point_lights[0].position.x, sizeof(PointLight) * graph->point_lights.size());
     }
@@ -325,8 +332,9 @@ void Renderer::update_lights(FrameInfo& info, RenderGraph const* graph) {
     std::memcpy(data_ptr + counts_offset, &counts[0], sizeof(counts));
 }
 
-void Renderer::update_skybox_ubo(FrameInfo& info, RenderGraph const* graph) {
-    std::byte* data_ptr = map_memory(ctx, info.skybox_ubo);
+void Renderer::update_skybox_ubo(CommandBuffer& cmd_buf, RenderGraph const* graph) {
+    per_frame_buffers.skybox_data = cmd_buf.allocate_scratch_ubo(16 * sizeof(float));
+    std::byte* data_ptr = per_frame_buffers.skybox_data.data;
     std::memcpy(data_ptr, &graph->projection[0][0], 16 * sizeof(float));
 }
 
@@ -336,7 +344,7 @@ vk::DescriptorSet Renderer::get_fixed_descriptor_set(FrameInfo& frame, RenderGra
     ShaderInfo const& shader_info = pci->shader_info;
 
     DescriptorSetBinding bindings;
-    bindings.add(make_descriptor(shader_info["camera"], frame.vp_ubo));
+    bindings.add(make_descriptor(shader_info["camera"], per_frame_buffers.camera));
     bindings.add(make_descriptor(shader_info["transforms"], frame.transform_ssbo.buffer_handle(), frame.transform_ssbo.size()));
     stl::vector<ImageView> texture_views;
     texture_views.reserve(graph->materials.size() * 4);
@@ -363,7 +371,7 @@ vk::DescriptorSet Renderer::get_fixed_descriptor_set(FrameInfo& frame, RenderGra
         }
     }
     bindings.add(make_descriptor(shader_info["textures"], texture_views, frame.default_sampler));
-    bindings.add(make_descriptor(shader_info["lights"], frame.lights));
+    bindings.add(make_descriptor(shader_info["lights"], per_frame_buffers.lights));
     
     // We need variable count to use descriptor indexing
     vk::DescriptorSetVariableDescriptorCountAllocateInfo variable_count_info;

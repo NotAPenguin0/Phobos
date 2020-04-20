@@ -53,7 +53,6 @@ RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, Image
 void transition_image_layout(vk::CommandBuffer cmd_buf, vk::Image image, vk::Format format,
     vk::ImageLayout initial_layout, vk::ImageLayout final_layout);
 void transition_image_layout(vk::CommandBuffer cmd_buf, RawImage& image, vk::ImageLayout final_layout);
-void copy_buffer_to_image(vk::CommandBuffer cmd_buf, RawBuffer& buffer, RawImage& image);
 
 void copy_buffer_to_image(vk::CommandBuffer cmd_buf, BufferSlice slice, RawImage& image);
 void copy_buffer_to_image(vk::CommandBuffer cmd_buf, stl::span<BufferSlice> slices, RawImage& image);

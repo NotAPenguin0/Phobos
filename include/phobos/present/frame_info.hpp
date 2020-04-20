@@ -9,6 +9,8 @@
 #include <phobos/renderer/render_target.hpp>
 #include <phobos/pipeline/pipeline.hpp>
 
+#include <phobos/memory/buffer_allocator.hpp>
+
 namespace ph {
 
 class PresentManager;
@@ -35,6 +37,7 @@ private:
     friend class RenderGraph;
     friend class PresentManager;
     friend class Renderer;
+    friend class CommandBuffer;
 
     // Synchronization
     vk::Fence fence;
@@ -47,6 +50,8 @@ private:
     Cache<vk::DescriptorSet, DescriptorSetBinding> descriptor_cache;
     // Non-owning
     vk::DescriptorPool descriptor_pool;
+
+    BufferAllocator ubo_allocator;
 };
 
 }

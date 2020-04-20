@@ -88,7 +88,9 @@ DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, RawBuffer& bu
     return make_descriptor(binding, buffer.buffer, buffer.size, offset);
 }
 
-
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, BufferSlice slice) {
+    return make_descriptor(binding, slice.buffer, slice.range, slice.offset);
+}
 
 vk::GraphicsPipelineCreateInfo PipelineCreateInfo::vk_info() const {
     vk::GraphicsPipelineCreateInfo info;
@@ -219,7 +221,7 @@ Pipeline create_or_get_pipeline(VulkanContext* ctx, RenderPass* pass, PipelineCr
         for (auto& shader : shader_infos) {
             ctx->device.destroyShaderModule(shader.module);
         }
-        if (pci.debug_name != "") {
+        if (ctx->has_validation && pci.debug_name != "") {
             vk::DebugUtilsObjectNameInfoEXT name_info;
             name_info.objectType = vk::ObjectType::ePipeline;
             name_info.pObjectName = pci.debug_name.c_str();

@@ -8,10 +8,11 @@
 namespace ph {
 
 struct RenderPass;
+struct FrameInfo;
 
 class CommandBuffer {
 public:
-    explicit CommandBuffer(vk::CommandBuffer cbuf);
+    CommandBuffer(FrameInfo* frame, vk::CommandBuffer cbuf);
 
     CommandBuffer& set_viewport(vk::Viewport const& vp);
     CommandBuffer& set_scissor(vk::Rect2D const& scissor);
@@ -26,10 +27,13 @@ public:
     CommandBuffer& draw_indexed(uint32_t index_count, uint32_t instance_count, uint32_t first_index = 0, 
         uint32_t vertex_offset = 0, uint32_t first_instance = 0);
 
+    BufferSlice allocate_scratch_ubo(vk::DeviceSize size);
+
     RenderPass* get_active_renderpass();
 private:
     friend class Renderer;
 
+    FrameInfo* frame = nullptr;
     vk::CommandBuffer cmd_buf;
     RenderPass* active_renderpass = nullptr;
 

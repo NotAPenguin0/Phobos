@@ -64,6 +64,8 @@ DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, stl::span<Ima
 DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, vk::Buffer buffer, vk::DeviceSize size, vk::DeviceSize offset = 0);
 DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, RawBuffer& buffer, vk::DeviceSize offset = 0);
 
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, BufferSlice slice);
+
 struct DescriptorSetBinding {
     void add(DescriptorBinding binding) { bindings.push_back(stl::move(binding)); }
 

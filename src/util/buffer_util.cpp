@@ -73,8 +73,8 @@ static const char* buf_type_string(BufferType buf_type) {
 }
 
 // A buffer type has a persistent mapping if it was created with the VMA_ALLOCATION_CREATE_MAPPED_BIT flag set
-static bool has_persistent_mapping(BufferType type) {
-    return get_allocation_flags(type) & VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_MAPPED_BIT;
+bool has_persistent_mapping(RawBuffer const& buffer) {
+    return get_allocation_flags(buffer.type) & VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_MAPPED_BIT;
 }
 
 static void log_buffer_create(VulkanContext& ctx, RawBuffer const& buffer) {
@@ -123,8 +123,8 @@ RawBuffer create_buffer(VulkanContext& ctx, vk::DeviceSize size, BufferType buf_
     return buffer;
 }
 
-BufferSlice whole_buffer_slice(RawBuffer& buffer) {
-    return BufferSlice{ buffer.buffer, 0, buffer.size };
+BufferSlice whole_buffer_slice(VulkanContext& ctx, RawBuffer& buffer) {
+    return BufferSlice{ buffer.buffer, 0, buffer.size, nullptr};
 }
 
 void destroy_buffer(VulkanContext& ctx, RawBuffer& buffer) {
@@ -150,7 +150,7 @@ std::byte* map_memory(VulkanContext& ctx, RawBuffer& buffer) {
         return nullptr;
     }
 
-    if (has_persistent_mapping(buffer.type)) {
+    if (has_persistent_mapping(buffer)) {
         VmaAllocationInfo alloc_info;
         vmaGetAllocationInfo(ctx.allocator, buffer.memory, &alloc_info);
         return static_cast<std::byte*>(alloc_info.pMappedData);
@@ -182,7 +182,7 @@ void unmap_memory(VulkanContext& ctx, RawBuffer& buffer) {
         return;
     }
 
-    if (has_persistent_mapping(buffer.type)) {
+    if (has_persistent_mapping(buffer)) {
         ctx.logger->write_fmt(log::Severity::Warning, "Unmapping a persistently mapped buffer");
     }
 
