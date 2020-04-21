@@ -13,14 +13,28 @@ set(ASSIMP_BUILD_ASSIMP_TOOLS OFF)
 set(ASSIMP_BUILD_TESTS OFF)
 add_subdirectory("assimp")
 
-target_compile_options(stl PRIVATE "-w")
-target_compile_options(mimas PRIVATE "-w")
-target_compile_options(fmt PRIVATE "-w")
-target_compile_options(spirv-cross-core PRIVATE "-w")
-target_compile_options(spirv-cross-cpp PRIVATE "-w")
-target_compile_options(spirv-cross-c PRIVATE "-w")
-target_compile_options(spirv-cross-glsl PRIVATE "-w")
-target_compile_options(assimp PRIVATE "-w")
+set(PHOBOS_DEPENDENCY_COMPILE_OPTIONS "")
+
+if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang" OR ${CMAKE_CXX_COMPILER_ID} MATCHES "gcc") # clang or gcc
+    set(PHOBOS_DEPENDENCY_COMPILE_OPTIONS "-w")
+    
+elseif(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang" AND MSVC) # clang-cl
+    set(PHOBOS_DEPENDENCY_COMPILE_OPTIONS "-w")
+elseif(MSVC) # MSVC
+    set(PHOBOS_DEPENDENCY_COMPILE_OPTIONS "/w")
+endif()
+
+target_compile_options(stl PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
+target_compile_options(mimas PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
+target_compile_options(fmt PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
+target_compile_options(spirv-cross-core PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
+target_compile_options(spirv-cross-cpp PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
+target_compile_options(spirv-cross-c PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
+target_compile_options(spirv-cross-glsl PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
+target_compile_options(assimp PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
+target_compile_options(zlibstatic PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
+target_compile_options(zlib PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
+target_compile_options(IrrXML PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
 
 set(PHOBOS_INCLUDE_DIRECTORIES ${PHOBOS_INCLUDE_DIRECTORIES}
     "${CMAKE_CURRENT_SOURCE_DIR}" 
@@ -42,19 +56,6 @@ set(PHOBOS_LINK_LIBRARIES ${PHOBOS_LINK_LIBRARIES}
     stl
     spirv-cross-core
     assimp
-    PARENT_SCOPE
-)
-
-# Add imgui
-set(PHOBOS_SOURCES
-    ${PHOBOS_SOURCES}
-    "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_draw.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_demo.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_widgets.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui.cpp"
-    # Mimas + Phobos! (All my own backends! :D)
-    "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_mimas.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_phobos.cpp"
     PARENT_SCOPE
 )
 
