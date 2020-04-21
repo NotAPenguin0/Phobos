@@ -228,10 +228,6 @@ void RenderGraph::create_render_passes() {
 
         // Next we have to create the vkFramebuffer for this renderpass. This is abstracted away in the RenderTarget class
         it->target = RenderTarget(ctx, it->render_pass, it->outputs);
-
-        // Set correct offset for transforms
-        it->transforms_offset = current_transform_offset;
-        current_transform_offset += it->transforms.size();
     }
 }
 

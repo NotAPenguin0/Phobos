@@ -20,7 +20,6 @@
 
 namespace ph {
 
-// TODO: Draw commands should be separeted from the renderpass
 struct RenderPass {
     // This is the name that will be given to the vk object created from this renderpass
     std::string debug_name;
@@ -30,18 +29,11 @@ struct RenderPass {
     // Size of this must match the size of the outputs vector
     std::vector<vk::ClearValue> clear_values;
 
-    struct DrawCommand {
-        Mesh* mesh = nullptr;
-        uint32_t material_index = 0;
-    };
-    stl::vector<DrawCommand> draw_commands;
-    // Must have the same size as draw_commands
-    stl::vector<glm::mat4> transforms;
-
-    Cubemap* skybox = nullptr;
-
     // This callback is called right when executing the renderpass
     std::function<void(CommandBuffer&)> callback = [](CommandBuffer&) {};
+
+    RenderTarget const& get_target() const { return target; }
+    bool is_active() const { return active; }
 
 private:
     // These classes and functions all need access to the render_pass field
@@ -52,7 +44,6 @@ private:
 
     vk::RenderPass render_pass;
     RenderTarget target;
-    stl::uint32_t transforms_offset = 0;
 
     Pipeline active_pipeline;
     bool active = false;

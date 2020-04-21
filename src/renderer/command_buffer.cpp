@@ -78,6 +78,12 @@ CommandBuffer& CommandBuffer::push_constants(vk::ShaderStageFlags stage_flags, u
     return *this;
 }
 
+CommandBuffer& CommandBuffer::draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex, uint32_t first_instance) {
+    STL_ASSERT(active_renderpass, "draw_ called without an active renderpass");
+    cmd_buf.draw(vertex_count, instance_count, first_vertex, first_instance);
+    return *this;
+}
+
 CommandBuffer& CommandBuffer::draw_indexed(uint32_t index_count, uint32_t instance_count, uint32_t first_index,
     uint32_t vertex_offset, uint32_t first_instance) {
     STL_ASSERT(active_renderpass, "draw_indexed called without an active renderpass");

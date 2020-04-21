@@ -5,6 +5,7 @@
 #include <imgui/imgui.h>
 
 #include <phobos/renderer/cubemap.hpp>
+#include <phobos/fixed/fixed_pipeline.hpp>
 
 class DragonScene : public ph::TestApplication {
 private:
@@ -105,8 +106,6 @@ public:
 
 		// Add lights
 		render_graph.point_lights.push_back(light);
-		// Add materials
-		render_graph.materials = materials;
 		// Setup camera data
 		render_graph.projection = projection(glm::radians(45.0f), 0.1f, 100.0f, color);
 		render_graph.camera_pos = { 4.0f, 4.0f, 4.0f };
@@ -117,29 +116,32 @@ public:
 		main_pass.debug_name = "Main Pass";
 		main_pass.outputs = { color, depth };
 		main_pass.clear_values = { vk::ClearColorValue{std::array<float, 4>{ {0.427f, 0.427f, 0.427f, 1.0f}}}, clear_depth };
-
-		main_pass.skybox = &skybox;
-
-		// Dragon
-		main_pass.draw_commands.push_back(ph::RenderPass::DrawCommand{ &dragon, dragon_material });
-		glm::mat4 dragon_transform = glm::translate(glm::mat4(1.0f), dragon_pos);
-		dragon_transform = glm::scale(dragon_transform, glm::vec3(0.5, 0.5, 0.5));
-		main_pass.transforms.push_back(dragon_transform);
-		// Ground
-		main_pass.draw_commands.push_back(ph::RenderPass::DrawCommand{ &ground, ground_material });
-		glm::mat4 ground_transform = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 0));
-		ground_transform = glm::scale(ground_transform, glm::vec3(2.0f, 2.0f, 2.0f));
-		main_pass.transforms.push_back(ground_transform);
-
-		main_pass.draw_commands.push_back(ph::RenderPass::DrawCommand{ &monkey, monkey_material });
-		glm::mat4 monkey_transform = glm::translate(glm::mat4(1.0f), monkey_pos);
-		monkey_transform = glm::rotate(monkey_transform, glm::radians(monkey_rotation), glm::vec3(0, 1, 0));
-		monkey_transform = glm::scale(monkey_transform, glm::vec3(0.5f, 0.5f, 0.5f));
-		main_pass.transforms.push_back(monkey_transform);
-
 		// Create callback which uses default draw commands. Note that this api is subject to change
 		main_pass.callback = [&frame, this](ph::CommandBuffer& cmd_buf) {
-			renderer->execute_draw_commands(frame, cmd_buf);
+			ph::fixed::auto_viewport_scissor(cmd_buf);
+
+			ph::fixed::SkyboxRenderer skybox_renderer(ctx, renderer.get());
+			skybox_renderer.set_skybox(&skybox);
+
+			ph::fixed::GenericRenderer draws(ctx, renderer.get());
+
+			for (auto const& mat : materials) { draws.add_material(mat); }
+
+			glm::mat4 dragon_transform = glm::translate(glm::mat4(1.0f), dragon_pos);
+			dragon_transform = glm::scale(dragon_transform, glm::vec3(0.5, 0.5, 0.5));
+			draws.add_draw(&dragon, dragon_material, dragon_transform);
+
+			glm::mat4 ground_transform = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 0));
+			ground_transform = glm::scale(ground_transform, glm::vec3(2.0f, 2.0f, 2.0f));
+			draws.add_draw(&ground, ground_material, ground_transform);
+
+			glm::mat4 monkey_transform = glm::translate(glm::mat4(1.0f), monkey_pos);
+			monkey_transform = glm::rotate(monkey_transform, glm::radians(monkey_rotation), glm::vec3(0, 1, 0));
+			monkey_transform = glm::scale(monkey_transform, glm::vec3(0.5f, 0.5f, 0.5f));
+			draws.add_draw(&monkey, monkey_material, monkey_transform);
+
+			skybox_renderer.execute(frame, cmd_buf);
+			draws.execute(frame, cmd_buf);
 		};
 		// Add pass to the rendergraph
 		render_graph.add_pass(stl::move(main_pass));

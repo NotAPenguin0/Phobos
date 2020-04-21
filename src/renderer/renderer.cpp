@@ -59,11 +59,9 @@ static Mesh create_skybox_mesh(VulkanContext& ctx) {
 }
 
 Renderer::Renderer(VulkanContext& context) : ctx(context) {
-    default_color = create_single_color_texture(ctx, 255, 0, 255, vk::Format::eR8G8B8A8Srgb);
-    default_specular = create_single_color_texture(ctx, 255, 255, 255, vk::Format::eR8G8B8A8Srgb);
-    default_normal = create_single_color_texture(ctx, 0, 255, 0, vk::Format::eR8G8B8A8Unorm);
-
-    skybox = create_skybox_mesh(ctx);
+    default_textures.color = create_single_color_texture(ctx, 255, 0, 255, vk::Format::eR8G8B8A8Srgb);
+    default_textures.specular = create_single_color_texture(ctx, 255, 255, 255, vk::Format::eR8G8B8A8Srgb);
+    default_textures.normal = create_single_color_texture(ctx, 0, 255, 0, vk::Format::eR8G8B8A8Unorm);
 } 
 
 void Renderer::render_frame(FrameInfo& info) {
@@ -184,74 +182,6 @@ vk::DescriptorSet Renderer::get_descriptor(FrameInfo& frame, DescriptorSetLayout
     }
 }
 
-void Renderer::execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer) {
-    ph::RenderPass* pass_ptr = cmd_buffer.get_active_renderpass();
-    STL_ASSERT(pass_ptr, "execute_draw_commands called outside of an active renderpass");
-    ph::RenderPass& pass = *pass_ptr;
-
-    vk::Viewport viewport;
-    viewport.x = 0;
-    viewport.y = 0;
-    viewport.width = pass.target.get_width();
-    viewport.height = pass.target.get_height();
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-    cmd_buffer.set_viewport(viewport);
-
-    vk::Rect2D scissor;
-    scissor.offset = vk::Offset2D{ 0, 0 };
-    scissor.extent = vk::Extent2D{ pass.target.get_width(), pass.target.get_height() };
-    cmd_buffer.set_scissor(scissor);
-
-    if (pass.skybox) {
-        update_skybox_ubo(cmd_buffer, frame.render_graph);
-
-        Pipeline pipeline = get_pipeline("builtin_skybox", pass);
-        PipelineCreateInfo const* pci = ctx.pipelines.get_named_pipeline("builtin_skybox");
-        STL_ASSERT(pci, "skybox pipeline not created");
-        ShaderInfo const& shader_info = pci->shader_info;
-
-        cmd_buffer.bind_pipeline(pipeline);
-        DescriptorSetBinding bindings;
-        bindings.add(make_descriptor(shader_info["transform"], per_frame_buffers.skybox_data));
-        // TODO: Custom sampler?
-        bindings.add(make_descriptor(shader_info["skybox"], pass.skybox->view_handle(), frame.default_sampler));
-        vk::DescriptorSet set = get_descriptor(frame, pass, bindings);
-
-        cmd_buffer.bind_descriptor_set(0, set);
-        cmd_buffer.bind_vertex_buffer(0, skybox.get_vertices());
-        cmd_buffer.bind_index_buffer(skybox.get_indices());
-        cmd_buffer.draw_indexed(skybox.get_index_count(), 1, 0, 0, 0);
-        frame.draw_calls++;
-    }
-
-    Pipeline pipeline = get_pipeline("generic", pass);
-    cmd_buffer.bind_pipeline(pipeline);
-
-    update_model_matrices(cmd_buffer, frame.render_graph);
-
-    // Allocate fixed descriptor set and bind it
-    vk::DescriptorSet fixed_set = get_fixed_descriptor_set(frame, frame.render_graph);
-    cmd_buffer.bind_descriptor_set(0, fixed_set);
-
-    for (auto[idx, draw] : stl::enumerate(pass.draw_commands.begin(), pass.draw_commands.end())) {
-        Mesh* mesh = draw.mesh;
-        // Bind draw data
-        cmd_buffer.bind_vertex_buffer(0, mesh->get_vertices());
-        cmd_buffer.bind_index_buffer(mesh->get_indices());
-
-        // update push constant ranges
-        stl::uint32_t const transform_index = idx + pass.transforms_offset;
-        cmd_buffer.push_constants(vk::ShaderStageFlagBits::eVertex, 0, sizeof(uint32_t), &transform_index);
-        // First texture is diffuse, second is specular. See also get_fixed_descriptor_set() where we fill the textures array
-        stl::uint32_t const texture_indices[] = { 3 * draw.material_index, 3 * draw.material_index + 1, 3 * draw.material_index + 2 };
-        cmd_buffer.push_constants(vk::ShaderStageFlagBits::eFragment, sizeof(uint32_t), sizeof(texture_indices), &texture_indices);
-        // Execute drawcall
-        cmd_buffer.draw_indexed(mesh->get_index_count(), 1, 0, 0, 0);
-        frame.draw_calls++;
-    }
-}
-
 Pipeline Renderer::get_pipeline(std::string_view name, RenderPass& pass) {
     ph::PipelineCreateInfo const* pci = ctx.pipelines.get_named_pipeline(std::string(name));
     STL_ASSERT(pci, "Pipeline not found");
@@ -261,11 +191,19 @@ Pipeline Renderer::get_pipeline(std::string_view name, RenderPass& pass) {
     return pipeline;
 }
 
+BuiltinUniforms Renderer::get_builtin_uniforms() {
+    return per_frame_buffers;
+}
+
+DefaultTextures& Renderer::get_default_textures() {
+    return default_textures;
+}
+
+
 void Renderer::destroy() {
-    default_color.destroy();
-    default_normal.destroy();
-    default_specular.destroy();
-    skybox.destroy();
+    default_textures.color.destroy();
+    default_textures.specular.destroy();
+    default_textures.normal.destroy();
 }
 
 void Renderer::update_camera_data(CommandBuffer& cmd_buf, RenderGraph const* graph) {
@@ -277,22 +215,6 @@ void Renderer::update_camera_data(CommandBuffer& cmd_buf, RenderGraph const* gra
     std::memcpy(data_ptr + 16 * sizeof(float), &graph->view[0][0], 16 * sizeof(float));
     std::memcpy(data_ptr + 32 * sizeof(float), &graph->camera_pos.x, sizeof(glm::vec3));
     per_frame_buffers.camera = ubo;
-}
-
-void Renderer::update_model_matrices(CommandBuffer& cmd_buf, RenderGraph const* graph) {
-    vk::DeviceSize size = 0;
-    for (auto const& pass : graph->passes) {
-        size += pass.transforms.size() * sizeof(glm::mat4);
-    }
-
-    vk::DeviceSize offset = 0;
-    BufferSlice buffer = cmd_buf.allocate_scratch_ssbo(size);
-    for (auto const& pass : graph->passes) {
-        vk::DeviceSize this_size = pass.transforms.size() * sizeof(glm::mat4);
-        std::memcpy(buffer.data + offset, pass.transforms.data(), this_size);
-        offset += this_size;
-    }
-    per_frame_buffers.transform_ssbo = buffer;
 }
 
 void Renderer::update_lights(CommandBuffer& cmd_buf, RenderGraph const* graph) {
@@ -317,56 +239,4 @@ void Renderer::update_lights(CommandBuffer& cmd_buf, RenderGraph const* graph) {
     // Write data
     std::memcpy(data_ptr + counts_offset, &counts[0], sizeof(counts));
 }
-
-void Renderer::update_skybox_ubo(CommandBuffer& cmd_buf, RenderGraph const* graph) {
-    per_frame_buffers.skybox_data = cmd_buf.allocate_scratch_ubo(16 * sizeof(float));
-    std::byte* data_ptr = per_frame_buffers.skybox_data.data;
-    std::memcpy(data_ptr, &graph->projection[0][0], 16 * sizeof(float));
-}
-
-vk::DescriptorSet Renderer::get_fixed_descriptor_set(FrameInfo& frame, RenderGraph const* graph) {
-    PipelineCreateInfo const* pci = ctx.pipelines.get_named_pipeline("generic");
-    STL_ASSERT(pci, "Generic pipeline not created");
-    ShaderInfo const& shader_info = pci->shader_info;
-
-    DescriptorSetBinding bindings;
-    bindings.add(make_descriptor(shader_info["camera"], per_frame_buffers.camera));
-    bindings.add(make_descriptor(shader_info["transforms"], per_frame_buffers.transform_ssbo));
-    stl::vector<ImageView> texture_views;
-    texture_views.reserve(graph->materials.size() * 4);
-    for (auto const& mat : graph->materials) {
-        if (mat.diffuse) {
-            texture_views.push_back(mat.diffuse->view_handle());
-        }
-        else {
-            texture_views.push_back(default_color.view_handle());
-        }
-
-        if (mat.specular) {
-            texture_views.push_back(mat.specular->view_handle());
-        }
-        else {
-            texture_views.push_back(default_specular.view_handle());
-        }
-
-        if (mat.normal) {
-            texture_views.push_back(mat.normal->view_handle());
-        }
-        else {
-            texture_views.push_back(default_normal.view_handle());
-        }
-    }
-    bindings.add(make_descriptor(shader_info["textures"], texture_views, frame.default_sampler));
-    bindings.add(make_descriptor(shader_info["lights"], per_frame_buffers.lights));
-    
-    // We need variable count to use descriptor indexing
-    vk::DescriptorSetVariableDescriptorCountAllocateInfo variable_count_info;
-    uint32_t counts[1] { meta::max_unbounded_array_size };
-    variable_count_info.descriptorSetCount = 1;
-    variable_count_info.pDescriptorCounts = counts;
-
-    // use default descriptor pool and internal version of get_descriptor to specify a pipeline manually
-    return get_descriptor(frame, pci->layout.set_layout, stl::move(bindings), &variable_count_info);
-}
-
 } // namespace ph

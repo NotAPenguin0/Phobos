@@ -26,6 +26,7 @@ public:
     CommandBuffer& bind_index_buffer(vk::Buffer buffer, vk::DeviceSize offset = 0, vk::IndexType type = vk::IndexType::eUint32);
     CommandBuffer& bind_index_buffer(BufferSlice slice, vk::IndexType type = vk::IndexType::eUint32);
     CommandBuffer& push_constants(vk::ShaderStageFlags stage_flags, uint32_t offset, uint32_t size, void const* data);
+    CommandBuffer& draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex = 0, uint32_t first_instance = 0);
     CommandBuffer& draw_indexed(uint32_t index_count, uint32_t instance_count, uint32_t first_index = 0, 
         uint32_t vertex_offset = 0, uint32_t first_instance = 0);
 

@@ -13,6 +13,17 @@
 
 namespace ph {
 
+struct BuiltinUniforms {
+    BufferSlice camera;
+    BufferSlice lights;
+};
+
+struct DefaultTextures {
+    Texture color;
+    Texture normal;
+    Texture specular;
+};
+
 class Renderer {
 public:
     Renderer(VulkanContext& context);
@@ -24,39 +35,24 @@ public:
     // field.
     vk::DescriptorSet get_descriptor(FrameInfo& frame, RenderPass& pass, DescriptorSetBinding set_binding, void* pNext = nullptr);
 
-    // Execute the draw commands in the pass::draw_commands array with the default fixed rendering pipeline.
-    // Typically you want to call this function when you simply want to render the submitted draws without any special processing.
-    void execute_draw_commands(FrameInfo& frame, CommandBuffer& cmd_buffer);
     // Get a named pipeline. Must be called in an active renderpass
     Pipeline get_pipeline(std::string_view name, RenderPass& pass);
 
+    BuiltinUniforms get_builtin_uniforms();
+    DefaultTextures& get_default_textures();
+
     void destroy();
 private:
-    // Reset every frame
-    struct PerFrameBuffers {
-        BufferSlice camera;
-        BufferSlice lights;
-        BufferSlice skybox_data;
-        BufferSlice transform_ssbo;
-    } per_frame_buffers;
-
     VulkanContext& ctx;
+    BuiltinUniforms per_frame_buffers;
+    DefaultTextures default_textures;
 
     vk::DescriptorSet get_descriptor(FrameInfo& frame, DescriptorSetLayoutCreateInfo const& set_layout, 
         DescriptorSetBinding set_binding, void* pNext = nullptr);
 
     void update_camera_data(CommandBuffer& cmd_buf, RenderGraph const* graph);
-    void update_model_matrices(CommandBuffer& cmd_buf, RenderGraph const* graph);
     void update_lights(CommandBuffer& cmd_buf, RenderGraph const* graph);
-    void update_skybox_ubo(CommandBuffer& cmd_buf, RenderGraph const* graph);
 
-    vk::DescriptorSet get_fixed_descriptor_set(FrameInfo& frame, RenderGraph const* graph);
-
-    Texture default_color;
-    Texture default_specular;
-    Texture default_normal;
-
-    Mesh skybox;
 };
 
 }
