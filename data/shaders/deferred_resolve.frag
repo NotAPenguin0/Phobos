@@ -35,9 +35,10 @@ layout(set = 0, binding = 4) uniform CameraData {
 } camera;
 
 
-// https://stackoverflow.com/questions/32227283/getting-world-position-from-depth-buffer-value
+// adapted https://stackoverflow.com/questions/32227283/getting-world-position-from-depth-buffer-value
+// Note that we don't remap the depth value since the vk depth range goes from 0 to 1, not from -1 to 1 like in OpenGL
 vec3 WorldPosFromDepth(float depth) {
-    float z = depth * 2.0 - 1.0;
+    float z = depth;
 
     vec4 clipSpacePosition = vec4(TexCoords * 2.0 - 1.0, z, 1.0);
     vec4 viewSpacePosition = camera.inverse_projection * clipSpacePosition;
@@ -105,4 +106,5 @@ void main() {
     }
     FragColor = vec4(color + ambient, 1.0);
 }
+
 

@@ -117,24 +117,71 @@ static vk::ImageLayout get_final_layout(VulkanContext* ctx, stl::span<RenderPass
             // The attachment is used as an input attachment in a later pass. This is case 1
             return vk::ImageLayout::eShaderReadOnlyOptimal;
         }
+
+        found_it = std::find_if(later_pass.outputs.begin(), later_pass.outputs.end(), find_func);
+        if (found_it != later_pass.outputs.end()) {
+            return get_output_layout_for_format(attachment->get_format());
+        }
     }
 
-    // If we haven't encountered a single return in the previous loop, the attachment is not used anywhere else.
+    // If we haven't encountered a single return in the previous loop, the attachment is not used anywhere else, 
+    // or only again as an output attachment.
     // Case 3
     return get_output_layout_for_format(attachment->get_format());
+}
+
+static vk::ImageLayout get_initial_layout(VulkanContext* ctx, stl::span<RenderPass> renderpasses, stl::span<RenderPass>::iterator pass,
+    stl::vector<RenderAttachment>::iterator attachment) {
+
+    // We need to find the most recent usage of this attachment as an output attachment and set the initial layout accordingly
+    
+    if (pass == renderpasses.begin()) { return vk::ImageLayout::eUndefined; }
+
+    // For each earlier pass ...
+    for (auto it = pass - 1; it >= renderpasses.begin(); --it) {
+        // ... we check if this pass contains the current attachment as an output attachment
+
+        // Custom comparator to compare RenderAttachments by their vkImage handle. See also get_final_layout
+        auto find_func = [attachment](RenderAttachment const& candidate) {
+            return attachment->image_handle() == candidate.image_handle();
+        };
+
+        auto found_it = std::find_if(it->outputs.begin(), it->outputs.end(), find_func);
+
+        if (found_it != it->outputs.end()) {
+            // The attachment is used as an output attachment in a previous pass. Return the matching layout.
+            return get_output_layout_for_format(attachment->get_format());
+        }
+
+        // If it wasn't found in the outputs vector, check if it was sampled instead
+        found_it = std::find_if(it->sampled_attachments.begin(), it->sampled_attachments.end(), find_func);
+        if (found_it != it->sampled_attachments.end()) {
+            // The attachment was sampled in te previous pass, this means ShaderReadOnlyOptimal was the last layout
+            return vk::ImageLayout::eShaderReadOnlyOptimal;
+        }
+    }
+
+    // If it was not used as an output attachment anywhere, we don't need to load and we can specify Undefined as layout
+    return vk::ImageLayout::eUndefined;
 }
 
 static stl::vector<vk::AttachmentDescription> get_attachment_descriptions(VulkanContext* ctx, stl::span<RenderPass> passes, 
     stl::span<RenderPass>::iterator pass) {
 
     stl::vector<vk::AttachmentDescription> attachments;
-    for (auto& attachment : pass->outputs) {
+    for (size_t i = 0; i < pass->outputs.size(); ++i) {
+        RenderAttachment& attachment = pass->outputs[i];
         vk::AttachmentDescription description;
         description.format = attachment.get_format();
         // #Tag(Multisample)
         description.samples = vk::SampleCountFlagBits::e1;
-        // Attachments are for output, so we generally want to clear and store.
-        description.loadOp = vk::AttachmentLoadOp::eClear;
+        // If this attachment has a clear value associated with it, set the load op to clear. Otherwise we want to load the previous data
+        if (i < pass->clear_values.size()) {
+            description.loadOp = vk::AttachmentLoadOp::eClear;
+        }
+        else {
+            description.loadOp = vk::AttachmentLoadOp::eLoad;
+        }
         description.storeOp = vk::AttachmentStoreOp::eStore;
         // We don't care about stencil attachments right now.
         // #Tag(Stencil)
@@ -142,7 +189,7 @@ static stl::vector<vk::AttachmentDescription> get_attachment_descriptions(Vulkan
         description.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
 
         // Now we have to find the correct attachment layouts to use.
-        description.initialLayout = vk::ImageLayout::eUndefined;
+        description.initialLayout = get_initial_layout(ctx, passes, pass, &attachment);
         description.finalLayout = get_final_layout(ctx, passes, pass, &attachment);
 
         attachments.push_back(stl::move(description));

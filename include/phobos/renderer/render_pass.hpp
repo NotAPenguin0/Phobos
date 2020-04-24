@@ -26,7 +26,7 @@ struct RenderPass {
 
     std::vector<RenderAttachment> sampled_attachments;
     std::vector<RenderAttachment> outputs;
-    // Size of this must match the size of the outputs vector
+    // Size of this must match the size of the amount of attachments that have to be cleared
     std::vector<vk::ClearValue> clear_values;
 
     // This callback is called right when executing the renderpass

@@ -38,8 +38,10 @@ if (${CMAKE_CXX_COMPILER_ID} MATCHES Clang)
 endif() 
  
 if (WIN32)
-    target_compile_definitions(Phobos PRIVATE -DWIN32_LEAN_AND_MEAN)
+    target_compile_definitions(Phobos PRIVATE WIN32_LEAN_AND_MEAN)
 endif()
+
+target_compile_definitions(Phobos PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
 target_include_directories(Phobos PUBLIC ${PHOBOS_INCLUDE_DIRECTORIES})
 target_link_libraries(Phobos PUBLIC ${PHOBOS_LINK_LIBRARIES})

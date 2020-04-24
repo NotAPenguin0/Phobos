@@ -4,6 +4,7 @@
 #include <phobos/core/vulkan_context.hpp>
 #include <phobos/present/present_manager.hpp>
 #include <phobos/renderer/renderer.hpp>
+#include <phobos/fixed/skybox_renderer.hpp>
 
 namespace ph::fixed {
 
@@ -30,14 +31,26 @@ public:
 
 	// Adds a new draw command to the deferred renderer.
 	void add_draw(ph::Mesh& mesh, uint32_t material_index, glm::mat4 const& transform);
+	// Adds a material to the internal material list and returns it index. This index is guaranteed to remain stable until you call frame_end().
+	// Use the index to specify which material to use in add_draw().
 	uint32_t add_material(ph::Material const& material);
+
+	// Sets the skybox to use for rendering. If this is nullptr, no skybox will be drawn.
+	// Note that frame_end() resets this to nullptr.
+	void set_skybox(ph::Cubemap* sb);
 
 	// Builds the main renderpass to do deferred rendering.
 	void build_main_pass(ph::FrameInfo& frame, ph::RenderGraph& graph, ph::Renderer& renderer);
 	// Builds the resolve renderpass. Must be called after build_main_pass. The output attachment has to be a valid color attachment
 	void build_resolve_pass(ph::FrameInfo& frame, ph::RenderAttachment& output, ph::RenderGraph& graph, ph::Renderer& renderer);
 
+	// Builds all renderpasses for the deferred rendering pipeline. Equivalent to calling the build_XX_pass() functions in the correct order
+	void build_all(ph::FrameInfo& frame, ph::RenderAttachment& output, ph::RenderGraph& graph, ph::Renderer& renderer);
+
 private:
+
+	// Resources
+
 	struct Draw {
 		ph::Mesh* mesh = nullptr;
 		uint32_t material_index = 0;
@@ -51,6 +64,13 @@ private:
 	ph::RenderAttachment* depth;
 	ph::RenderAttachment* normal;
 	ph::RenderAttachment* albedo_spec;
+
+	struct PerFrameResources {
+		ph::BufferSlice transforms;
+		ph::BufferSlice camera;
+	} per_frame_resources;
+
+	// Bindings
 
 	struct MainPassBindings {
 		ph::ShaderInfo::BindingInfo camera;
@@ -66,10 +86,8 @@ private:
 		ph::ShaderInfo::BindingInfo camera;
 	} resolve_pass_bindings;
 
-	struct PerFrameResources {
-		ph::BufferSlice transforms;
-		ph::BufferSlice camera;
-	} per_frame_resources;
+	// Rendering systems
+	SkyboxRenderer skybox;
 
 	void create_main_pipeline(ph::VulkanContext& ctx);
 	void create_resolve_pipeline(ph::VulkanContext& ctx);

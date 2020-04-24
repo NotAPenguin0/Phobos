@@ -10,15 +10,26 @@ namespace ph::fixed {
 
 class SkyboxRenderer {
 public:
-	SkyboxRenderer(VulkanContext* ctx, Renderer* renderer) : ctx(ctx), renderer(renderer) {}
+	// Creates pipeline for the skybox renderer
+	SkyboxRenderer(VulkanContext& ctx);
 
 	void set_skybox(ph::Cubemap* sb) { skybox = sb; }
-	void execute(ph::FrameInfo& frame, ph::CommandBuffer& cmd_buf);
+	// Note that this does not build a renderpass if no skybox is set
+	void build_render_pass(ph::FrameInfo& frame, ph::RenderAttachment& output, ph::RenderAttachment& depth, ph::RenderGraph& graph, ph::Renderer& renderer);
+
 private:
-	VulkanContext* ctx = nullptr;
-	Renderer* renderer = nullptr;
+	// Resources
 
 	ph::Cubemap* skybox = nullptr;
+
+	// Bindings
+
+	struct Bindings {
+		ph::ShaderInfo::BindingInfo transform;
+		ph::ShaderInfo::BindingInfo skybox;
+	} bindings;
+
+	void create_pipeline(VulkanContext& ctx);
 };
 
 }

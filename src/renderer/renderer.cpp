@@ -25,39 +25,6 @@ static Texture create_single_color_texture(VulkanContext& ctx, uint8_t r, uint8_
     return Texture(info);
 }
 
-static Mesh create_skybox_mesh(VulkanContext& ctx) {
-    static constexpr float vertices[] = {
-        -1, -1, -1,   1, 1, -1, 
-        1, -1, -1,    1, 1, -1, 
-        -1, -1, -1,   -1, 1, -1, 
-        -1, -1, 1,    1, -1, 1, 
-        1, 1, 1,      1, 1, 1, 
-        -1, 1, 1,      -1, -1, 1, 
-        -1, 1, -1,    -1, -1, -1, 
-        -1, 1, 1,     -1, -1, -1, 
-        -1, -1, 1,   -1, 1, 1, 
-        1, 1, 1,    1, -1, -1, 
-        1, 1, -1,     1, -1, -1, 
-        1, 1, 1,      1, -1, 1, 
-        -1, -1, -1,  1, -1, -1, 
-        1, -1, 1,    1, -1, 1, 
-        -1, -1, 1,  -1, -1, -1, 
-        -1, 1, -1,     1, 1, 1,
-        1, 1, -1,     1, 1, 1, 
-        -1, 1, -1,     -1, 1, 1,
-    };
-    uint32_t indices[36];
-    std::iota(indices, indices + 36, 0);
-    ph::Mesh::CreateInfo cube_info;
-    cube_info.ctx = &ctx;
-    cube_info.vertices = vertices;
-    cube_info.vertex_count = 36;
-    cube_info.vertex_size = 3;
-    cube_info.indices = indices;
-    cube_info.index_count = 36;
-    return ph::Mesh(cube_info);
-}
-
 Renderer::Renderer(VulkanContext& context) : ctx(context) {
     default_textures.color = create_single_color_texture(ctx, 255, 0, 255, vk::Format::eR8G8B8A8Srgb);
     default_textures.specular = create_single_color_texture(ctx, 0, 0, 0, vk::Format::eR8G8B8A8Srgb);
@@ -239,4 +206,5 @@ void Renderer::update_lights(CommandBuffer& cmd_buf, RenderGraph const* graph) {
     // Write data
     std::memcpy(data_ptr + counts_offset, &counts[0], sizeof(counts));
 }
+
 } // namespace ph

@@ -119,7 +119,8 @@ void DeferredRenderer::create_resolve_pipeline(ph::VulkanContext& ctx) {
     ctx.pipelines.create_named_pipeline("fixed_deferred_resolve", std::move(pci));
 }
 
-DeferredRenderer::DeferredRenderer(ph::VulkanContext& ctx, ph::PresentManager& present, vk::Extent2D resolution) {
+DeferredRenderer::DeferredRenderer(ph::VulkanContext& ctx, ph::PresentManager& present, vk::Extent2D resolution)
+    : skybox(ctx) {
 	depth = &present.add_depth_attachment("fixed_depth", resolution);
 	normal = &present.add_color_attachment("fixed_normal", resolution, vk::Format::eR16G16B16A16Unorm);
 	albedo_spec = &present.add_color_attachment("fixed_albedo_spec", resolution, vk::Format::eR8G8B8A8Unorm);
@@ -132,6 +133,7 @@ void DeferredRenderer::frame_end() {
     draws.clear();
     materials.clear();
     transforms.clear();
+    skybox.set_skybox(nullptr);
     per_frame_resources = {};
 }
 
@@ -149,6 +151,10 @@ void DeferredRenderer::add_draw(ph::Mesh& mesh, uint32_t material_index, glm::ma
 uint32_t DeferredRenderer::add_material(ph::Material const& material) {
     materials.push_back(material);
     return materials.size() - 1;
+}
+
+void DeferredRenderer::set_skybox(ph::Cubemap* sb) {
+    skybox.set_skybox(sb);
 }
 
 // Builds the main renderpass to do deferred rendering. The output attachment must be a valid color attachment.
@@ -233,9 +239,16 @@ void DeferredRenderer::build_resolve_pass(ph::FrameInfo& frame, ph::RenderAttach
         cmd_buf.bind_vertex_buffer(0, geometry);
 
         cmd_buf.draw(6, 1, 0, 0);
+        frame.draw_calls++;
     };
 
     graph.add_pass(stl::move(pass));
+}
+
+void DeferredRenderer::build_all(ph::FrameInfo& frame, ph::RenderAttachment& output, ph::RenderGraph& graph, ph::Renderer& renderer) {
+    build_main_pass(frame, graph, renderer);
+    build_resolve_pass(frame, output, graph, renderer);
+    skybox.build_render_pass(frame, output, *depth, graph, renderer);
 }
 
 void DeferredRenderer::update_transforms(ph::CommandBuffer& cmd_buf) {

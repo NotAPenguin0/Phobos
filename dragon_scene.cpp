@@ -9,6 +9,8 @@
 
 class DragonScene : public ph::TestApplication {
 private:
+	ph::Texture spec_map;
+
 	ph::Mesh dragon;
 	ph::Texture dragon_normal;
 	ph::Texture dragon_color;
@@ -34,19 +36,21 @@ private:
 	std::unique_ptr<ph::fixed::DeferredRenderer> deferred_renderer;
 public:
 	void load_resources() {
+		spec_map = load_texture_map("data/dragon_scene/textures/blank.png");
+
 		dragon = load_obj("data/dragon_scene/meshes/dragon.obj");
 		// Make sure to call load_texture_map() for non-color textures or Srgb encoding will haunt you forever
 		dragon_normal = load_texture_map("data/dragon_scene/textures/dragon_texture_normal.png");
 		dragon_color = load_texture("data/dragon_scene/textures/dragon_texture_color.png");
 
-		ph::Material dragon_mat{ &dragon_color, nullptr, &dragon_normal };
+		ph::Material dragon_mat{ &dragon_color, &spec_map, &dragon_normal };
 		dragon_material = add_material(dragon_mat);
 
 		ground = load_obj("data/dragon_scene/meshes/plane.obj");
 		ground_normal = load_texture_map("data/dragon_scene/textures/plane_texture_normal.png");
 		ground_color = load_texture("data/dragon_scene/textures/plane_texture_color.png");
 		
-		ph::Material ground_mat{ &ground_color, nullptr, &ground_normal };
+		ph::Material ground_mat{ &ground_color, &spec_map, &ground_normal };
 		ground_material = add_material(ground_mat);
 
 
@@ -77,7 +81,7 @@ public:
 
 		light.color = glm::vec3(1, 1, 1);
 		light.position = glm::vec3(2, 2, 2);
-		light.intensity = 1.0f;
+		light.intensity = 3.0f;
 
 		deferred_renderer = std::make_unique<ph::fixed::DeferredRenderer>(*ctx, *present, vk::Extent2D{ 1280, 720 });
 
@@ -104,6 +108,7 @@ public:
 				fmt::format("Frametime: {} ms\nFPS: {}", (float)(frame_time * 1000.0f) , (int)(1.0f / frame_time)).c_str());
 			ImGui::DragFloat3("dragon pos", &dragon_pos.x, 0.1f);
 			ImGui::DragFloat3("monkey pos", &monkey_pos.x, 0.1f);
+			ImGui::DragFloat3("light pos", &light.position.x, 0.1f);
 		}
 		ImGui::End();
 
@@ -118,6 +123,8 @@ public:
 
 		for (auto const& mat : materials) { deferred_renderer->add_material(mat); }
 
+		deferred_renderer->set_skybox(&skybox);
+
 		glm::mat4 dragon_transform = glm::translate(glm::mat4(1.0f), dragon_pos);
 		dragon_transform = glm::scale(dragon_transform, glm::vec3(0.5, 0.5, 0.5));
 		deferred_renderer->add_draw(dragon, dragon_material, dragon_transform);
@@ -130,8 +137,7 @@ public:
 		monkey_transform = glm::rotate(monkey_transform, glm::radians(monkey_rotation), glm::vec3(0, 1, 0));
 		monkey_transform = glm::scale(monkey_transform, glm::vec3(0.5f, 0.5f, 0.5f));
 		deferred_renderer->add_draw(monkey, monkey_material, monkey_transform);
-		deferred_renderer->build_main_pass(frame, render_graph, *renderer);
-		deferred_renderer->build_resolve_pass(frame, scene, render_graph, *renderer);
+		deferred_renderer->build_all(frame, scene, render_graph, *renderer);
 	}
 };
 
