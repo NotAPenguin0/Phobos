@@ -20,6 +20,34 @@ struct SurfaceDetails {
 };
 
 struct PhysicalDeviceDetails {
+    PhysicalDeviceDetails() {};
+    PhysicalDeviceDetails(PhysicalDeviceDetails const& rhs) {
+        handle = rhs.handle;
+        properties = rhs.properties;
+        memory_properties = rhs.memory_properties;
+        features = rhs.features;
+
+        queue_family_properties = rhs.queue_family_properties;
+        queue_families = rhs.queue_families;
+
+        supported_extensions = rhs.supported_extensions;
+        surface_details = rhs.surface_details;
+    }
+
+    PhysicalDeviceDetails& operator=(PhysicalDeviceDetails const& rhs) {
+        handle = rhs.handle;
+        properties = rhs.properties;
+        memory_properties = rhs.memory_properties;
+        features = rhs.features;
+
+        queue_family_properties = rhs.queue_family_properties;
+        queue_families = rhs.queue_families;
+
+        supported_extensions = rhs.supported_extensions;
+        surface_details = rhs.surface_details;
+        return *this;
+    }
+
     vk::PhysicalDevice handle;
 
     vk::PhysicalDeviceProperties properties;

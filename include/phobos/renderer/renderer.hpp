@@ -44,7 +44,7 @@ public:
     void destroy();
 private:
     VulkanContext& ctx;
-    BuiltinUniforms per_frame_buffers;
+    BuiltinUniforms builtin_uniforms;
     DefaultTextures default_textures;
 
     vk::DescriptorSet get_descriptor(FrameInfo& frame, DescriptorSetLayoutCreateInfo const& set_layout, 

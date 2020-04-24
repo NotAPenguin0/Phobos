@@ -37,6 +37,7 @@ public:
 	void run();
 protected:
 	virtual void update(FrameInfo& frame, RenderGraph& render_graph) = 0;
+	virtual void frame_end() {}
 
 	Mesh generate_cube_geometry();
 	Mesh generate_quad_geometry();

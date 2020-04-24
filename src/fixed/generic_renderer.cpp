@@ -39,7 +39,7 @@ void GenericRenderer::execute(FrameInfo& frame, CommandBuffer& cmd_buf) {
 		// update push constant ranges
 		stl::uint32_t const transform_index = draw.transform_index;
 		cmd_buf.push_constants(vk::ShaderStageFlagBits::eVertex, 0, sizeof(uint32_t), &transform_index);
-		// First texture is diffuse, second is specular. See also get_fixed_descriptor_set() where we fill the textures array
+		// First texture is diffuse, second is specular, third is normal. See also get_fixed_descriptor_set() where we fill the textures array
 		stl::uint32_t const texture_indices[] = { 3 * draw.material_index, 3 * draw.material_index + 1, 3 * draw.material_index + 2 };
 		cmd_buf.push_constants(vk::ShaderStageFlagBits::eFragment, sizeof(uint32_t), sizeof(texture_indices), &texture_indices);
 		// Execute drawcall

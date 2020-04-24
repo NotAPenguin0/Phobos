@@ -13,6 +13,7 @@
 #include <phobos/pipeline/shader_info.hpp>
 #include <phobos/util/image_util.hpp>
 #include <phobos/util/buffer_util.hpp>
+#include <phobos/util/shader_util.hpp>
 
 namespace ph {
 
@@ -99,6 +100,9 @@ struct ShaderModuleCreateInfo {
     std::vector<uint32_t> code;
     std::string entry_point;
     vk::ShaderStageFlagBits stage;
+
+    // Set by reflection function, or manually
+    size_t code_hash = 0;
 };
 
 struct PipelineCreateInfo {
@@ -111,7 +115,7 @@ struct PipelineCreateInfo {
 
     vk::VertexInputBindingDescription vertex_input_binding;
     stl::vector<vk::VertexInputAttributeDescription> vertex_attributes;
-    stl::vector<ShaderModuleCreateInfo> shaders;
+    stl::vector<ShaderHandle> shaders;
     vk::PipelineInputAssemblyStateCreateInfo input_assembly =
         vk::PipelineInputAssemblyStateCreateInfo {
             vk::PipelineInputAssemblyStateCreateFlags{},

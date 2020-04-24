@@ -138,6 +138,7 @@ void PresentManager::present_frame(FrameInfo& frame) {
     update_cache_resource_usage(&context, context.set_layout_cache, max_frames_in_flight);
     update_cache_resource_usage(&context, context.pipeline_layout_cache, max_frames_in_flight);
     update_cache_resource_usage(&context, context.pipeline_cache, max_frames_in_flight);
+    // No update_cache_resource_usage for shader module create info as we need this information every frame.
 }
 
 void PresentManager::wait_for_available_frame() {
@@ -184,14 +185,26 @@ void PresentManager::destroy() {
 }
 
 RenderAttachment& PresentManager::add_color_attachment(std::string const& name) {
-    RawImage image = create_image(context, context.swapchain.extent.width, context.swapchain.extent.height, ImageType::ColorAttachment,
-        context.swapchain.format.format);
+    return add_color_attachment(name, context.swapchain.extent);
+}
+
+
+RenderAttachment& PresentManager::add_color_attachment(std::string const& name, vk::Extent2D size) {
+    return add_color_attachment(name, size, context.swapchain.format.format);
+}
+
+RenderAttachment& PresentManager::add_color_attachment(std::string const& name, vk::Extent2D size, vk::Format format) {
+    RawImage image = create_image(context, size.width, size.height, ImageType::ColorAttachment, format);
     ImageView view = create_image_view(context.device, image);
     return attachments[name] = RenderAttachment(&context, image, view, vk::ImageAspectFlagBits::eColor);
 }
 
 RenderAttachment& PresentManager::add_depth_attachment(std::string const& name) {
-    RawImage image = create_image(context, context.swapchain.extent.width, context.swapchain.extent.height, ImageType::DepthStencilAttachment,
+    return add_depth_attachment(name, context.swapchain.extent);
+}
+
+RenderAttachment& PresentManager::add_depth_attachment(std::string const& name, vk::Extent2D size) {
+    RawImage image = create_image(context, size.width, size.height, ImageType::DepthStencilAttachment,
         vk::Format::eD32Sfloat);
     ImageView view = create_image_view(context.device, image, vk::ImageAspectFlagBits::eDepth);
 

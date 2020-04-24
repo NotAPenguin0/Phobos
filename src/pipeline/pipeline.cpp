@@ -207,11 +207,13 @@ Pipeline create_or_get_pipeline(VulkanContext* ctx, RenderPass* pass, PipelineCr
         vk::GraphicsPipelineCreateInfo vk_pci = pci.vk_info();
         // Create shader modules
         std::vector<vk::PipelineShaderStageCreateInfo> shader_infos;
-        for (auto const& shader_info : pci.shaders) {
+        for (auto const& handle : pci.shaders) {
+            auto shader_info = ctx->shader_module_info_cache.get(handle);
+            STL_ASSERT(shader_info, "Invalid shader handle");
             vk::PipelineShaderStageCreateInfo ssci;
-            ssci.module = create_shader_module(ctx, shader_info);
-            ssci.pName = shader_info.entry_point.c_str();
-            ssci.stage = shader_info.stage;
+            ssci.module = create_shader_module(ctx, *shader_info);
+            ssci.pName = shader_info->entry_point.c_str();
+            ssci.stage = shader_info->stage;
             shader_infos.push_back(ssci);
         }
         vk_pci.stageCount = shader_infos.size();
@@ -229,7 +231,7 @@ Pipeline create_or_get_pipeline(VulkanContext* ctx, RenderPass* pass, PipelineCr
             ctx->device.setDebugUtilsObjectNameEXT(name_info, ctx->dynamic_dispatcher);
         }
         pipeline.pipeline = ppl;
-        ctx->pipeline_cache.insert(pci, stl::move(ppl));
+        ctx->pipeline_cache.insert(stl::move(pci), stl::move(ppl));
     }
 
     return pipeline;

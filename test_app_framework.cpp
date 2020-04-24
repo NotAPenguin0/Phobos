@@ -149,6 +149,8 @@ void TestApplication::run() {
         frame.render_graph = &render_graph;
         renderer->render_frame(frame);
         present->present_frame(frame);
+
+        frame_end();
     }
     ctx->device.waitIdle();
 }

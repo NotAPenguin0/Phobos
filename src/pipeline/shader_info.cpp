@@ -6,10 +6,11 @@
 #include <string_view>
 
 #include <phobos/renderer/meta.hpp>
+#include <phobos/util/cache.hpp>
+#include <phobos/core/vulkan_context.hpp>
 
 #include <SPIRV-Cross/spirv_cross.hpp>
 
-#include <iostream>
 
 namespace ph {
 
@@ -52,50 +53,17 @@ static uint32_t get_byte_size(vk::Format fmt) {
     }
 }
 
-static void process_vertex_input(spirv_cross::Compiler& refl, spirv_cross::ShaderResources& res, PipelineCreateInfo& pci) {
-    STL_ASSERT(false, "should not be called, too unreliable.");
-    pci.vertex_input_binding.binding = 0;
-    pci.vertex_input_binding.inputRate = vk::VertexInputRate::eVertex;
-    uint32_t total_size = 0;
-    pci.vertex_attributes.resize(res.stage_inputs.size());
-    for (auto const& input : res.stage_inputs) {
-        auto type = refl.get_type(input.type_id);
-        vk::VertexInputAttributeDescription attribute;
-        attribute.binding = refl.get_decoration(input.id, spv::DecorationBinding);
-        attribute.location = refl.get_decoration(input.id, spv::DecorationLocation);
-        // we only support vector types atm
-        attribute.format = get_vk_format(type.vecsize);
-       
-        pci.vertex_attributes[attribute.location] = attribute;
-        // Only floats are supported right now
-        total_size += (type.vecsize * sizeof(float));
+static std::unique_ptr<spirv_cross::Compiler> reflect_shader_stage(PipelineCreateInfo& pci, ShaderModuleCreateInfo& shader) {
+    // Precalculate hash since this is a rather expensive process to do multiple times per frame
+    if (shader.code_hash == 0) {
+        ph::hash_combine(shader.code_hash, shader.code);
     }
-    // The total accumulated size is the stride
-    pci.vertex_input_binding.stride = total_size;
 
-    // Now that the vertex attributes are correctly ordered (thanks for nothing spirv-cross), we can calculate the offsets
-    uint32_t accumulated_offset = 0;
-    for (auto& attr : pci.vertex_attributes) {
-        attr.offset = accumulated_offset;
-        accumulated_offset += get_byte_size(attr.format);
-    }    
-}
-
-static std::unique_ptr<spirv_cross::Compiler> reflect_shader_stage(PipelineCreateInfo& pci, ShaderModuleCreateInfo const& shader) {
     auto refl = std::make_unique<spirv_cross::Compiler>(shader.code);
 
     STL_ASSERT(refl, "Failed to reflect shader");
     spirv_cross::ShaderResources res = refl->get_shader_resources();
     
-    auto const shader_stage = get_shader_stage(*refl);
-    if (shader_stage == vk::ShaderStageFlagBits::eAll) { throw std::runtime_error("Invalid shader stage"); }
-    STL_ASSERT(shader_stage == shader.stage, "Invalid shader stage specified");
-    // This is too unreliable, because we cannot know the correct vk::Format to use (as this depends on the buffer, not on the shader)
-/*    if (shader_stage == vk::ShaderStageFlagBits::eVertex) {
-        process_vertex_input(*refl, res, pci);
-    }
-    */
-
     return refl;
 }
 
@@ -224,10 +192,12 @@ static void make_pipeline_layout(stl::vector<std::unique_ptr<spirv_cross::Compil
     pci.layout.set_layout = get_descriptor_set_layout(pci.shader_info, reflected_shaders);
 }
 
-void reflect_shaders(PipelineCreateInfo& pci) {
+void reflect_shaders(VulkanContext& ctx, PipelineCreateInfo& pci) {
     stl::vector<std::unique_ptr<spirv_cross::Compiler>> reflected_shaders;
-    for (auto const& shader : pci.shaders) {
-        reflected_shaders.push_back(reflect_shader_stage(pci, shader));
+    for (auto handle : pci.shaders) {
+        ph::ShaderModuleCreateInfo* shader = ctx.shader_module_info_cache.get(handle);
+        STL_ASSERT(shader, "Invalid shader");
+        reflected_shaders.push_back(reflect_shader_stage(pci, *shader));
     }
 
     make_pipeline_layout(reflected_shaders, pci);

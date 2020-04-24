@@ -30,6 +30,8 @@ private:
 	ph::PointLight light;
 	
 	ph::Cubemap skybox;
+
+	std::unique_ptr<ph::fixed::DeferredRenderer> deferred_renderer;
 public:
 	void load_resources() {
 		dragon = load_obj("data/dragon_scene/meshes/dragon.obj");
@@ -71,26 +73,29 @@ public:
 	}
 
 	DragonScene() : ph::TestApplication(1280, 720, "Phobos Demo Scene (dragon)") {
-		// Add render attachments
-		present->add_color_attachment("color");
-		present->add_depth_attachment("depth");
-
 		load_resources();
 
 		light.color = glm::vec3(1, 1, 1);
 		light.position = glm::vec3(2, 2, 2);
 		light.intensity = 1.0f;
+
+		deferred_renderer = std::make_unique<ph::fixed::DeferredRenderer>(*ctx, *present, vk::Extent2D{ 1280, 720 });
+
+		present->add_color_attachment("scene");
+	}
+
+	void frame_end() override {
+		deferred_renderer->frame_end();
 	}
 
 	void update(ph::FrameInfo& frame, ph::RenderGraph& render_graph) override {
-		ph::RenderAttachment& color = present->get_attachment("color");
-		ph::RenderAttachment& depth = present->get_attachment("depth");
+		ph::RenderAttachment& scene = present->get_attachment("scene");
 		// Make ImGui UI
 		if (ImGui::Begin("demo scene")) {
-			ImVec2 const size = match_attachment_to_window_size(color);
+			ImVec2 const size = match_attachment_to_window_size(scene);
 			// Note that we can discard the return value here
-			match_attachment_to_window_size(depth);
-			ImGui::Image(color.get_imgui_tex_id(), size);
+			ImGui::Image(scene.get_imgui_tex_id(), size);
+			deferred_renderer->resize({ (uint32_t)size.x, (uint32_t)size.y });
 		}
 		ImGui::End();
 
@@ -107,44 +112,26 @@ public:
 		// Add lights
 		render_graph.point_lights.push_back(light);
 		// Setup camera data
-		render_graph.projection = projection(glm::radians(45.0f), 0.1f, 100.0f, color);
+		render_graph.projection = projection(glm::radians(45.0f), 0.1f, 100.0f, 1280.0f/720.0f);
 		render_graph.camera_pos = { 4.0f, 4.0f, 4.0f };
 		render_graph.view = glm::lookAt(render_graph.camera_pos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 
-		// Setup info for main renderpass
-		ph::RenderPass main_pass;
-		main_pass.debug_name = "Main Pass";
-		main_pass.outputs = { color, depth };
-		main_pass.clear_values = { vk::ClearColorValue{std::array<float, 4>{ {0.427f, 0.427f, 0.427f, 1.0f}}}, clear_depth };
-		// Create callback which uses default draw commands. Note that this api is subject to change
-		main_pass.callback = [&frame, this](ph::CommandBuffer& cmd_buf) {
-			ph::fixed::auto_viewport_scissor(cmd_buf);
+		for (auto const& mat : materials) { deferred_renderer->add_material(mat); }
 
-			ph::fixed::SkyboxRenderer skybox_renderer(ctx, renderer.get());
-			skybox_renderer.set_skybox(&skybox);
+		glm::mat4 dragon_transform = glm::translate(glm::mat4(1.0f), dragon_pos);
+		dragon_transform = glm::scale(dragon_transform, glm::vec3(0.5, 0.5, 0.5));
+		deferred_renderer->add_draw(dragon, dragon_material, dragon_transform);
+		
+		glm::mat4 ground_transform = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 0));
+		ground_transform = glm::scale(ground_transform, glm::vec3(2.0f, 2.0f, 2.0f));
+		deferred_renderer->add_draw(ground, ground_material, ground_transform);
 
-			ph::fixed::GenericRenderer draws(ctx, renderer.get());
-
-			for (auto const& mat : materials) { draws.add_material(mat); }
-
-			glm::mat4 dragon_transform = glm::translate(glm::mat4(1.0f), dragon_pos);
-			dragon_transform = glm::scale(dragon_transform, glm::vec3(0.5, 0.5, 0.5));
-			draws.add_draw(&dragon, dragon_material, dragon_transform);
-
-			glm::mat4 ground_transform = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 0));
-			ground_transform = glm::scale(ground_transform, glm::vec3(2.0f, 2.0f, 2.0f));
-			draws.add_draw(&ground, ground_material, ground_transform);
-
-			glm::mat4 monkey_transform = glm::translate(glm::mat4(1.0f), monkey_pos);
-			monkey_transform = glm::rotate(monkey_transform, glm::radians(monkey_rotation), glm::vec3(0, 1, 0));
-			monkey_transform = glm::scale(monkey_transform, glm::vec3(0.5f, 0.5f, 0.5f));
-			draws.add_draw(&monkey, monkey_material, monkey_transform);
-
-			skybox_renderer.execute(frame, cmd_buf);
-			draws.execute(frame, cmd_buf);
-		};
-		// Add pass to the rendergraph
-		render_graph.add_pass(stl::move(main_pass));
+		glm::mat4 monkey_transform = glm::translate(glm::mat4(1.0f), monkey_pos);
+		monkey_transform = glm::rotate(monkey_transform, glm::radians(monkey_rotation), glm::vec3(0, 1, 0));
+		monkey_transform = glm::scale(monkey_transform, glm::vec3(0.5f, 0.5f, 0.5f));
+		deferred_renderer->add_draw(monkey, monkey_material, monkey_transform);
+		deferred_renderer->build_main_pass(frame, render_graph, *renderer);
+		deferred_renderer->build_resolve_pass(frame, scene, render_graph, *renderer);
 	}
 };
 

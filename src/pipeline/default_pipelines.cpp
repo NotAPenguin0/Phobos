@@ -15,11 +15,11 @@ static void create_generic_pipeline(VulkanContext& ctx) {
       
     PipelineCreateInfo info;
 
-    info.shaders.emplace_back(load_shader_code("data/shaders/generic.vert.spv"), "main", vk::ShaderStageFlagBits::eVertex);
-    info.shaders.emplace_back(load_shader_code("data/shaders/generic.frag.spv"), "main", vk::ShaderStageFlagBits::eFragment);  
+    info.shaders.push_back(create_shader(ctx, load_shader_code("data/shaders/generic.vert.spv"), "main", vk::ShaderStageFlagBits::eVertex));
+    info.shaders.push_back(create_shader(ctx, load_shader_code("data/shaders/generic.frag.spv"), "main", vk::ShaderStageFlagBits::eFragment));  
 
     // Fill in reflected information
-    reflect_shaders(info);
+    reflect_shaders(ctx, info);
 
     info.vertex_input_binding = vk::VertexInputBindingDescription(0, 11 * sizeof(float), vk::VertexInputRate::eVertex);
     info.vertex_attributes.emplace_back(0_u32, 0_u32, vk::Format::eR32G32B32Sfloat, 0_u32);
@@ -48,10 +48,10 @@ static void create_skybox_pipeline(VulkanContext& ctx) {
     using namespace stl::literals;
 
     PipelineCreateInfo info;
-    info.shaders.emplace_back(load_shader_code("data/shaders/skybox.vert.spv"), "main", vk::ShaderStageFlagBits::eVertex);
-    info.shaders.emplace_back(load_shader_code("data/shaders/skybox.frag.spv"), "main", vk::ShaderStageFlagBits::eFragment);
+    info.shaders.push_back(create_shader(ctx, load_shader_code("data/shaders/skybox.vert.spv"), "main", vk::ShaderStageFlagBits::eVertex));
+    info.shaders.push_back(create_shader(ctx, load_shader_code("data/shaders/skybox.frag.spv"), "main", vk::ShaderStageFlagBits::eFragment));
 
-    reflect_shaders(info);
+    reflect_shaders(ctx, info);
 
     info.vertex_input_binding = vk::VertexInputBindingDescription(0, 3 * sizeof(float), vk::VertexInputRate::eVertex);
     info.vertex_attributes.emplace_back(0_u32, 0_u32, vk::Format::eR32G32B32Sfloat, 0_u32);

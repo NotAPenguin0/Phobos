@@ -157,12 +157,14 @@ static void ImGui_ImplPhobos_CreateSampler(ph::VulkanContext* ctx) {
 static void ImGui_ImplPhobos_CreatePipeline(ph::VulkanContext* ctx) {
     ph::PipelineCreateInfo pci;
 
-    pci.shaders.emplace_back(std::vector<uint32_t>(&__glsl_shader_vert_spv[0], __glsl_shader_vert_spv + IM_ARRAYSIZE(__glsl_shader_vert_spv)),
-        "main", vk::ShaderStageFlagBits::eVertex);
-    pci.shaders.emplace_back(std::vector<uint32_t>(&__glsl_shader_frag_spv[0], __glsl_shader_frag_spv + IM_ARRAYSIZE(__glsl_shader_frag_spv)),
-        "main", vk::ShaderStageFlagBits::eFragment);
+    pci.shaders.push_back(ph::create_shader(*ctx,
+        std::vector<uint32_t>(&__glsl_shader_vert_spv[0], __glsl_shader_vert_spv + IM_ARRAYSIZE(__glsl_shader_vert_spv)),
+        "main", vk::ShaderStageFlagBits::eVertex));
+    pci.shaders.push_back(ph::create_shader(*ctx,
+        std::vector<uint32_t>(&__glsl_shader_frag_spv[0], __glsl_shader_frag_spv + IM_ARRAYSIZE(__glsl_shader_frag_spv)),
+        "main", vk::ShaderStageFlagBits::eFragment));
 
-    ph::reflect_shaders(pci);
+    ph::reflect_shaders(*ctx, pci);
 
     pci.vertex_attributes.resize(3);
     pci.vertex_attributes[0].location = 0;

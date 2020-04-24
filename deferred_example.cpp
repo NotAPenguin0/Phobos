@@ -83,7 +83,7 @@ public:
         pci.scissors.emplace_back();
 
         pci.rasterizer.cullMode = vk::CullModeFlagBits::eNone;
-
+        
         pci.vertex_input_binding.binding = 0;
         pci.vertex_input_binding.stride = 5 * sizeof(float);
         pci.vertex_input_binding.inputRate = vk::VertexInputRate::eVertex;

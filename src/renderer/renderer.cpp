@@ -60,13 +60,13 @@ static Mesh create_skybox_mesh(VulkanContext& ctx) {
 
 Renderer::Renderer(VulkanContext& context) : ctx(context) {
     default_textures.color = create_single_color_texture(ctx, 255, 0, 255, vk::Format::eR8G8B8A8Srgb);
-    default_textures.specular = create_single_color_texture(ctx, 255, 255, 255, vk::Format::eR8G8B8A8Srgb);
+    default_textures.specular = create_single_color_texture(ctx, 0, 0, 0, vk::Format::eR8G8B8A8Srgb);
     default_textures.normal = create_single_color_texture(ctx, 0, 255, 0, vk::Format::eR8G8B8A8Unorm);
 } 
 
 void Renderer::render_frame(FrameInfo& info) {
     // Reset buffers struct
-    per_frame_buffers = {};
+    builtin_uniforms = {};
 
     CommandBuffer cmd_buffer { &info, info.command_buffer };
     cmd_buffer.begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
@@ -192,7 +192,7 @@ Pipeline Renderer::get_pipeline(std::string_view name, RenderPass& pass) {
 }
 
 BuiltinUniforms Renderer::get_builtin_uniforms() {
-    return per_frame_buffers;
+    return builtin_uniforms;
 }
 
 DefaultTextures& Renderer::get_default_textures() {
@@ -214,16 +214,16 @@ void Renderer::update_camera_data(CommandBuffer& cmd_buf, RenderGraph const* gra
     std::memcpy(data_ptr, &pv[0][0], 16 * sizeof(float));  
     std::memcpy(data_ptr + 16 * sizeof(float), &graph->view[0][0], 16 * sizeof(float));
     std::memcpy(data_ptr + 32 * sizeof(float), &graph->camera_pos.x, sizeof(glm::vec3));
-    per_frame_buffers.camera = ubo;
+    builtin_uniforms.camera = ubo;
 }
 
 void Renderer::update_lights(CommandBuffer& cmd_buf, RenderGraph const* graph) {
-    vk::DeviceSize const size = 
-        sizeof(PointLight) * graph->point_lights.size() 
-        + sizeof(DirectionalLight) * graph->directional_lights.size()
+    vk::DeviceSize const size =
+        sizeof(PointLight) * meta::max_lights_per_type
+        + sizeof(DirectionalLight) * meta::max_lights_per_type
         + 2 * sizeof(uint32_t);
-    per_frame_buffers.lights = cmd_buf.allocate_scratch_ubo(size);
-    std::byte* data_ptr = per_frame_buffers.lights.data;
+    builtin_uniforms.lights = cmd_buf.allocate_scratch_ubo(size);
+    std::byte* data_ptr = builtin_uniforms.lights.data;
     if (!graph->point_lights.empty()) {
         std::memcpy(data_ptr, &graph->point_lights[0].position.x, sizeof(PointLight) * graph->point_lights.size());
     }

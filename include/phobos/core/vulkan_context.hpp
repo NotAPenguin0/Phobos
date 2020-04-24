@@ -15,6 +15,7 @@
 #include <phobos/events/event_dispatcher.hpp>
 
 #include <phobos/util/cache.hpp>
+#include <phobos/util/shader_util.hpp>
 
 #include <vk_mem_alloc.h>
 
@@ -46,9 +47,10 @@ struct VulkanContext {
 
     Cache<vk::RenderPass, vk::RenderPassCreateInfo> renderpass_cache;
     Cache<vk::Framebuffer, vk::FramebufferCreateInfo> framebuffer_cache;
-    Cache<vk::Pipeline, PipelineCreateInfo> pipeline_cache;
-    Cache<PipelineLayout, PipelineLayoutCreateInfo> pipeline_layout_cache;
-    Cache<vk::DescriptorSetLayout, DescriptorSetLayoutCreateInfo> set_layout_cache;
+    Cache<vk::Pipeline, ph::PipelineCreateInfo> pipeline_cache;
+    Cache<ph::PipelineLayout, ph::PipelineLayoutCreateInfo> pipeline_layout_cache;
+    Cache<vk::DescriptorSetLayout, ph::DescriptorSetLayoutCreateInfo> set_layout_cache;
+    Cache<ph::ShaderModuleCreateInfo, ShaderHandle> shader_module_info_cache;
 
     VmaAllocator allocator;
 

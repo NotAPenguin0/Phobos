@@ -19,7 +19,7 @@ inline void hash_combine(size_t& seed, const T& v) {
 	seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
 template <typename T, typename... Rest>
-inline void hash_combine(size_t& seed, const T& v, Rest... rest) {
+inline void hash_combine(size_t& seed, const T& v, Rest const&... rest) {
 	std::hash<T> hasher;
 	seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 	hash_combine(seed, rest...);
@@ -149,7 +149,12 @@ struct hash<ph::ShaderModuleCreateInfo> {
     size_t operator()(ph::ShaderModuleCreateInfo const& shader) const noexcept {
         size_t h = 0;
         // flags aren't hashed
-        ph::hash_combine(h, shader.stage, shader.code, shader.entry_point);
+        ph::hash_combine(h, shader.stage, shader.entry_point);
+        if (shader.code_hash != 0) { ph::hash_combine(h, shader.code_hash); }
+        else {
+            // Expensive path if no precomputed hash is available
+            ph::hash_combine(h, shader.code);
+        }
         return h;
     }  
 };
@@ -365,6 +370,15 @@ struct hash<ph::DescriptorSetBinding> {
 };
 
 template<>
+struct hash<ph::ShaderHandle> {
+    size_t operator()(ph::ShaderHandle const& x) const noexcept {
+        size_t h = 0;
+        ph::hash_combine(h, x.id);
+        return h;
+    }
+};
+
+template<>
 struct hash<vk::DescriptorSetLayoutBinding> {
     size_t operator()(vk::DescriptorSetLayoutBinding const& x) const noexcept {
         size_t h = 0;
@@ -428,6 +442,11 @@ public:
     void insert(LookupT const& key, T&& val) {
         size_t hash = std::hash<LookupT>()(key);
         cache[hash] = Entry { stl::move(val), key, 0 };
+    }
+
+    void insert(LookupT&& key, T&& val) {
+        size_t hash = std::hash<LookupT>()(key);
+        cache[hash] = Entry{ stl::move(val), stl::move(key), 0 };
     }
 
     T* get(LookupT const& key) {

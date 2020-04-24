@@ -12,6 +12,7 @@ set(PHOBOS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/fixed/generic_renderer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/fixed/skybox_renderer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/fixed/util.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/fixed/deferred.cpp"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/memory/buffer_allocator.cpp"
 
