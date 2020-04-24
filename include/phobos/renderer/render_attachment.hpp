@@ -52,10 +52,6 @@ public:
         return image.size.height;
     }
 
-    void* get_imgui_tex_id() const {
-        return imgui_tex_id;
-    }
-
     vk::Format get_format() const {
         return image.format;
     }
@@ -71,8 +67,6 @@ private:
     RawImage image{};
     ImageView view{};
     vk::ImageAspectFlags aspect = {};
-
-    void* imgui_tex_id = nullptr;
 };
 
 } // namespace ph 

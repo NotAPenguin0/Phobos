@@ -273,7 +273,7 @@ void ImGui_ImplPhobos_RenderDrawData(ImDrawData* draw_data, ph::FrameInfo* frame
             ImDrawList const* draw_list = draw_data->CmdLists[i];
             for (size_t cmd_i = 0; cmd_i < (size_t)draw_list->CmdBuffer.Size; ++cmd_i) {
                 ImDrawCmd const* cmd = &draw_list->CmdBuffer[cmd_i];
-                if (cmd->TextureId == attachment.get_imgui_tex_id()) {
+                if (cmd->TextureId == ImGui_ImplPhobos_AddTexture(attachment.image_view())) {
                     render_pass.sampled_attachments.push_back(attachment);
                     found = true;
                     break;

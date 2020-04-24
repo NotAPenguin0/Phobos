@@ -94,7 +94,7 @@ public:
 		if (ImGui::Begin("demo scene")) {
 			ImVec2 const size = match_attachment_to_window_size(scene);
 			// Note that we can discard the return value here
-			ImGui::Image(scene.get_imgui_tex_id(), size);
+			ImGui::Image(ImGui_ImplPhobos_AddTexture(scene.image_view()), size);
 			deferred_renderer->resize({ (uint32_t)size.x, (uint32_t)size.y });
 		}
 		ImGui::End();
