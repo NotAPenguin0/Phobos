@@ -81,11 +81,11 @@ public:
 
 		light.color = glm::vec3(1, 1, 1);
 		light.position = glm::vec3(2, 2, 2);
-		light.intensity = 3.0f;
+		light.intensity = 20.0f;
 
 		deferred_renderer = std::make_unique<ph::fixed::DeferredRenderer>(*ctx, *present, vk::Extent2D{ 1280, 720 });
-
-		present->add_color_attachment("scene");
+		
+		present->add_color_attachment("scene", vk::Extent2D{ 1280, 720 }, vk::Format::eR8G8B8A8Srgb);
 	}
 
 	void frame_end() override {
@@ -114,12 +114,12 @@ public:
 
 		monkey_rotation += 0.2f;
 
-		// Add lights
-		render_graph.point_lights.push_back(light);
-		// Setup camera data
-		render_graph.projection = projection(glm::radians(45.0f), 0.1f, 100.0f, 1280.0f/720.0f);
-		render_graph.camera_pos = { 4.0f, 4.0f, 4.0f };
-		render_graph.view = glm::lookAt(render_graph.camera_pos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+		deferred_renderer->camera_data.projection = { 0.1f, 100.0f, glm::radians(45.0f), 1280.0f / 720.0f };
+		deferred_renderer->camera_data.position = { 4.0f, 4.0f, 4.0f };
+		deferred_renderer->camera_data.view = glm::lookAt(deferred_renderer->camera_data.position, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+
+		// Note that we should add lights after setting the projection so we can get frustum culling
+		deferred_renderer->add_point_light(light);
 
 		for (auto const& mat : materials) { deferred_renderer->add_material(mat); }
 
@@ -137,7 +137,7 @@ public:
 		monkey_transform = glm::rotate(monkey_transform, glm::radians(monkey_rotation), glm::vec3(0, 1, 0));
 		monkey_transform = glm::scale(monkey_transform, glm::vec3(0.5f, 0.5f, 0.5f));
 		deferred_renderer->add_draw(monkey, monkey_material, monkey_transform);
-		deferred_renderer->build_all(frame, scene, render_graph, *renderer);
+		deferred_renderer->build(frame, scene, render_graph, *renderer);
 	}
 };
 

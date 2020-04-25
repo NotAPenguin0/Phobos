@@ -61,8 +61,8 @@ SkyboxRenderer::SkyboxRenderer(ph::VulkanContext& ctx) {
     create_pipeline(ctx);
 }
 
-void SkyboxRenderer::build_render_pass(ph::FrameInfo& frame, ph::RenderAttachment& output, ph::RenderAttachment& depth, 
-    ph::RenderGraph& graph, ph::Renderer& renderer) {
+void SkyboxRenderer::build_render_pass(ph::FrameInfo& frame, ph::RenderAttachment& output, ph::RenderAttachment& depth, ph::RenderGraph& graph,
+    ph::Renderer& renderer, CameraData const& camera) {
 
     if (!skybox) { return; }
     
@@ -71,13 +71,13 @@ void SkyboxRenderer::build_render_pass(ph::FrameInfo& frame, ph::RenderAttachmen
     pass.outputs = { output, depth };
     // We do not want to clear anything, so leave the clearvalues vector empty
     pass.clear_values = {};
-    pass.callback = [this, &frame, &renderer, &graph](ph::CommandBuffer& cmd_buf) {
+    pass.callback = [this, &camera, &renderer, &frame](ph::CommandBuffer& cmd_buf) {
         auto_viewport_scissor(cmd_buf);
 
         ph::RenderPass& pass = *cmd_buf.get_active_renderpass();
 
         ph::BufferSlice ubo = cmd_buf.allocate_scratch_ubo(sizeof(glm::mat4));
-        std::memcpy(ubo.data, &graph.projection[0][0], 16 * sizeof(float));
+        std::memcpy(ubo.data, &camera.projection_mat[0][0], 16 * sizeof(float));
 
         ph::BufferSlice cube_mesh = cmd_buf.allocate_scratch_vbo(sizeof(skybox_vertices));
         std::memcpy(cube_mesh.data, skybox_vertices, sizeof(skybox_vertices));

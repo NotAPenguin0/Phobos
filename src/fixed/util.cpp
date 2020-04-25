@@ -27,14 +27,5 @@ void auto_viewport_scissor(ph::CommandBuffer& cmd_buf) {
 	cmd_buf.set_scissor(scissor);
 }
 
-ph::Pipeline get_pipeline(VulkanContext* ctx, std::string_view name, ph::RenderPass& pass) {
-	ph::PipelineCreateInfo const* pci = ctx->pipelines.get_named_pipeline(std::string(name));
-	STL_ASSERT(pci, "Pipeline not found");
-	STL_ASSERT(pass.is_active(), "Cannot get pipeline handle without an active renderpass");
-
-	Pipeline pipeline = create_or_get_pipeline(ctx, &pass, *pci);
-	pipeline.name = name;
-	return pipeline;
-}
 
 }

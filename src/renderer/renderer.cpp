@@ -32,14 +32,8 @@ Renderer::Renderer(VulkanContext& context) : ctx(context) {
 } 
 
 void Renderer::render_frame(FrameInfo& info) {
-    // Reset buffers struct
-    builtin_uniforms = {};
-
     CommandBuffer cmd_buffer { &info, info.command_buffer };
     cmd_buffer.begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-
-    update_camera_data(cmd_buffer, info.render_graph);
-    update_lights(cmd_buffer, info.render_graph);
 
     for (auto& pass : info.render_graph->passes) {
         cmd_buffer.begin_renderpass(pass);
@@ -158,14 +152,9 @@ Pipeline Renderer::get_pipeline(std::string_view name, RenderPass& pass) {
     return pipeline;
 }
 
-BuiltinUniforms Renderer::get_builtin_uniforms() {
-    return builtin_uniforms;
-}
-
 DefaultTextures& Renderer::get_default_textures() {
     return default_textures;
 }
-
 
 void Renderer::destroy() {
     default_textures.color.destroy();
@@ -173,38 +162,5 @@ void Renderer::destroy() {
     default_textures.normal.destroy();
 }
 
-void Renderer::update_camera_data(CommandBuffer& cmd_buf, RenderGraph const* graph) {
-    glm::mat4 pv = graph->projection * graph->view; 
-
-    BufferSlice ubo = cmd_buf.allocate_scratch_ubo(2 * sizeof(glm::mat4) + sizeof(glm::vec4));
-    std::byte* data_ptr = ubo.data;
-    std::memcpy(data_ptr, &pv[0][0], 16 * sizeof(float));  
-    std::memcpy(data_ptr + 16 * sizeof(float), &graph->view[0][0], 16 * sizeof(float));
-    std::memcpy(data_ptr + 32 * sizeof(float), &graph->camera_pos.x, sizeof(glm::vec3));
-    builtin_uniforms.camera = ubo;
-}
-
-void Renderer::update_lights(CommandBuffer& cmd_buf, RenderGraph const* graph) {
-    vk::DeviceSize const size =
-        sizeof(PointLight) * meta::max_lights_per_type
-        + sizeof(DirectionalLight) * meta::max_lights_per_type
-        + 2 * sizeof(uint32_t);
-    builtin_uniforms.lights = cmd_buf.allocate_scratch_ubo(size);
-    std::byte* data_ptr = builtin_uniforms.lights.data;
-    if (!graph->point_lights.empty()) {
-        std::memcpy(data_ptr, &graph->point_lights[0].position.x, sizeof(PointLight) * graph->point_lights.size());
-    }
-    size_t const dir_light_offset = meta::max_lights_per_type * sizeof(PointLight);
-    if (!graph->directional_lights.empty()) {
-        std::memcpy(data_ptr + dir_light_offset, &graph->directional_lights[0].direction.x,
-            sizeof(DirectionalLight) * graph->directional_lights.size());
-    }
-    // Update count variables. For this, we first need to calculate the offset into the UBO.
-    // Note that we maintain the light structs to match the exact layout in the shader, so this sizeof() is fine.
-    size_t const counts_offset = dir_light_offset + meta::max_lights_per_type * sizeof(DirectionalLight);
-    uint32_t const counts[] = { (uint32_t)graph->point_lights.size(), (uint32_t)graph->directional_lights.size() };
-    // Write data
-    std::memcpy(data_ptr + counts_offset, &counts[0], sizeof(counts));
-}
 
 } // namespace ph

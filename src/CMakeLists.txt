@@ -9,6 +9,7 @@ set(PHOBOS_SOURCES
 
     "${CMAKE_CURRENT_SOURCE_DIR}/events/event_dispatcher.cpp"
 
+    "${CMAKE_CURRENT_SOURCE_DIR}/fixed/lighting_pass.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/fixed/skybox_renderer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/fixed/util.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/fixed/deferred.cpp"

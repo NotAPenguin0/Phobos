@@ -5,6 +5,8 @@
 #include <phobos/present/present_manager.hpp>
 #include <phobos/renderer/renderer.hpp>
 #include <phobos/fixed/skybox_renderer.hpp>
+#include <phobos/fixed/lighting_pass.hpp>
+#include <phobos/fixed/projection.hpp>
 
 namespace ph::fixed {
 
@@ -20,7 +22,7 @@ public:
 	// Currently, the deferred renderer needs two pipelines to function. You can get them in the pipeline manager in the vulkan context.
 	// They are stored with the following names:
 	// fixed_deferred_main - pipeline for the main deferred rendering pass
-	// fixed_deferred_resolve - pipeline for the deferred resolve pass
+	// fixed_deferred_lighting - pipeline for the deferred lighting pass
 	DeferredRenderer(ph::VulkanContext& ctx, ph::PresentManager& present, vk::Extent2D resolution);
 	
 	// Must be called after a frame is rendered
@@ -35,17 +37,20 @@ public:
 	// Use the index to specify which material to use in add_draw().
 	uint32_t add_material(ph::Material const& material);
 
+	// Note: to enable the frustum test, you must call this after setting the camera data.
+	void add_point_light(ph::PointLight const& light);
+
 	// Sets the skybox to use for rendering. If this is nullptr, no skybox will be drawn.
 	// Note that frame_end() resets this to nullptr.
 	void set_skybox(ph::Cubemap* sb);
 
-	// Builds the main renderpass to do deferred rendering.
-	void build_main_pass(ph::FrameInfo& frame, ph::RenderGraph& graph, ph::Renderer& renderer);
-	// Builds the resolve renderpass. Must be called after build_main_pass. The output attachment has to be a valid color attachment
-	void build_resolve_pass(ph::FrameInfo& frame, ph::RenderAttachment& output, ph::RenderGraph& graph, ph::Renderer& renderer);
+	// Builds all renderpasses for the deferred rendering pipeline.
+	void build(ph::FrameInfo& frame, ph::RenderAttachment& output, ph::RenderGraph& graph, ph::Renderer& renderer);
 
-	// Builds all renderpasses for the deferred rendering pipeline. Equivalent to calling the build_XX_pass() functions in the correct order
-	void build_all(ph::FrameInfo& frame, ph::RenderAttachment& output, ph::RenderGraph& graph, ph::Renderer& renderer);
+	// Public resources.
+
+	// This contains the camera data, make sure to set it every frame as it is reset by end_frame()
+	CameraData camera_data;
 
 private:
 
@@ -76,26 +81,19 @@ private:
 		ph::ShaderInfo::BindingInfo camera;
 		ph::ShaderInfo::BindingInfo transforms;
 		ph::ShaderInfo::BindingInfo textures;
-	} main_pass_bindings;
+	} bindings;
 
-	struct ResolvePassBindings {
-		ph::ShaderInfo::BindingInfo depth;
-		ph::ShaderInfo::BindingInfo normal;
-		ph::ShaderInfo::BindingInfo albedo_spec;
-		ph::ShaderInfo::BindingInfo lights;
-		ph::ShaderInfo::BindingInfo camera;
-	} resolve_pass_bindings;
 
 	// Rendering systems
+	void build_main_pass(ph::FrameInfo& frame, ph::RenderGraph& graph, ph::Renderer& renderer);
+	LightingPass lighting;
 	SkyboxRenderer skybox;
 
 	void create_main_pipeline(ph::VulkanContext& ctx);
-	void create_resolve_pipeline(ph::VulkanContext& ctx);
 
 	void update_transforms(ph::CommandBuffer& cmd_buf);
-	void update_camera_data(ph::CommandBuffer& cmd_buf, ph::RenderGraph& graph);
+	void update_camera_data(ph::CommandBuffer& cmd_buf);
 	vk::DescriptorSet get_main_pass_descriptors(ph::FrameInfo& frame, ph::Renderer& renderer, ph::RenderPass& pass);
-	vk::DescriptorSet get_resolve_pass_descriptors(ph::FrameInfo& frame, ph::Renderer& renderer, ph::RenderPass& pass);
 };
 
 }

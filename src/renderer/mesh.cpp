@@ -38,7 +38,7 @@ Mesh::~Mesh() {
 
 void Mesh::create(CreateInfo const& info) {
     destroy();
-
+    ctx = info.ctx;
     create_vertex_buffer(info);
     create_index_buffer(info);
 }

@@ -10,15 +10,6 @@ namespace ph {
 class RenderGraph {
 public:
     friend class Renderer;
-
-    glm::mat4 projection;
-    glm::mat4 view;
-    glm::vec3 camera_pos;
-
-    stl::vector<Material> materials;
-    stl::vector<PointLight> point_lights; 
-    stl::vector<DirectionalLight> directional_lights;
-
     RenderGraph(VulkanContext* ctx);
 
     void add_pass(RenderPass&& pass);

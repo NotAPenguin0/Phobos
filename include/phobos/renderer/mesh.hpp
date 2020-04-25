@@ -15,7 +15,7 @@ public:
         VulkanContext* ctx;
         float const* vertices;
         size_t vertex_count;
-        uint32_t* indices;
+        uint32_t const* indices;
         size_t index_count;
         size_t vertex_size;
     };

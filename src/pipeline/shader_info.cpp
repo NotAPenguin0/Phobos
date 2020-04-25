@@ -176,6 +176,37 @@ static void find_sampled_images(ShaderInfo& info, spirv_cross::Compiler& refl, D
     }
 }
 
+static void collapse_bindings(DescriptorSetLayoutCreateInfo& info) {
+    stl::vector<vk::DescriptorSetLayoutBinding> final_bindings;
+
+    for (size_t i = 0; i < info.bindings.size(); ++i) {
+        auto binding = info.bindings[i];
+
+        // Before doing anything, check if we already processed this binding
+        bool process = true;
+        for (auto const& b : final_bindings) { 
+            if (binding.binding == b.binding) { 
+                process = false; 
+                break; 
+            }
+        }
+        if (!process) { continue; }
+
+        vk::ShaderStageFlags stages = binding.stageFlags;
+        for (size_t j = i + 1; j < info.bindings.size(); ++j) {
+            auto const& other_binding = info.bindings[j];
+            if (binding.binding == other_binding.binding) {
+                stages |= other_binding.stageFlags;
+
+            }
+        }
+        binding.stageFlags = stages;
+        final_bindings.push_back(binding);
+    }
+
+    info.bindings = final_bindings;
+}
+
 static DescriptorSetLayoutCreateInfo get_descriptor_set_layout(ShaderInfo& info, stl::vector<std::unique_ptr<spirv_cross::Compiler>>& reflected_shaders) {
     DescriptorSetLayoutCreateInfo dslci;
     for (auto& refl : reflected_shaders) {
@@ -183,6 +214,7 @@ static DescriptorSetLayoutCreateInfo get_descriptor_set_layout(ShaderInfo& info,
         find_shader_storage_buffers(info, *refl, dslci);
         find_sampled_images(info, *refl, dslci);
     }
+    collapse_bindings(dslci);
     return dslci;
 }
 

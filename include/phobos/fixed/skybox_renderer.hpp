@@ -5,18 +5,21 @@
 #include <phobos/renderer/command_buffer.hpp>
 #include <phobos/renderer/renderer.hpp>
 #include <phobos/renderer/cubemap.hpp>
+#include <phobos/fixed/projection.hpp>
 
 namespace ph::fixed {
 
 class SkyboxRenderer {
 public:
 	// Creates pipeline for the skybox renderer
-	SkyboxRenderer(VulkanContext& ctx);
+	SkyboxRenderer(ph::VulkanContext& ctx);
 
 	void set_skybox(ph::Cubemap* sb) { skybox = sb; }
-	// Note that this does not build a renderpass if no skybox is set
-	void build_render_pass(ph::FrameInfo& frame, ph::RenderAttachment& output, ph::RenderAttachment& depth, ph::RenderGraph& graph, ph::Renderer& renderer);
 
+
+	// Note that this does not build a renderpass if no skybox is set
+	void build_render_pass(ph::FrameInfo& frame, ph::RenderAttachment& output, ph::RenderAttachment& depth, ph::RenderGraph& graph,
+		ph::Renderer& renderer, CameraData const& camera);
 private:
 	// Resources
 
