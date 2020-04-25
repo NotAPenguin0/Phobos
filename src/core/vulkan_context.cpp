@@ -191,8 +191,6 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
     logger->write_fmt(log::Severity::Info, "Created swapchain. Dimensions are {}x{}", 
         context->swapchain.extent.width, context->swapchain.extent.height);
 
-    create_default_pipelines(*context, context->pipelines);
-
     logger->write_fmt(log::Severity::Info, "Created pipelines");
 
     vk::CommandPoolCreateInfo cmd_pool_info;

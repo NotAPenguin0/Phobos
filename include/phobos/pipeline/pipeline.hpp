@@ -19,9 +19,6 @@ namespace ph {
 
 struct RenderPass;
 
-// Called by ph::VulkanContext on startup. Creates all pipelines necessary for the fixed pipeline functionality to work
-void create_default_pipelines(VulkanContext& ctx, PipelineManager& pipelines);
-
 struct DescriptorSetLayoutCreateInfo {
     stl::vector<vk::DescriptorSetLayoutBinding> bindings;
     // Optional. Leave empty to use default flags
