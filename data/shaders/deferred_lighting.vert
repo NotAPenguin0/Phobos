@@ -2,7 +2,6 @@
 
 layout (location = 0) in vec3 iPos;
 
-layout(location = 0) out vec2 GBufferTexCoords;
 
 layout(set = 0, binding = 0) uniform CameraData {
     mat4 projection_view;
@@ -21,17 +20,18 @@ layout(set = 0, binding = 1) buffer readonly PointLights {
    PointLight lights[];
 } lights;
 
-layout(push_constant) uniform Indices {
-    uint light;
-} indices;
+layout(push_constant) uniform PC {
+    uint light_index;
+    uvec2 screen_size;
+} pc;
 
 void main() {
-    PointLight light = lights.lights[indices.light];
+    PointLight light = lights.lights[pc.light_index];
     vec4 light_world = vec4(light.transform.w * iPos + light.transform.xyz, 1.0);
     vec4 light_clip = camera.projection_view * light_world;
     gl_Position = light_clip;
     // Apply perspective division
-    vec3 light_ndc = light_clip.xyz / light_clip.w;
+//    vec3 light_ndc = light_clip.xyz / light_clip.w;
     // Do viewport transform and ignore z value
-    GBufferTexCoords = light_ndc.xy * 0.5 + 0.5;
+//    GBufferTexCoords = light_ndc.xy * 0.5 + 0.5;
 }

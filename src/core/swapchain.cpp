@@ -12,8 +12,8 @@ namespace ph {
 
 static vk::SurfaceFormatKHR choose_surface_format(SurfaceDetails const& surface_details) {
     for (auto const& fmt : surface_details.formats) {
-        // This is a nice format to use
-        if (fmt.format == vk::Format::eB8G8R8A8Snorm &&
+        // Srgb framebuffer so we can have gamma correction
+        if (fmt.format == vk::Format::eB8G8R8A8Srgb &&
             fmt.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear) {
                 return fmt;
         }

@@ -8,8 +8,8 @@ namespace ph {
 
 struct alignas(2 * sizeof(glm::vec4)) PointLight {
     glm::vec3 position;
-    // Intensity of the light. This corresponds to the radius of the light in world units.
-    float intensity;
+    //Radius of the light in world units.
+    float radius;
     glm::vec3 color;
     float _pad0;
 };

@@ -81,7 +81,7 @@ public:
 
 		light.color = glm::vec3(1, 1, 1);
 		light.position = glm::vec3(2, 2, 2);
-		light.intensity = 20.0f;
+		light.radius = 4.0f;
 
 		deferred_renderer = std::make_unique<ph::fixed::DeferredRenderer>(*ctx, *present, vk::Extent2D{ 1280, 720 });
 		

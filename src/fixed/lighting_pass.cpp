@@ -176,7 +176,7 @@ void LightingPass::build_render_pass(ph::FrameInfo& frame, ph::RenderAttachment&
     pass.sampled_attachments = { normal, depth, albedo_spec };
     pass.clear_values = { vk::ClearColorValue{ std::array<float, 4>{ {0.0f, 0.0f, 0.0f, 1.0f}} } };
 
-    pass.callback = [this, &frame, &renderer, &camera, &normal, &depth, &albedo_spec](ph::CommandBuffer& cmd_buf) {
+    pass.callback = [this, &frame, &renderer, &camera, &output, &normal, &depth, &albedo_spec](ph::CommandBuffer& cmd_buf) {
         auto_viewport_scissor(cmd_buf);
 
         // Don't do anything if there aren't any lights to render
@@ -200,6 +200,9 @@ void LightingPass::build_render_pass(ph::FrameInfo& frame, ph::RenderAttachment&
 
         cmd_buf.bind_vertex_buffer(0, light_volume.get_vertices());
         cmd_buf.bind_index_buffer(light_volume.get_indices());
+
+        uint32_t screen_size[] = { output.get_width(), output.get_height() };
+        cmd_buf.push_constants(vk::ShaderStageFlagBits::eFragment, 2 * sizeof(uint32_t), 2 * sizeof(uint32_t), screen_size);
 
         for (size_t i = 0; i < point_lights.size(); ++i) {
             // Push light index
