@@ -18,7 +18,11 @@ public:
 	// Projection parameter will be used to calculate whether to actually add the light based on a frustum test.
 	void add_point_light(Projection projection, ph::PointLight const& light);
 
-	void build_render_pass(ph::FrameInfo& frame, ph::RenderAttachment& output, ph::RenderAttachment& depth, ph::RenderAttachment& normal, 
+	// Enabling this will render wireframe meshes where the light sources are. Useful for debugging or editing scenes.
+	// Defaults to false.
+	void set_light_wireframe_overlay(bool enable);
+
+	void build_render_pass(ph::FrameInfo& frame, ph::RenderAttachment& output, ph::RenderAttachment& depth, ph::RenderAttachment& normal,
 		ph::RenderAttachment& albedo_spec, ph::RenderGraph& graph, ph::Renderer& renderer, CameraData const& camera);
 private:
 	// Bindings
@@ -29,6 +33,11 @@ private:
 		ph::ShaderInfo::BindingInfo albedo_spec;
 		ph::ShaderInfo::BindingInfo lights;
 		ph::ShaderInfo::BindingInfo camera;
+
+		ph::ShaderInfo::BindingInfo ambient_albedo_spec;
+
+		ph::ShaderInfo::BindingInfo overlay_lights;
+		ph::ShaderInfo::BindingInfo overlay_camera;
 	} bindings;
 
 	// Resources
@@ -41,7 +50,12 @@ private:
 		ph::BufferSlice lights;
 	} per_frame_buffers;
 
+	bool enable_light_overlay = false;
+
 	void create_pipeline(ph::VulkanContext& ctx);
+	void create_ambient_pipeline(ph::VulkanContext& ctx);
+	// #Tag(Release)
+	void create_light_overlay_pipeline(ph::VulkanContext& ctx);
 	void create_light_volume_mesh(ph::VulkanContext& ctx);
 
 	void update_camera(ph::CommandBuffer& cmd_buf, CameraData const& camera);

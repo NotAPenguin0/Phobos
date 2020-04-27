@@ -43,7 +43,6 @@ void LightingPass::create_pipeline(ph::VulkanContext& ctx) {
     pci.vertex_input_binding = vk::VertexInputBindingDescription(0, stride, vk::VertexInputRate::eVertex);
     pci.vertex_attributes.emplace_back(0_u32, 0_u32, vk::Format::eR32G32B32Sfloat, 0_u32);
 
-    // Disable depth testing for deferred resolve pipeline, since we're drawing a fullscreen quad
     pci.depth_stencil.depthTestEnable = false;
     pci.depth_stencil.depthWriteEnable = false;
     // If we do not cull any geometry in the lighting pass, all lights will have double the intensity (since front and back faces are both 
@@ -69,6 +68,103 @@ void LightingPass::create_pipeline(ph::VulkanContext& ctx) {
     bindings.camera = pci.shader_info["camera"];
 
     ctx.pipelines.create_named_pipeline("fixed_deferred_lighting", std::move(pci));
+}
+
+void LightingPass::create_ambient_pipeline(ph::VulkanContext& ctx) {
+    using namespace stl::literals;
+
+    ph::PipelineCreateInfo pci;
+
+    // The ambient color is rendered first so we don't need any blending here
+    vk::PipelineColorBlendAttachmentState blend;
+    blend.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+    blend.blendEnable = false;
+    pci.blend_attachments.push_back(blend);
+
+    pci.debug_name = "fixed_deferred_ambient"; // #Tag(Release)
+
+    // To avoid having to recreate the pipeline when the viewport is changed
+    pci.dynamic_states.push_back(vk::DynamicState::eViewport);
+    pci.dynamic_states.push_back(vk::DynamicState::eScissor);
+    // Even though they are dynamic states, viewportCount must be 1 if the multiple viewports feature is  not enabled. The pViewports field
+    // is ignored though, so the actual values don't matter. 
+    // See  also https://renderdoc.org/vkspec_chunked/chap25.html#VkPipelineViewportStateCreateInfo
+    pci.viewports.emplace_back();
+    pci.scissors.emplace_back();
+
+    // A fullscreen quad only needs a vec2 for position and a vec2 for texture coordinates
+    constexpr size_t stride = 4 * sizeof(float);
+    pci.vertex_input_binding = vk::VertexInputBindingDescription(0, stride, vk::VertexInputRate::eVertex);
+    pci.vertex_attributes.emplace_back(0_u32, 0_u32, vk::Format::eR32G32Sfloat, 0_u32);
+    pci.vertex_attributes.emplace_back(1_u32, 0_u32, vk::Format::eR32G32Sfloat, (uint32_t)(2 * sizeof(float)));
+
+    // Disable depth testing for ambient pipeline, since we're drawing a fullscreen quad
+    pci.depth_stencil.depthTestEnable = false;
+    pci.depth_stencil.depthWriteEnable = false;
+    pci.rasterizer.cullMode = vk::CullModeFlagBits::eNone;
+
+    std::vector<uint32_t> vert_code = ph::load_shader_code("data/shaders/ambient.vert.spv");
+    std::vector<uint32_t> frag_code = ph::load_shader_code("data/shaders/ambient.frag.spv");
+
+    ph::ShaderHandle vertex_shader = ph::create_shader(ctx, vert_code, "main", vk::ShaderStageFlagBits::eVertex);
+    ph::ShaderHandle fragment_shader = ph::create_shader(ctx, frag_code, "main", vk::ShaderStageFlagBits::eFragment);
+
+    pci.shaders.push_back(vertex_shader);
+    pci.shaders.push_back(fragment_shader);
+
+    ph::reflect_shaders(ctx, pci);
+    // Store bindings so we don't need to look them up every frame
+    bindings.ambient_albedo_spec = pci.shader_info["gAlbedoSpec"];
+
+    ctx.pipelines.create_named_pipeline("fixed_deferred_ambient", std::move(pci));
+}
+
+void LightingPass::create_light_overlay_pipeline(ph::VulkanContext& ctx) {
+    using namespace stl::literals;
+    ph::PipelineCreateInfo pci;
+
+    // The ambient color is rendered first so we don't need any blending here
+    vk::PipelineColorBlendAttachmentState blend;
+    blend.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+    blend.blendEnable = false;
+    pci.blend_attachments.push_back(blend);
+
+    pci.debug_name = "fixed_deferred_light_overlay"; // #Tag(Release)
+
+    // To avoid having to recreate the pipeline when the viewport is changed
+    pci.dynamic_states.push_back(vk::DynamicState::eViewport);
+    pci.dynamic_states.push_back(vk::DynamicState::eScissor);
+    // Even though they are dynamic states, viewportCount must be 1 if the multiple viewports feature is  not enabled. The pViewports field
+    // is ignored though, so the actual values don't matter. 
+    // See  also https://renderdoc.org/vkspec_chunked/chap25.html#VkPipelineViewportStateCreateInfo
+    pci.viewports.emplace_back();
+    pci.scissors.emplace_back();
+
+    constexpr size_t stride = 3 * sizeof(float);
+    pci.vertex_input_binding = vk::VertexInputBindingDescription(0, stride, vk::VertexInputRate::eVertex);
+    pci.vertex_attributes.emplace_back(0_u32, 0_u32, vk::Format::eR32G32B32Sfloat, 0_u32);
+
+    // Disable depth testing for ambient pipeline, since we're drawing a fullscreen quad
+    pci.depth_stencil.depthTestEnable = false;
+    pci.depth_stencil.depthWriteEnable = false;
+    pci.rasterizer.cullMode = vk::CullModeFlagBits::eNone;
+    pci.rasterizer.polygonMode = vk::PolygonMode::eLine; // wireframe
+
+    std::vector<uint32_t> vert_code = ph::load_shader_code("data/shaders/light_wireframe.vert.spv");
+    std::vector<uint32_t> frag_code = ph::load_shader_code("data/shaders/light_wireframe.frag.spv");
+
+    ph::ShaderHandle vertex_shader = ph::create_shader(ctx, vert_code, "main", vk::ShaderStageFlagBits::eVertex);
+    ph::ShaderHandle fragment_shader = ph::create_shader(ctx, frag_code, "main", vk::ShaderStageFlagBits::eFragment);
+
+    pci.shaders.push_back(vertex_shader);
+    pci.shaders.push_back(fragment_shader);
+
+    ph::reflect_shaders(ctx, pci);
+    // Store bindings so we don't need to look them up every frame
+    bindings.overlay_camera = pci.shader_info["camera"];
+    bindings.overlay_lights = pci.shader_info["lights"];
+
+    ctx.pipelines.create_named_pipeline("fixed_deferred_light_overlay", std::move(pci));
 }
 
 // Exported from blender
@@ -135,6 +231,13 @@ static constexpr uint32_t light_volume_indices[] = {
  , 0 , 16 , 12 , 14 , 2 , 12 , 13 , 14 , 13 , 1 , 14 ,
 };
 
+// Fullscreen quad with a vec2 for position and vec2 for texture coordinates.
+static constexpr float quad_geometry[] = {
+    -1, 1, 0, 1, -1, -1, 0, 0,
+    1, -1, 1, 0, -1, 1, 0, 1,
+    1, -1, 1, 0, 1, 1, 1, 1
+};
+
 void LightingPass::create_light_volume_mesh(ph::VulkanContext& ctx) {
     // I modeled an icosahedron in blender for this. We could use a more accurate shape, but I think this comes close enough to the 
     // sphere representation that we need, without causing too much overhead.
@@ -153,17 +256,24 @@ void LightingPass::create_light_volume_mesh(ph::VulkanContext& ctx) {
 
 LightingPass::LightingPass(ph::VulkanContext& ctx) {
     create_pipeline(ctx);
+    create_ambient_pipeline(ctx);
+    create_light_overlay_pipeline(ctx);
     create_light_volume_mesh(ctx);
 }
 
 void LightingPass::frame_end() {
     point_lights.clear();
     per_frame_buffers = {};
+    enable_light_overlay = false;
 }
 
 void LightingPass::add_point_light(Projection projection, ph::PointLight const& light) {
     // TODO: Implement the frustum test
     point_lights.push_back(light);
+}
+
+void LightingPass::set_light_wireframe_overlay(bool enable) {
+    enable_light_overlay = enable;
 }
 
 void LightingPass::build_render_pass(ph::FrameInfo& frame, ph::RenderAttachment& output, ph::RenderAttachment& depth, ph::RenderAttachment& normal,
@@ -179,24 +289,44 @@ void LightingPass::build_render_pass(ph::FrameInfo& frame, ph::RenderAttachment&
     pass.callback = [this, &frame, &renderer, &camera, &output, &normal, &depth, &albedo_spec](ph::CommandBuffer& cmd_buf) {
         auto_viewport_scissor(cmd_buf);
 
+        ph::RenderPass& pass = *cmd_buf.get_active_renderpass();
+
+        // Render a fullscreen quad for ambient lighting. Note that we cannot apply ambient lighting in the regular light shader since
+        // that would give an ambient component for each light, instead of globally, which we don't want.
+        ph::Pipeline ambient_pipeline = renderer.get_pipeline("fixed_deferred_ambient", pass);
+        cmd_buf.bind_pipeline(ambient_pipeline);
+        
+        ph::DescriptorSetBinding ambient_set;
+        ambient_set.add(ph::make_descriptor(bindings.ambient_albedo_spec, albedo_spec.image_view(), frame.default_sampler));
+        vk::DescriptorSet ambient_desrc_set = renderer.get_descriptor(frame, pass, ambient_set);
+        cmd_buf.bind_descriptor_set(0, ambient_desrc_set);
+
+        ph::BufferSlice quad = cmd_buf.allocate_scratch_vbo(sizeof(quad_geometry));
+        std::memcpy(quad.data, quad_geometry, sizeof(quad_geometry));
+        cmd_buf.bind_vertex_buffer(0, quad);
+
+        cmd_buf.draw(6, 1, 0, 0);
+        frame.draw_calls++;
+
         // Don't do anything if there aren't any lights to render
         if (point_lights.empty()) { return; }
 
         update_camera(cmd_buf, camera);
         update_lights(cmd_buf);
 
-        ph::RenderPass& pass = *cmd_buf.get_active_renderpass();
         ph::Pipeline pipeline = renderer.get_pipeline("fixed_deferred_lighting", pass);
         cmd_buf.bind_pipeline(pipeline);
 
-        ph::DescriptorSetBinding set;
-        set.add(ph::make_descriptor(bindings.camera, per_frame_buffers.camera));
-        set.add(ph::make_descriptor(bindings.lights, per_frame_buffers.lights));
-        set.add(ph::make_descriptor(bindings.depth, depth.image_view(), frame.default_sampler));
-        set.add(ph::make_descriptor(bindings.albedo_spec, albedo_spec.image_view(), frame.default_sampler));
-        set.add(ph::make_descriptor(bindings.normal, normal.image_view(), frame.default_sampler));
-        vk::DescriptorSet descr_set = renderer.get_descriptor(frame, pass, set);
-        cmd_buf.bind_descriptor_set(0, descr_set);
+        {
+            ph::DescriptorSetBinding set;
+            set.add(ph::make_descriptor(bindings.camera, per_frame_buffers.camera));
+            set.add(ph::make_descriptor(bindings.lights, per_frame_buffers.lights));
+            set.add(ph::make_descriptor(bindings.depth, depth.image_view(), frame.default_sampler));
+            set.add(ph::make_descriptor(bindings.albedo_spec, albedo_spec.image_view(), frame.default_sampler));
+            set.add(ph::make_descriptor(bindings.normal, normal.image_view(), frame.default_sampler));
+            vk::DescriptorSet descr_set = renderer.get_descriptor(frame, pass, set);
+            cmd_buf.bind_descriptor_set(0, descr_set);
+        }
 
         cmd_buf.bind_vertex_buffer(0, light_volume.get_vertices());
         cmd_buf.bind_index_buffer(light_volume.get_indices());
@@ -204,11 +334,28 @@ void LightingPass::build_render_pass(ph::FrameInfo& frame, ph::RenderAttachment&
         uint32_t screen_size[] = { output.get_width(), output.get_height() };
         cmd_buf.push_constants(vk::ShaderStageFlagBits::eFragment, 2 * sizeof(uint32_t), 2 * sizeof(uint32_t), screen_size);
 
-        for (size_t i = 0; i < point_lights.size(); ++i) {
+        for (uint32_t i = 0; i < point_lights.size(); ++i) {
             // Push light index
             cmd_buf.push_constants(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, sizeof(uint32_t), &i);
             cmd_buf.draw_indexed(light_volume.get_index_count(), 1, 0, 0, 0);
             frame.draw_calls++;
+        }
+
+        if (enable_light_overlay) {
+            // Render light overlay
+            ph::Pipeline overlay_pipeline = renderer.get_pipeline("fixed_deferred_light_overlay", pass);
+            cmd_buf.bind_pipeline(overlay_pipeline);
+            ph::DescriptorSetBinding set_binding;
+            set_binding.add(ph::make_descriptor(bindings.overlay_camera, per_frame_buffers.camera));
+            set_binding.add(ph::make_descriptor(bindings.overlay_lights, per_frame_buffers.lights));
+            vk::DescriptorSet descr_set = renderer.get_descriptor(frame, pass, set_binding);
+            cmd_buf.bind_descriptor_set(0, descr_set);
+            // Vertex and index buffers are still bound
+            for (uint32_t i = 0; i < point_lights.size(); ++i) {
+                cmd_buf.push_constants(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, sizeof(uint32_t), &i);
+                cmd_buf.draw_indexed(light_volume.get_index_count(), 1, 0, 0, 0);
+                frame.draw_calls++;
+            }
         }
     };
 

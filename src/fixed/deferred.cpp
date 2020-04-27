@@ -110,6 +110,10 @@ void DeferredRenderer::add_point_light(ph::PointLight const& light) {
     lighting.add_point_light(camera_data.projection, light);
 }
 
+void DeferredRenderer::set_light_wireframe_overlay(bool enable) {
+    lighting.set_light_wireframe_overlay(enable);
+}
+
 void DeferredRenderer::set_skybox(ph::Cubemap* sb) {
     skybox.set_skybox(sb);
 }

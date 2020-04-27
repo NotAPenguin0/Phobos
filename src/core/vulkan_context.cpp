@@ -165,6 +165,8 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
     DeviceRequirements device_requirements;
     device_requirements.extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     device_requirements.features.samplerAnisotropy = true;
+    // We need this to allow rendering wireframe meshes
+    device_requirements.features.fillModeNonSolid = true;
     vk::PhysicalDeviceDescriptorIndexingFeatures descriptor_indexing;
     descriptor_indexing.shaderSampledImageArrayNonUniformIndexing = true;
     descriptor_indexing.runtimeDescriptorArray = true;

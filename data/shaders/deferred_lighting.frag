@@ -10,9 +10,10 @@ layout(set = 0, binding = 0) uniform CameraData {
 } camera;
 
 struct PointLight {
-    // First 3 values have the position, last has the range of the light (= intensity)
+    // First 3 values have the position, last has the radius of the light
     vec4 transform;
-    vec3 color;
+    // first 3 values are the color, last value has the intensity of the light
+    vec4 color;
 };
 
 layout(set = 0, binding = 1) buffer readonly PointLights {
@@ -53,19 +54,19 @@ float saturate(float x) {
 vec3 apply_point_light(vec3 norm, vec3 in_color, PointLight light, vec3 WorldPos, float Specular) {
     vec3 light_dir = normalize(light.transform.xyz - WorldPos);
     float diff = max(dot(norm, light_dir), 0.0);
-    vec3 diffuse = in_color * diff * light.color;
+    vec3 diffuse = in_color * diff * light.color.xyz;
 
     vec3 view_dir = normalize(camera.position - WorldPos);
     vec3 reflect_dir = reflect(-light_dir, norm);
     float spec = pow(max(dot(view_dir, reflect_dir), 0.0), 2);
-    vec3 specular = in_color * spec * light.color * Specular;
+    vec3 specular = in_color * spec * light.color.xyz * Specular;
 
     float dist = length(WorldPos - light.transform.xyz);
     float radius = light.transform.w;
     float num = saturate(1 - pow(dist / radius, 4));
     float falloff = num * num / (dist * dist + 1);
 
-    return (diffuse + specular) * falloff; // w component is range = intensity
+    return (diffuse + specular) * falloff * light.color.w; // w component is intensity
 }
 
 vec2 CalculateGBufferTexCoords(uvec2 screen_size) {

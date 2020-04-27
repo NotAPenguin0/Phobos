@@ -40,6 +40,10 @@ public:
 	// Note: to enable the frustum test, you must call this after setting the camera data.
 	void add_point_light(ph::PointLight const& light);
 
+	// Enabling this will render wireframe meshes where the light sources are. Useful for debugging or editing scenes.
+	// Defaults to false.
+	void set_light_wireframe_overlay(bool enable);
+
 	// Sets the skybox to use for rendering. If this is nullptr, no skybox will be drawn.
 	// Note that frame_end() resets this to nullptr.
 	void set_skybox(ph::Cubemap* sb);

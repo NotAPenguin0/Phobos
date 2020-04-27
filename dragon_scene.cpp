@@ -3,6 +3,7 @@
 #include <stl/literals.hpp>
 #include <iostream>
 #include <imgui/imgui.h>
+#include <random>
 
 #include <phobos/renderer/cubemap.hpp>
 #include <phobos/fixed/fixed_pipeline.hpp>
@@ -29,7 +30,7 @@ private:
 	glm::vec3 monkey_pos = glm::vec3(1.4f, 2.0f, -0.9f);
 	float monkey_rotation = 0.0f;
 
-	ph::PointLight light;
+	std::vector<ph::PointLight> lights;
 	
 	ph::Cubemap skybox;
 
@@ -79,9 +80,24 @@ public:
 	DragonScene() : ph::TestApplication(1280, 720, "Phobos Demo Scene (dragon)") {
 		load_resources();
 
-		light.color = glm::vec3(1, 1, 1);
-		light.position = glm::vec3(2, 2, 2);
-		light.radius = 4.0f;
+		std::random_device seed{};
+		std::mt19937 rng{ seed() };
+		std::uniform_real_distribution<float> pos_distr(-3.0f, 3.0f);
+		std::uniform_real_distribution<float> radius_distr(0.1f, 1.0f);
+		std::uniform_real_distribution<float> height_distr(0.0f, 3.0f);
+		std::uniform_real_distribution<float> intensity_distr(0.5f, 1.0f);
+		constexpr size_t light_cnt = 100;
+		lights.reserve(light_cnt);
+		for (size_t i = 0; i < light_cnt; ++i) {
+			ph::PointLight light;
+			light.color = glm::vec3(1, 1, 1);
+			light.position.x = pos_distr(rng);
+			light.position.y = height_distr(rng);
+			light.position.z = pos_distr(rng);
+			light.radius = radius_distr(rng);
+			//light.intensity = intensity_distr(rng);
+			lights.push_back(light);
+		}
 
 		deferred_renderer = std::make_unique<ph::fixed::DeferredRenderer>(*ctx, *present, vk::Extent2D{ 1280, 720 });
 		
@@ -103,12 +119,18 @@ public:
 		}
 		ImGui::End();
 
+		static bool light_overlay = false;
+
 		if (ImGui::Begin("Frame stats")) {
 			ImGui::TextUnformatted(
 				fmt::format("Frametime: {} ms\nFPS: {}", (float)(frame_time * 1000.0f) , (int)(1.0f / frame_time)).c_str());
 			ImGui::DragFloat3("dragon pos", &dragon_pos.x, 0.1f);
 			ImGui::DragFloat3("monkey pos", &monkey_pos.x, 0.1f);
-			ImGui::DragFloat3("light pos", &light.position.x, 0.1f);
+//			ImGui::ColorEdit3("light color", &light.color.x);
+//			ImGui::DragFloat3("light pos", &light.position.x, 0.1f);
+//			ImGui::DragFloat("light radius", &light.radius, 0.1f);
+//			ImGui::DragFloat("light intensity", &light.intensity, 0.1f);
+			ImGui::Checkbox("Light overlay", &light_overlay);
 		}
 		ImGui::End();
 
@@ -118,8 +140,12 @@ public:
 		deferred_renderer->camera_data.position = { 4.0f, 4.0f, 4.0f };
 		deferred_renderer->camera_data.view = glm::lookAt(deferred_renderer->camera_data.position, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 
+		deferred_renderer->set_light_wireframe_overlay(light_overlay);
+
 		// Note that we should add lights after setting the projection so we can get frustum culling
-		deferred_renderer->add_point_light(light);
+		for (auto const& light : lights) {
+			deferred_renderer->add_point_light(light);
+		}
 
 		for (auto const& mat : materials) { deferred_renderer->add_material(mat); }
 
