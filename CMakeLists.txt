@@ -9,14 +9,18 @@ set(PHOBOS_SOURCES "src/util/vma_implementation.cpp")
 set(PHOBOS_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/include")
 set(PHOBOS_LINK_LIBRARIES "")
 
-set(Vulkan_LIBRARY CACHE STRING "Vulkan library path")
-set(Vulkan_INCLUDE_DIR CACHE STRING "Vulkan include directory")
+#set(Vulkan_LIBRARY CACHE STRING "Vulkan library path")
+#set(Vulkan_INCLUDE_DIR CACHE STRING "Vulkan include directory")
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+find_package(Vulkan REQUIRED)
 
 set(PHOBOS_INCLUDE_DIRECTORIES ${PHOBOS_INCLUDE_DIRECTORIES}
-    ${Vulkan_INCLUDE_DIR}
+    ""
 )
 set(PHOBOS_LINK_LIBRARIES ${PHOBOS_LINK_LIBRARIES}
-    ${Vulkan_LIBRARY}
+    ""
 ) 
 
 OPTION(PHOBOS_ENABLE_TEST_APP CACHE OFF)
@@ -44,8 +48,10 @@ endif()
 
 target_compile_definitions(Phobos PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
+target_include_directories(Phobos PUBLIC Vulkan::Vulkan)
 target_include_directories(Phobos PUBLIC ${PHOBOS_INCLUDE_DIRECTORIES})
 target_link_libraries(Phobos PUBLIC ${PHOBOS_LINK_LIBRARIES})
+target_link_libraries(Phobos PUBLIC Vulkan::Vulkan)
 
 file(GLOB PHOBOS_SHADERS "${CMAKE_CURRENT_SOURCE_DIR}/data/shaders/*")
 foreach(SHADER ${PHOBOS_SHADERS}) 
