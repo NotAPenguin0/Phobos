@@ -4,14 +4,8 @@ add_subdirectory("stl")
 set(SPIRV_CROSS_STATIC ON)
 set(SPIRV_CROSS_CLI OFF)
 add_subdirectory("SPIRV-Cross")
-set(ASSIMP_BUILD_ALL_EXPORTERS_BY_DEFAULT OFF)
-set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF)
 set(BUILD_SHARED_LIBS OFF)
-set(ASSIMP_BUILD_OBJ_IMPORTER ON)
-set(ASSIMP_BUILD_FBX_IMPORTER ON)
-set(ASSIMP_BUILD_ASSIMP_TOOLS OFF)
-set(ASSIMP_BUILD_TESTS OFF)
-add_subdirectory("assimp")
+
 
 set(PHOBOS_DEPENDENCY_COMPILE_OPTIONS "")
 
@@ -31,13 +25,9 @@ target_compile_options(spirv-cross-core PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTI
 target_compile_options(spirv-cross-cpp PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
 target_compile_options(spirv-cross-c PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
 target_compile_options(spirv-cross-glsl PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
-target_compile_options(assimp PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
-target_compile_options(zlibstatic PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
-target_compile_options(zlib PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
-target_compile_options(IrrXML PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
+
 
 set(PHOBOS_INCLUDE_DIRECTORIES ${PHOBOS_INCLUDE_DIRECTORIES}
-    "${CMAKE_CURRENT_SOURCE_DIR}" 
     "${CMAKE_CURRENT_SOURCE_DIR}/mimas/public" 
     "${CMAKE_CURRENT_SOURCE_DIR}/glm/"
     "${CMAKE_CURRENT_SOURCE_DIR}/fmt/include"
@@ -53,17 +43,12 @@ set(PHOBOS_LINK_LIBRARIES ${PHOBOS_LINK_LIBRARIES}
     fmt
     stl
     spirv-cross-core
-    assimp
     PARENT_SCOPE
 )
 
 set(PHOBOS_TEST_APP_INCLUDE_DIRS
     ${PHOBOS_TEST_APP_INCLUDE_DIRS}
-    "${CMAKE_CURRENT_SOURCE_DIR}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/imgui"
-    "${CMAKE_CURRENT_SOURCE_DIR}/imgui/examples"
     "${CMAKE_CURRENT_SOURCE_DIR}/glm/"
     "${CMAKE_CURRENT_SOURCE_DIR}/fmt/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/assimp/include"
     PARENT_SCOPE
 )
