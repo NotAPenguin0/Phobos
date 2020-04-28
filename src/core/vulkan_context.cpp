@@ -209,4 +209,8 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
     return context;
 }
 
+void destroy_vulkan_context(VulkanContext* ctx) {
+    delete ctx;
+}
+
 }

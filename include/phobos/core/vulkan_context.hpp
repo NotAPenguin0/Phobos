@@ -63,6 +63,7 @@ struct AppSettings {
 };
 
 VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterface* logger, AppSettings settings = {});
+void destroy_vulkan_context(VulkanContext* ctx);
 
 }
 

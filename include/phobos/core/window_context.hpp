@@ -24,6 +24,7 @@ struct WindowContext {
 };
 
 WindowContext* create_window_context(std::string_view title, size_t width, size_t height, bool fullscreen = false);
+void destroy_window_context(WindowContext* ctx);
 
 }
 

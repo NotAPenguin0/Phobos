@@ -37,6 +37,10 @@ WindowContext* create_window_context(std::string_view title, size_t width, size_
     return context;
 }
 
+void destroy_window_context(WindowContext* ctx) {
+    delete ctx;
+}
+
 bool WindowContext::is_open() const {
     return !mimas_close_requested(handle);
 }

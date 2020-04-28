@@ -1,6 +1,5 @@
 #include <phobos/renderer/render_attachment.hpp>
 
-#include <imgui/imgui_impl_phobos.h>
 #include <phobos/util/image_util.hpp>
 
 namespace ph {
