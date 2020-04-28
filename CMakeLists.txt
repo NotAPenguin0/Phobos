@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 project(Phobos)
 
-set(PHOBOS_SOURCES "" "src/util/vma_implementation.cpp")
+set(PHOBOS_SOURCES "src/util/vma_implementation.cpp")
 set(PHOBOS_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/include")
 set(PHOBOS_LINK_LIBRARIES "")
 
@@ -20,6 +20,7 @@ set(PHOBOS_LINK_LIBRARIES ${PHOBOS_LINK_LIBRARIES}
 ) 
 
 OPTION(PHOBOS_ENABLE_TEST_APP CACHE OFF)
+option(PHOBOS_NO_FIXED_PIPELINE CACHE OFF)
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/src") 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/external")

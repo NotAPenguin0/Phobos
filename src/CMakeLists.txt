@@ -9,11 +9,6 @@ set(PHOBOS_SOURCES
 
     "${CMAKE_CURRENT_SOURCE_DIR}/events/event_dispatcher.cpp"
 
-    "${CMAKE_CURRENT_SOURCE_DIR}/fixed/lighting_pass.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/fixed/skybox_renderer.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/fixed/util.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/fixed/deferred.cpp"
-
     "${CMAKE_CURRENT_SOURCE_DIR}/memory/buffer_allocator.cpp"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/pipeline.cpp"
@@ -34,9 +29,20 @@ set(PHOBOS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/util/cmdbuf_util.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/cache_cleanup.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/image_util.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/util/shader_util.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/util/shader_util.cpp"  
     "${CMAKE_CURRENT_SOURCE_DIR}/util/memory_util.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/buffer_util.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/log_interface.cpp"
     PARENT_SCOPE
 )
+
+if (NOT ${PHOBOS_NO_FIXED_PIPELINE}) 
+    set(PHOBOS_SOURCES
+        ${PHOBOS_SOURCES}
+        "${CMAKE_CURRENT_SOURCE_DIR}/fixed/lighting_pass.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/fixed/skybox_renderer.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/fixed/util.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/fixed/deferred.cpp"
+        PARENT_SCOPE
+    )
+endif()
