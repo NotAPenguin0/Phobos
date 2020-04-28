@@ -34,6 +34,7 @@ struct PointLight;
 class RenderGraph;
 struct FrameInfo;
 class Renderer;
+class PresentManager;
 
 struct RawBuffer;
 struct ImageView;
