@@ -12,7 +12,12 @@ struct FrameInfo;
 
 class CommandBuffer {
 public:
-    CommandBuffer(FrameInfo* frame, vk::CommandBuffer cbuf);
+    CommandBuffer(VulkanContext* ctx, FrameInfo* frame, vk::CommandBuffer cbuf);
+
+    // The descriptor set layout will be set by this function. The pNext parameter will be passed into the vk::DescriptorSetAllocateInfo::pNext
+    // field.
+    vk::DescriptorSet get_descriptor(DescriptorSetBinding set_binding, void* pNext = nullptr);
+    Pipeline get_pipeline(std::string_view name);
 
     CommandBuffer& set_viewport(vk::Viewport const& vp);
     CommandBuffer& set_scissor(vk::Rect2D const& scissor);
@@ -39,6 +44,7 @@ public:
 private:
     friend class Renderer;
 
+    VulkanContext* ctx = nullptr;
     FrameInfo* frame = nullptr;
     vk::CommandBuffer cmd_buf;
     RenderPass* active_renderpass = nullptr;
@@ -48,6 +54,9 @@ private:
 
     CommandBuffer& begin_renderpass(RenderPass& pass);
     CommandBuffer& end_renderpass();
+
+    // Called internally by get_descriptor to actually handle the descriptor creation/updates
+    vk::DescriptorSet get_descriptor(DescriptorSetLayoutCreateInfo const& set_layout_info, DescriptorSetBinding set_binding, void* pNext = nullptr);
 };
 
 }

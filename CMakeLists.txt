@@ -53,15 +53,17 @@ target_include_directories(Phobos PUBLIC ${PHOBOS_INCLUDE_DIRECTORIES})
 target_link_libraries(Phobos PUBLIC ${PHOBOS_LINK_LIBRARIES})
 target_link_libraries(Phobos PUBLIC Vulkan::Vulkan)
 
-file(GLOB PHOBOS_SHADERS "${CMAKE_CURRENT_SOURCE_DIR}/data/shaders/*")
-foreach(SHADER ${PHOBOS_SHADERS}) 
-    get_filename_component(SHADER_FNAME ${SHADER} NAME)
-    add_custom_command( 
-        TARGET Phobos
-        COMMAND echo Compiling shader ${SHADER_FNAME} && 
-                glslc ${SHADER} "-o${CMAKE_BINARY_DIR}/data/shaders/${SHADER_FNAME}.spv"
-    )
-endforeach()
+if (NOT ${PHOBOS_NO_FIXED_PIPELINE})
+    file(GLOB PHOBOS_SHADERS "${CMAKE_CURRENT_SOURCE_DIR}/data/shaders/*")
+    foreach(SHADER ${PHOBOS_SHADERS}) 
+        get_filename_component(SHADER_FNAME ${SHADER} NAME)
+        add_custom_command( 
+            TARGET Phobos
+            COMMAND echo Compiling shader ${SHADER_FNAME} && 
+                    glslc ${SHADER} "-o${CMAKE_BINARY_DIR}/data/shaders/${SHADER_FNAME}.spv"
+        )
+    endforeach()
+endif()
 
 # Test Application
 

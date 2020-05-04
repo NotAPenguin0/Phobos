@@ -71,7 +71,7 @@ struct DescriptorSetBinding {
     // Leave this on nullptr to use default pool
     vk::DescriptorPool pool = nullptr;
 private:
-    friend class Renderer;
+    friend class CommandBuffer;
     friend struct std::hash<DescriptorSetBinding>;
     DescriptorSetLayoutCreateInfo set_layout;
 };
