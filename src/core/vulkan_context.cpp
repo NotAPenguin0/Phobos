@@ -167,6 +167,7 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
     device_requirements.features.samplerAnisotropy = true;
     // We need this to allow rendering wireframe meshes
     device_requirements.features.fillModeNonSolid = true;
+    device_requirements.features.independentBlend = true;
     vk::PhysicalDeviceDescriptorIndexingFeatures descriptor_indexing;
     descriptor_indexing.shaderSampledImageArrayNonUniformIndexing = true;
     descriptor_indexing.runtimeDescriptorArray = true;
