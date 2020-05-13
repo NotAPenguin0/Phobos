@@ -2,6 +2,7 @@
 
 #include <phobos/util/memory_util.hpp>
 #include <phobos/util/buffer_util.hpp>
+#include <phobos/core/vulkan_context.hpp>
 
 namespace ph {
 

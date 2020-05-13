@@ -6,6 +6,7 @@ set(PHOBOS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/core/physical_device.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/swapchain.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/device.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/queue.cpp"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/events/event_dispatcher.cpp"
 
@@ -25,7 +26,6 @@ set(PHOBOS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/render_target.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/renderer/cubemap.cpp"
 
-    "${CMAKE_CURRENT_SOURCE_DIR}/util/cmdbuf_util.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/cache_cleanup.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/image_util.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/shader_util.cpp"  
@@ -36,6 +36,7 @@ set(PHOBOS_SOURCES
 )
 
 if (NOT ${PHOBOS_NO_FIXED_PIPELINE}) 
+    message("Phobos: Compiling fixed pipeline")
     set(PHOBOS_SOURCES
         ${PHOBOS_SOURCES}
         "${CMAKE_CURRENT_SOURCE_DIR}/fixed/lighting_pass.cpp"

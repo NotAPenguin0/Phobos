@@ -112,7 +112,10 @@ RawBuffer create_buffer(VulkanContext& ctx, vk::DeviceSize size, BufferType buf_
     vk::BufferCreateInfo info;
     info.size = size;
     info.usage = get_usage_flags(buf_type);
-    info.sharingMode = vk::SharingMode::eExclusive;
+    info.sharingMode = vk::SharingMode::eConcurrent;
+    info.queueFamilyIndexCount = 2;
+    uint32_t families[]{ ctx.physical_device.queue_families.graphics_family.value(), ctx.physical_device.queue_families.transfer_family.value() };
+    info.pQueueFamilyIndices = families;
 
     VmaAllocationCreateInfo alloc_info{};
     alloc_info.usage = get_memory_usage(buf_type);
@@ -234,32 +237,17 @@ void copy_buffer(VulkanContext& ctx, RawBuffer const& src, RawBuffer& dst, vk::D
             "Tried to do a buffer copy, but size ({} bytes) is larger than destination buffer size ({} bytes)", size, dst.size);
     }
 
-    vk::CommandBufferAllocateInfo alloc_info;
-    alloc_info.level = vk::CommandBufferLevel::ePrimary;
-    alloc_info.commandPool = ctx.command_pool;
-    alloc_info.commandBufferCount = 1;
+    vk::CommandBuffer cmd_buffer = ctx.graphics->begin_single_time();
 
-    vk::CommandBuffer cmd_buffer = ctx.device.allocateCommandBuffers(alloc_info)[0];
-
-    // Record copy command buffer
-    vk::CommandBufferBeginInfo begin_info;
-    begin_info.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
-    cmd_buffer.begin(begin_info);
     vk::BufferCopy copy;
     copy.srcOffset = 0;
     copy.dstOffset = 0;
     copy.size = size;
     cmd_buffer.copyBuffer(src.buffer, dst.buffer, copy);
-    cmd_buffer.end();
-   
-    // Submit it
-    vk::SubmitInfo submit;
-    submit.commandBufferCount = 1;
-    submit.pCommandBuffers = &cmd_buffer;
-    ctx.graphics_queue.submit(submit, nullptr);
-    ctx.device.waitIdle();
+    ctx.graphics->end_single_time(cmd_buffer);
 
-    ctx.device.freeCommandBuffers(ctx.command_pool, cmd_buffer);
+    ctx.device.waitIdle();
+    ctx.graphics->free_single_time(cmd_buffer);
 }
 
 }

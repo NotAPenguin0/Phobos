@@ -48,7 +48,6 @@ private:
     stl::vector<vk::Fence> image_in_flight_fences;
     stl::vector<FrameInfo> frames;
 
-    vk::CommandPool command_pool;
     std::vector<vk::CommandBuffer> command_buffers;
 
     // Pool for all "fixed" descriptors

@@ -1,7 +1,7 @@
 #include <phobos/renderer/texture.hpp>
 #include <phobos/util/image_util.hpp>
 #include <phobos/util/buffer_util.hpp>
-#include <phobos/util/cmdbuf_util.hpp>
+#include <phobos/core/vulkan_context.hpp>
 
 namespace ph {
 
@@ -43,13 +43,14 @@ void Texture::create(CreateInfo const& info) {
 
     image = create_image(*ctx, info.width, info.height, ImageType::Texture, info.format);
     
-    vk::CommandBuffer cmd_buf = begin_single_time_command_buffer(*ctx);
+    vk::CommandBuffer cmd_buf = ctx->graphics->begin_single_time();
     // Transition image layout to TransferDst so we can start fillig the image with data
     transition_image_layout(cmd_buf, image, vk::ImageLayout::eTransferDstOptimal);
     copy_buffer_to_image(cmd_buf, whole_buffer_slice(*ctx, staging_buffer), image);
     // Transition image layout to ShaderReadOnlyOptimal so we can start sampling from it
     transition_image_layout(cmd_buf, image, vk::ImageLayout::eShaderReadOnlyOptimal);
-    end_single_time_command_buffer(*ctx, cmd_buf);
+    ctx->graphics->end_single_time(cmd_buf);
+    ctx->device.waitIdle();
 
     destroy_buffer(*ctx, staging_buffer);
 

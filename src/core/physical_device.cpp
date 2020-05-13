@@ -17,6 +17,10 @@ static QueueFamilyIndices get_queue_families(PhysicalDeviceDetails& physical_dev
         if (family.queueFlags & vk::QueueFlagBits::eGraphics) {
             indices.graphics_family = i;
         }
+
+        if (family.queueFlags & vk::QueueFlagBits::eTransfer) {
+            indices.transfer_family = i;
+        }
     }
 
     return indices;

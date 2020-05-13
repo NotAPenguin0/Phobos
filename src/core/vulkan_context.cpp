@@ -112,7 +112,6 @@ void VulkanContext::destroy() {
     }
     
     vmaDestroyAllocator(allocator);
-    device.destroyCommandPool(command_pool);
     device.destroySwapchainKHR(swapchain.handle);
     device.destroy();
     instance.destroySurfaceKHR(physical_device.surface_details.handle);
@@ -126,6 +125,7 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
     VulkanContext* context = new VulkanContext;
     context->window_ctx = &window_ctx;
 
+    context->num_threads = settings.num_threads;
     context->has_validation = settings.enable_validation_layers;
 
     mimas_set_window_resize_callback(window_ctx.handle, window_resize_callback, context);
@@ -187,25 +187,13 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
     vmaCreateAllocator(&aci, &context->allocator);
 
     // Finally, get the graphics queue
-    context->graphics_queue = context->device.getQueue(context->physical_device.queue_families.graphics_family.value(), 0);
+    context->graphics = std::make_unique<Queue>(*context, context->physical_device.queue_families.graphics_family.value(), 0);
+    context->transfer = std::make_unique<Queue>(*context, context->physical_device.queue_families.transfer_family.value(), 0);
 
     context->swapchain = create_swapchain(context->device, window_ctx, context->physical_device);
 
     logger->write_fmt(log::Severity::Info, "Created swapchain. Dimensions are {}x{}", 
         context->swapchain.extent.width, context->swapchain.extent.height);
-
-    logger->write_fmt(log::Severity::Info, "Created pipelines");
-
-    vk::CommandPoolCreateInfo cmd_pool_info;
-    cmd_pool_info.flags = vk::CommandPoolCreateFlagBits::eTransient | vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
-    cmd_pool_info.queueFamilyIndex = context->physical_device.queue_families.graphics_family.value();
-    context->command_pool = context->device.createCommandPool(cmd_pool_info);
-    vk::DebugUtilsObjectNameInfoEXT cmd_pool_name_info;
-    cmd_pool_name_info.objectHandle = memory_util::vk_to_u64(context->command_pool);
-    cmd_pool_name_info.objectType = vk::ObjectType::eCommandPool;
-    cmd_pool_name_info.pObjectName = "Main command pool";
-
-    logger->write_fmt(log::Severity::Info, "Created command pool");
 
     return context;
 }

@@ -4,7 +4,6 @@
 #include <phobos/renderer/render_graph.hpp>
 #include <phobos/renderer/meta.hpp>
 #include <phobos/util/image_util.hpp>
-#include <phobos/util/cmdbuf_util.hpp>
 #include <phobos/util/memory_util.hpp>
 #include <phobos/util/cache_cleanup.hpp>
 
@@ -17,19 +16,9 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
 
     context.event_dispatcher.add_listener(static_cast<EventListener<WindowResizeEvent>*>(this));
 
-    vk::CommandPoolCreateInfo command_pool_info;
-    command_pool_info.queueFamilyIndex = ctx.physical_device.queue_families.graphics_family.value();
-    // We're going to reset the command buffers each frame and re-record them
-    command_pool_info.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
-    command_pool = ctx.device.createCommandPool(command_pool_info);
-
     size_t const swapchain_image_count = ctx.swapchain.images.size();
 
-    vk::CommandBufferAllocateInfo alloc_info;
-    alloc_info.commandBufferCount = swapchain_image_count;
-    alloc_info.commandPool = command_pool;
-    alloc_info.level = vk::CommandBufferLevel::ePrimary;
-    command_buffers = ctx.device.allocateCommandBuffers(alloc_info);
+    command_buffers = ctx.graphics->create_command_buffers(swapchain_image_count);
 
     vk::SamplerCreateInfo sampler_info;
     sampler_info.magFilter = vk::Filter::eLinear;
@@ -116,7 +105,7 @@ void PresentManager::present_frame(FrameInfo& frame) {
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores = &frame.render_finished;
     context.device.resetFences(frame.fence);
-    context.graphics_queue.submit(submit_info, frame.fence);
+    context.graphics->submit(submit_info, frame.fence);
 
     // Present
     vk::PresentInfoKHR present_info;
@@ -125,7 +114,7 @@ void PresentManager::present_frame(FrameInfo& frame) {
     present_info.swapchainCount = 1;
     present_info.pSwapchains = &context.swapchain.handle;
     present_info.pImageIndices = &image_index;
-    context.graphics_queue.presentKHR(present_info);
+    context.graphics->present(present_info);
 
     // Advance to next frame
     frame_index = (frame_index + 1) % max_frames_in_flight;
@@ -181,7 +170,6 @@ void PresentManager::destroy() {
     }
     attachments.clear();
     context.device.destroyDescriptorPool(main_descriptor_pool);
-    context.device.destroyCommandPool(command_pool);
 }
 
 RenderAttachment& PresentManager::add_color_attachment(std::string const& name) {
