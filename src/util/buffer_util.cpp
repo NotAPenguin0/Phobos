@@ -112,10 +112,7 @@ RawBuffer create_buffer(VulkanContext& ctx, vk::DeviceSize size, BufferType buf_
     vk::BufferCreateInfo info;
     info.size = size;
     info.usage = get_usage_flags(buf_type);
-    info.sharingMode = vk::SharingMode::eConcurrent;
-    info.queueFamilyIndexCount = 2;
-    uint32_t families[]{ ctx.physical_device.queue_families.graphics_family.value(), ctx.physical_device.queue_families.transfer_family.value() };
-    info.pQueueFamilyIndices = families;
+    info.sharingMode = vk::SharingMode::eExclusive;
 
     VmaAllocationCreateInfo alloc_info{};
     alloc_info.usage = get_memory_usage(buf_type);
@@ -212,7 +209,7 @@ bool ensure_buffer_size(VulkanContext& ctx, RawBuffer& buffer, vk::DeviceSize re
     return true;
 }
 
-void copy_buffer(VulkanContext& ctx, RawBuffer const& src, RawBuffer& dst, vk::DeviceSize size) {
+void copy_buffer(VulkanContext& ctx, vk::CommandBuffer cmd_buf, RawBuffer const& src, RawBuffer& dst, vk::DeviceSize size) {
     log_buffer_copy(ctx, src, dst, size);
 
     if (!is_valid_buffer(src)) {
@@ -237,17 +234,11 @@ void copy_buffer(VulkanContext& ctx, RawBuffer const& src, RawBuffer& dst, vk::D
             "Tried to do a buffer copy, but size ({} bytes) is larger than destination buffer size ({} bytes)", size, dst.size);
     }
 
-    vk::CommandBuffer cmd_buffer = ctx.graphics->begin_single_time();
-
     vk::BufferCopy copy;
     copy.srcOffset = 0;
     copy.dstOffset = 0;
     copy.size = size;
-    cmd_buffer.copyBuffer(src.buffer, dst.buffer, copy);
-    ctx.graphics->end_single_time(cmd_buffer);
-
-    ctx.device.waitIdle();
-    ctx.graphics->free_single_time(cmd_buffer);
+    cmd_buf.copyBuffer(src.buffer, dst.buffer, copy);
 }
 
 }

@@ -6,6 +6,9 @@
 #include <vulkan/vulkan.hpp>
 #include <phobos/forward.hpp>
 
+#include <phobos/util/image_util.hpp>
+#include <phobos/util/buffer_util.hpp>
+
 namespace ph {
 
 // Provides thread-safe access to a VkQueue
@@ -28,6 +31,13 @@ public:
 	void submit(vk::SubmitInfo submit_info, vk::Fence signal_fence);
 	void present(vk::PresentInfoKHR present_info);
 
+	// Releases onwnership of a resource. This must be externally synchronized with acquire_ownership in the other queue
+	void release_ownership(vk::CommandBuffer cmd_buf, ph::RawImage& image, Queue& dst);
+	void release_ownership(vk::CommandBuffer cmd_buf, ph::RawBuffer& buffer, Queue& dst);
+	// Acquire ownership of a resource.
+	void acquire_ownership(vk::CommandBuffer cmd_buf, ph::RawImage& image, Queue& src);
+	void acquire_ownership(vk::CommandBuffer cmd_byf, ph::RawBuffer& buffer, Queue& src);
+
 private:
 	ph::VulkanContext* ctx;
 
@@ -40,6 +50,8 @@ private:
 
 	std::mutex queue_mutex;
 	vk::Queue queue;
+
+	uint32_t family;
 };
 
 }

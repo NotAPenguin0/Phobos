@@ -87,10 +87,7 @@ RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, Image
     info.extent.depth = 1;
     info.mipLevels = 1;
     info.arrayLayers = layers;
-    info.sharingMode = vk::SharingMode::eConcurrent;
-    info.queueFamilyIndexCount = 2;
-    uint32_t families[]{ ctx.physical_device.queue_families.graphics_family.value(), ctx.physical_device.queue_families.transfer_family.value() };
-    info.pQueueFamilyIndices = families;
+    info.sharingMode = vk::SharingMode::eExclusive;
 
     info.format = format;
     info.tiling = vk::ImageTiling::eOptimal;

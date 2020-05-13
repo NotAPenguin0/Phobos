@@ -64,7 +64,7 @@ void unmap_memory(VulkanContext& ctx, RawBuffer& buffer);
 // Note: If the buffer needs a resize, the old contents will be lost.
 bool ensure_buffer_size(VulkanContext& ctx, RawBuffer& buf, vk::DeviceSize requested_size);
 
-void copy_buffer(VulkanContext& ctx, RawBuffer const& src, RawBuffer& dst, vk::DeviceSize size);
+void copy_buffer(VulkanContext& ctx, vk::CommandBuffer cmd_buf, RawBuffer const& src, RawBuffer& dst, vk::DeviceSize size);
 
 }
 

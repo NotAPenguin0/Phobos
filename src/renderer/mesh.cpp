@@ -91,7 +91,10 @@ void Mesh::create_vertex_buffer(CreateInfo const& info) {
 
     // Now copy this buffer to device local memory
     vertex_buffer = create_buffer(*ctx, byte_size, BufferType::VertexBuffer);
-    copy_buffer(*ctx, staging_buffer, vertex_buffer, byte_size);
+    vk::CommandBuffer cmd_buf = ctx->graphics->begin_single_time();
+    copy_buffer(*ctx, cmd_buf, staging_buffer, vertex_buffer, byte_size);
+    ctx->graphics->end_single_time(cmd_buf);
+    ctx->device.waitIdle();
 
     destroy_buffer(*ctx, staging_buffer);
 }
@@ -110,7 +113,10 @@ void Mesh::create_index_buffer(CreateInfo const& info) {
 
     // Now copy this buffer to device local memory
     index_buffer = create_buffer(*ctx, byte_size, BufferType::IndexBuffer);
-    copy_buffer(*ctx, staging_buffer, index_buffer, byte_size);
+    vk::CommandBuffer cmd_buf = ctx->graphics->begin_single_time();
+    copy_buffer(*ctx, cmd_buf, staging_buffer, index_buffer, byte_size);
+    ctx->graphics->end_single_time(cmd_buf);
+    ctx->device.waitIdle();
 
     destroy_buffer(*ctx, staging_buffer);
 }
