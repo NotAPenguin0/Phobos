@@ -67,7 +67,7 @@ void Cubemap::create(CreateInfo const& info) {
 
 	image = create_image(*ctx, info.width, info.height, ImageType::Cubemap, info.format, info.faces.size());
 
-	vk::CommandBuffer cmd_buf = ctx->graphics->begin_single_time();
+	vk::CommandBuffer cmd_buf = ctx->graphics->begin_single_time(0);
 	// Transition image layout to TransferDst so we can start fillig the image with data
 	transition_image_layout(cmd_buf, image, vk::ImageLayout::eTransferDstOptimal);
 	copy_buffer_to_image(cmd_buf, face_slices, image);
@@ -75,6 +75,7 @@ void Cubemap::create(CreateInfo const& info) {
 	transition_image_layout(cmd_buf, image, vk::ImageLayout::eShaderReadOnlyOptimal);
 	ctx->graphics->end_single_time(cmd_buf);
 	ctx->device.waitIdle();
+	ctx->graphics->free_single_time(cmd_buf, 0);
 
 	destroy_buffer(*ctx, staging_buffer);
 

@@ -29,7 +29,7 @@ Queue::Queue(ph::VulkanContext& ctx, uint32_t family_index, uint32_t index) : ct
 	for (uint32_t tid = 0; tid < ctx.num_threads; ++tid) {
 		single_time_pools[tid] = ctx.device.createCommandPool(single_time_info);
 		vk::DebugUtilsObjectNameInfoEXT single_time_name_info;
-		single_time_name_info.objectHandle = memory_util::vk_to_u64(command_pool);
+		single_time_name_info.objectHandle = memory_util::vk_to_u64(single_time_pools[tid]);
 		single_time_name_info.objectType = vk::ObjectType::eCommandPool;
 		char transient_buf[64];
 		sprintf(transient_buf, "Transient Command Pool (TID: %d, QF: %d, QI: %d)", tid, family_index, index);

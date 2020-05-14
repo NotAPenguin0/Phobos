@@ -20,11 +20,11 @@ public:
 	vk::CommandBuffer create_command_buffer();
 	std::vector<vk::CommandBuffer> create_command_buffers(uint32_t count);
 
-	vk::CommandBuffer begin_single_time(uint32_t thread = 0);
+	vk::CommandBuffer begin_single_time(uint32_t thread);
 	// Submits a command buffer to the queue. Optionally a fence may be specified that is signalled when the commands are completed
 	void end_single_time(vk::CommandBuffer cmd_buf, vk::Fence signal_fence = nullptr, vk::PipelineStageFlags wait_stage = {},
 		vk::Semaphore wait_semaphore = nullptr, vk::Semaphore signal_semaphore = nullptr);
-	void free_single_time(vk::CommandBuffer cmd_buf, uint32_t thread = 0);
+	void free_single_time(vk::CommandBuffer cmd_buf, uint32_t thread);
 
 	void submit(vk::CommandBuffer cmd_buf, vk::Fence signal_fence = nullptr, vk::PipelineStageFlags wait_stage = {},
 		vk::Semaphore wait_semaphore = nullptr, vk::Semaphore signal_semaphore = nullptr);
