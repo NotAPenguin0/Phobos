@@ -18,7 +18,9 @@ enum class ImageType {
     DepthStencilAttachment,
     // Gets vk::ImageUsageFlagBits::eSampled and vk::ImageUsageFlagBits::eTransferDst
     Texture,
-    Cubemap
+    Cubemap,
+    EnvMap,
+    HdrImage
 };
 
 struct RawImage {
@@ -43,6 +45,7 @@ struct ImageView {
 };
 
 ImageView create_image_view(vk::Device device, RawImage& image, vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor);
+ImageView create_image_view(vk::Device device, RawImage& image, uint32_t layer, vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor);
 void destroy_image_view(VulkanContext& ctx, ImageView& view);
 
 // this function is thread safe

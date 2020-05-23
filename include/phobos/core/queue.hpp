@@ -36,7 +36,9 @@ public:
 	void release_ownership(vk::CommandBuffer cmd_buf, ph::RawBuffer& buffer, Queue& dst);
 	// Acquire ownership of a resource.
 	void acquire_ownership(vk::CommandBuffer cmd_buf, ph::RawImage& image, Queue& src);
-	void acquire_ownership(vk::CommandBuffer cmd_byf, ph::RawBuffer& buffer, Queue& src);
+	void acquire_ownership(vk::CommandBuffer cmd_buf, ph::RawBuffer& buffer, Queue& src);
+
+	void wait_idle();
 
 private:
 	ph::VulkanContext* ctx;
@@ -50,6 +52,7 @@ private:
 
 	std::mutex queue_mutex;
 	vk::Queue queue;
+	vk::QueueFlags flags;
 
 	uint32_t family;
 };

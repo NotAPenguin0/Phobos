@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <unordered_map>
 #include <optional>
+#include <mutex>
 
 #include <vulkan/vulkan.hpp>
 
@@ -422,6 +423,15 @@ struct hash<ph::PipelineCreateInfo> {
     }
 };
 
+template<>
+struct hash<ph::ComputePipelineCreateInfo> {
+    size_t operator()(ph::ComputePipelineCreateInfo const& info) const noexcept {
+        size_t h = 0;
+        ph::hash_combine(h, info.layout, info.shader);
+        return h;
+    }
+};
+
 } // namespace std
 
 namespace ph {
@@ -429,6 +439,15 @@ namespace ph {
 template<typename T, typename LookupT>
 class Cache {
 public:
+    Cache() {
+        mutex = std::make_unique<std::mutex>();
+    }
+
+    Cache(Cache const&) = delete;
+    Cache(Cache&&) = default;
+    Cache& operator=(Cache&&) = default;
+    Cache& operator=(Cache const&) = delete;
+
     struct Entry {
         T data;
         LookupT key;
@@ -436,21 +455,24 @@ public:
         bool used_this_frame = false;
     };
 
-    // Useful for cleanup
+    // Useful for cleanup. Access to the cache MUST be synchronized using lock()/unlock()
     auto& get_all() { return cache; }
     
     void insert(LookupT const& key, T&& val) {
         size_t hash = std::hash<LookupT>()(key);
+        std::lock_guard lock(*mutex);
         cache[hash] = Entry { stl::move(val), key, 0 };
     }
 
     void insert(LookupT&& key, T&& val) {
         size_t hash = std::hash<LookupT>()(key);
+        std::lock_guard lock(*mutex);
         cache[hash] = Entry{ stl::move(val), stl::move(key), 0 };
     }
 
     T* get(LookupT const& key) {
         size_t hash = std::hash<LookupT>()(key);
+        std::lock_guard lock(*mutex);
         auto it = cache.find(hash);
         if (it != cache.end()) {
             it->second.used_this_frame = true;
@@ -461,6 +483,7 @@ public:
 
     T const* get(LookupT const& key) const {
         size_t hash = std::hash<LookupT>()(key);
+        std::lock_guard lock(*mutex);
         auto it = cache.find(hash);
         if (it != cache.end()) { 
             // Mark the entry as used
@@ -471,16 +494,27 @@ public:
     }
 
     LookupT* get_key(size_t hash) {
+        std::lock_guard lock(*mutex);
         return &cache.at(hash).key;
     }
 
     size_t get_frames_since_last_usage(LookupT const& key) {
         size_t hash = std::hash<LookupT>()(key);
+        std::lock_guard lock(*mutex);
         return cache[hash].frames_since_last_usage;
+    }
+
+    void lock() {
+        mutex->lock();
+    }
+
+    void unlock() {
+        mutex->unlock();
     }
 
 private:
     std::unordered_map<size_t, Entry> cache;
+    std::unique_ptr<std::mutex> mutex;
 };
 
 }

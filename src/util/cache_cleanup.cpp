@@ -29,6 +29,10 @@ void destroy(VulkanContext* ctx, PipelineCreateInfo const&, vk::Pipeline pipelin
     ctx->device.destroyPipeline(pipeline);
 }
 
+void destroy(VulkanContext* ctx, ComputePipelineCreateInfo const&, vk::Pipeline pipeline) {
+    ctx->device.destroyPipeline(pipeline);
+}
+
 void destroy(VulkanContext* ctx, DescriptorSetBinding const& info, vk::DescriptorSet set) {
 //    ctx->logger->write_fmt(log::Severity::Info, "Deallocating descriptor set {}.", (void*)memory_util::to_vk_type(set));
     ctx->device.freeDescriptorSets(info.pool, 1, &set);

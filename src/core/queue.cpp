@@ -7,6 +7,7 @@ namespace ph {
 
 Queue::Queue(ph::VulkanContext& ctx, uint32_t family_index, uint32_t index) : ctx(&ctx), family(family_index) {
 	queue = ctx.device.getQueue(family_index, index);
+	flags = ctx.physical_device.queue_family_properties[family_index].queueFlags;
 
 	// Regular command pool for long lived command buffers
 	vk::CommandPoolCreateInfo info;
@@ -124,7 +125,9 @@ void Queue::release_ownership(vk::CommandBuffer cmd_buf, ph::RawImage& image, Qu
 	barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
 	barrier.oldLayout = image.current_layout;
 	barrier.newLayout = image.current_layout;
-	cmd_buf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader, 
+	vk::PipelineStageFlagBits dst_stage = (dst.flags & vk::QueueFlagBits::eGraphics) ?
+		vk::PipelineStageFlagBits::eFragmentShader : vk::PipelineStageFlagBits::eComputeShader;
+	cmd_buf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, dst_stage, 
 		vk::DependencyFlagBits::eByRegion, nullptr, nullptr, barrier);
 }
 
@@ -136,7 +139,9 @@ void Queue::release_ownership(vk::CommandBuffer cmd_buf, ph::RawBuffer& buffer, 
 	barrier.offset = 0;
 	barrier.size = buffer.size;
 	barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
-	cmd_buf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eVertexInput,
+	vk::PipelineStageFlagBits dst_stage = (dst.flags & vk::QueueFlagBits::eGraphics) ?
+		vk::PipelineStageFlagBits::eVertexInput : vk::PipelineStageFlagBits::eComputeShader;
+	cmd_buf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, dst_stage,
 		vk::DependencyFlagBits::eByRegion, nullptr, barrier, nullptr);
 }
 
@@ -154,7 +159,9 @@ void Queue::acquire_ownership(vk::CommandBuffer cmd_buf, ph::RawImage& image, Qu
 	barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
 	barrier.oldLayout = image.current_layout;
 	barrier.newLayout = image.current_layout;
-	cmd_buf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader,
+	vk::PipelineStageFlagBits dst_stage = (flags & vk::QueueFlagBits::eGraphics) ?
+		vk::PipelineStageFlagBits::eFragmentShader : vk::PipelineStageFlagBits::eComputeShader;
+	cmd_buf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, dst_stage,
 		vk::DependencyFlagBits::eByRegion, nullptr, nullptr, barrier);
 }
 
@@ -166,8 +173,14 @@ void Queue::acquire_ownership(vk::CommandBuffer cmd_buf, ph::RawBuffer& buffer, 
 	barrier.offset = 0;
 	barrier.size = buffer.size;
 	barrier.dstAccessMask = vk::AccessFlagBits::eVertexAttributeRead;
-	cmd_buf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eVertexInput,
+	vk::PipelineStageFlagBits dst_stage = (flags & vk::QueueFlagBits::eGraphics) ?
+		vk::PipelineStageFlagBits::eVertexInput : vk::PipelineStageFlagBits::eComputeShader;
+	cmd_buf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, dst_stage,
 		vk::DependencyFlagBits::eByRegion, nullptr, barrier, nullptr);
+}
+
+void Queue::wait_idle() {
+	queue.waitIdle();
 }
 
 }

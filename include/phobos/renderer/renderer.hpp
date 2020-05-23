@@ -28,6 +28,7 @@ class Renderer {
 public:
     Renderer(VulkanContext& context);
 
+    // MUST ALWAYS BE CALLED ON THE MAIN THREAD
     void render_frame(FrameInfo& info);
     DefaultTextures& get_default_textures();
 

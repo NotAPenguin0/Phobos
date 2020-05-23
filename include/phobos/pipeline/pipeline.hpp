@@ -5,6 +5,7 @@
 #include <optional>
 #include <unordered_map>
 #include <string>
+#include <mutex>
 
 #include <stl/span.hpp>
 #include <stl/vector.hpp>
@@ -57,6 +58,7 @@ DescriptorBinding make_buffer_descriptor(uint32_t binding, vk::DescriptorType ty
 
 DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, ImageView view, vk::Sampler sampler, 
         vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, ImageView view, vk::ImageLayout layout);
 DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, stl::span<ImageView> views, vk::Sampler sampler, 
         vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);
 DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, vk::Buffer buffer, vk::DeviceSize size, vk::DeviceSize offset = 0);
@@ -86,9 +88,15 @@ struct PipelineLayout {
     vk::DescriptorSetLayout set_layout;
 };
 
+enum class PipelineType {
+    Graphics,
+    Compute
+};
+
 struct Pipeline {
     vk::Pipeline pipeline;
     PipelineLayout layout;
+    PipelineType type;
 
     std::string name;
 };
@@ -110,7 +118,7 @@ struct PipelineCreateInfo {
 
     PipelineLayoutCreateInfo layout;
 
-    vk::VertexInputBindingDescription vertex_input_binding;
+    std::vector<vk::VertexInputBindingDescription> vertex_input_bindings;
     stl::vector<vk::VertexInputAttributeDescription> vertex_attributes;
     stl::vector<ShaderHandle> shaders;
     vk::PipelineInputAssemblyStateCreateInfo input_assembly =
@@ -147,7 +155,7 @@ private:
     friend class Renderer;
     friend struct std::hash<PipelineCreateInfo>;
     friend class RenderGraph;
-    friend Pipeline create_or_get_pipeline(VulkanContext*, RenderPass*, PipelineCreateInfo);
+    friend Pipeline create_or_get_pipeline(VulkanContext*, PerThreadContext*, RenderPass*, PipelineCreateInfo);
 
     vk::PipelineVertexInputStateCreateInfo vertex_input;
     vk::PipelineColorBlendStateCreateInfo blending;
@@ -160,14 +168,38 @@ private:
     stl::uint32_t subpass;
 };
 
-Pipeline create_or_get_pipeline(VulkanContext* ctx, RenderPass* pass, PipelineCreateInfo pci);
+struct ComputePipelineCreateInfo {
+    std::string debug_name;
+    ShaderInfo shader_info;
+    ShaderHandle shader;
+    PipelineLayoutCreateInfo layout;
+
+    vk::ComputePipelineCreateInfo vk_info() const;
+    void finalize();
+
+private:
+    friend class Renderer;
+    friend struct std::hash<ComputePipelineCreateInfo>;
+    friend class RenderGraph;
+    friend Pipeline create_or_get_compute_pipeline(VulkanContext*, PerThreadContext*, ComputePipelineCreateInfo);
+
+    PipelineLayout pipeline_layout;
+};
+
+Pipeline create_or_get_pipeline(VulkanContext* ctx, PerThreadContext* ptc, RenderPass* pass, PipelineCreateInfo pci);
+Pipeline create_or_get_compute_pipeline(VulkanContext* ctx, PerThreadContext* ptc, ComputePipelineCreateInfo pci);
 
 class PipelineManager {
 public:
     void create_named_pipeline(std::string name, PipelineCreateInfo&& info);
+    void create_named_pipeline(std::string name, ComputePipelineCreateInfo&& info);
     PipelineCreateInfo const* get_named_pipeline(std::string const& name) const;
+    ComputePipelineCreateInfo const* get_named_compute_pipeline(std::string const& name) const;
 private:
+    mutable std::mutex mutex;
+    mutable std::mutex compute_mutex;
     std::unordered_map<std::string, PipelineCreateInfo> pipeline_infos;
+    std::unordered_map<std::string, ComputePipelineCreateInfo> compute_pipelines;
 };
 
 }

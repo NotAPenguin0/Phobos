@@ -12,12 +12,13 @@ struct FrameInfo;
 
 class CommandBuffer {
 public:
-    CommandBuffer(VulkanContext* ctx, FrameInfo* frame, vk::CommandBuffer cbuf);
+    CommandBuffer(VulkanContext* ctx, FrameInfo* frame, PerThreadContext* ptc, vk::CommandBuffer cbuf);
 
     // The descriptor set layout will be set by this function. The pNext parameter will be passed into the vk::DescriptorSetAllocateInfo::pNext
     // field.
     vk::DescriptorSet get_descriptor(DescriptorSetBinding set_binding, void* pNext = nullptr);
     Pipeline get_pipeline(std::string_view name);
+    Pipeline get_compute_pipeline(std::string_view name);
 
     CommandBuffer& set_viewport(vk::Viewport const& vp);
     CommandBuffer& set_scissor(vk::Rect2D const& scissor);
@@ -34,6 +35,9 @@ public:
     CommandBuffer& draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex = 0, uint32_t first_instance = 0);
     CommandBuffer& draw_indexed(uint32_t index_count, uint32_t instance_count, uint32_t first_index = 0, 
         uint32_t vertex_offset = 0, uint32_t first_instance = 0);
+    CommandBuffer& dispatch_compute(uint32_t workgroup_x, uint32_t workgroup_y, uint32_t workgroup_z);
+
+    CommandBuffer& barrier(vk::PipelineStageFlags src_stage, vk::PipelineStageFlags dst_stage, vk::ImageMemoryBarrier barrier);
 
     BufferSlice allocate_scratch_ubo(vk::DeviceSize size);
     BufferSlice allocate_scratch_ssbo(vk::DeviceSize size);
@@ -41,19 +45,21 @@ public:
     BufferSlice allocate_scratch_ibo(vk::DeviceSize size);
 
     RenderPass* get_active_renderpass();
-private:
-    friend class Renderer;
-
-    VulkanContext* ctx = nullptr;
-    FrameInfo* frame = nullptr;
-    vk::CommandBuffer cmd_buf;
-    RenderPass* active_renderpass = nullptr;
 
     CommandBuffer& begin(vk::CommandBufferUsageFlags usage_flags);
     CommandBuffer& end();
 
     CommandBuffer& begin_renderpass(RenderPass& pass);
     CommandBuffer& end_renderpass();
+private:
+    friend class Renderer;
+
+    VulkanContext* ctx = nullptr;
+    FrameInfo* frame = nullptr;
+    PerThreadContext* ptc = nullptr;
+    vk::CommandBuffer cmd_buf;
+    RenderPass* active_renderpass = nullptr;
+    Pipeline active_pipeline;
 
     // Called internally by get_descriptor to actually handle the descriptor creation/updates
     vk::DescriptorSet get_descriptor(DescriptorSetLayoutCreateInfo const& set_layout_info, DescriptorSetBinding set_binding, void* pNext = nullptr);

@@ -12,7 +12,7 @@ RenderTarget::RenderTarget(VulkanContext* ctx) : ctx(ctx) {
 
 }
 
-RenderTarget::RenderTarget(VulkanContext* ctx, vk::RenderPass render_pass, std::vector<RenderAttachment> const& attachments) :
+RenderTarget::RenderTarget(VulkanContext* ctx, PerThreadContext* ptc, vk::RenderPass render_pass, std::vector<RenderAttachment> const& attachments) :
     ctx(ctx) {
 
     vk::FramebufferCreateInfo info;
@@ -28,12 +28,12 @@ RenderTarget::RenderTarget(VulkanContext* ctx, vk::RenderPass render_pass, std::
     info.pAttachments = views.data();
     info.layers = 1;
 
-    auto framebuf = ctx->framebuffer_cache.get(info);
+    auto framebuf = ptc->framebuffer_cache.get(info);
     if (framebuf) {
         framebuffer = *framebuf;
     } else {
         framebuffer = ctx->device.createFramebuffer(info);
-        ctx->framebuffer_cache.insert(info, stl::move(framebuffer));
+        ptc->framebuffer_cache.insert(info, stl::move(framebuffer));
     }
     
     width = info.width;

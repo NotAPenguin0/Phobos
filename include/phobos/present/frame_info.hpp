@@ -16,6 +16,12 @@ class PresentManager;
 class RenderGraph;
 
 struct FrameInfo {
+    FrameInfo() = default;
+    FrameInfo(FrameInfo const&) = delete;
+    FrameInfo(FrameInfo&&) = default;
+    FrameInfo& operator=(FrameInfo&&) = default;
+    FrameInfo& operator=(FrameInfo const&) = delete;
+
     RenderGraph* render_graph;
     PresentManager* present_manager;
 
@@ -23,9 +29,14 @@ struct FrameInfo {
     vk::Sampler default_sampler;
 
     // Misc info. Do not modify
-    size_t draw_calls;
-    size_t frame_index;
-    size_t image_index;
+    size_t draw_calls = 0;
+    size_t frame_index = 0;
+    size_t image_index = 0;
+
+    BufferAllocator ubo_allocator;
+    BufferAllocator ssbo_allocator;
+    BufferAllocator vbo_allocator;
+    BufferAllocator ibo_allocator;
 private:
     friend class RenderGraph;
     friend class PresentManager;
@@ -39,15 +50,7 @@ private:
 
     vk::CommandBuffer command_buffer;
 
-    // TODO: PerFrameCache class?
     Cache<vk::DescriptorSet, DescriptorSetBinding> descriptor_cache;
-    // Non-owning
-    vk::DescriptorPool descriptor_pool;
-
-    BufferAllocator ubo_allocator;
-    BufferAllocator ssbo_allocator;
-    BufferAllocator vbo_allocator;
-    BufferAllocator ibo_allocator;
 };
 
 }

@@ -6,22 +6,29 @@
 
 namespace ph {
 
+static std::optional<size_t> get_family_prefer_dedicated(std::vector<vk::QueueFamilyProperties> const& properties, 
+        vk::QueueFlagBits required, vk::QueueFlags avoid) {
+
+    std::optional<size_t> best_match = std::nullopt;
+    for (size_t i = 0; i < properties.size(); ++i) {
+        vk::QueueFlags flags = properties[i].queueFlags;
+        if (!(flags & required)) { continue; }
+        if (!(flags & avoid)) { return i; }
+        best_match = i;
+    }
+    return best_match;
+}
+
 static QueueFamilyIndices get_queue_families(PhysicalDeviceDetails& physical_device, vk::SurfaceKHR surface) {
     QueueFamilyIndices indices;
     physical_device.queue_family_properties = physical_device.handle.getQueueFamilyProperties();
 
-    for (size_t i = 0; i < physical_device.queue_family_properties.size(); ++i) {
-        auto const& family = physical_device.queue_family_properties[i];
-
-        // Check if the queue family has graphics support
-        if (family.queueFlags & vk::QueueFlagBits::eGraphics) {
-            indices.graphics_family = i;
-        }
-
-        if (family.queueFlags & vk::QueueFlagBits::eTransfer) {
-            indices.transfer_family = i;
-        }
-    }
+    indices.graphics_family = get_family_prefer_dedicated(physical_device.queue_family_properties, vk::QueueFlagBits::eGraphics, 
+        vk::QueueFlagBits::eCompute);
+    indices.transfer_family = get_family_prefer_dedicated(physical_device.queue_family_properties, vk::QueueFlagBits::eTransfer,
+        vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute);
+    indices.compute_family = get_family_prefer_dedicated(physical_device.queue_family_properties, vk::QueueFlagBits::eCompute,
+        vk::QueueFlagBits::eGraphics);
 
     return indices;
 }

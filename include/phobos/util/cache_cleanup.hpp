@@ -13,10 +13,12 @@ void destroy(VulkanContext* ctx, vk::RenderPassCreateInfo const& rpci, vk::Rende
 void destroy(VulkanContext* ctx, DescriptorSetLayoutCreateInfo const& dslci, vk::DescriptorSetLayout set_Layout);
 void destroy(VulkanContext* ctx, PipelineLayoutCreateInfo const& plci, PipelineLayout layout);
 void destroy(VulkanContext* ctx, PipelineCreateInfo const& pci, vk::Pipeline pipeline);
+void destroy(VulkanContext* ctx, ComputePipelineCreateInfo const& pci, vk::Pipeline pipeline);
 void destroy(VulkanContext* ctx, DescriptorSetBinding const& info, vk::DescriptorSet set);
 
 template<typename T, typename LookupT>
 void update_cache_resource_usage(VulkanContext* ctx, Cache<T, LookupT>& cache, size_t max_frames_in_flight) {
+    cache.lock();
     auto& data = cache.get_all();
     for (auto it = data.begin(); it != data.end(); ) {
         size_t hash = it->first;
@@ -40,6 +42,7 @@ void update_cache_resource_usage(VulkanContext* ctx, Cache<T, LookupT>& cache, s
             ++it;
         }
     }
+    cache.unlock();
 }
 
 } // namespace ph

@@ -35,18 +35,14 @@ struct RenderPass {
     RenderTarget const& get_target() const { return target; }
     bool is_active() const { return active; }
 
-private:
-    // These classes and functions all need access to the render_pass field
-    friend class CommandBuffer;
-    friend class RenderGraph;
-    friend class Renderer;
-    friend Pipeline create_or_get_pipeline(VulkanContext* ctx, RenderPass* pass, PipelineCreateInfo pci);
-
     vk::RenderPass render_pass;
     RenderTarget target;
 
-    Pipeline active_pipeline;
     bool active = false;
+
+private:
+    friend Pipeline create_or_get_pipeline(VulkanContext* ctx, RenderPass* pass, PipelineCreateInfo pci);
+
 };
 
 }

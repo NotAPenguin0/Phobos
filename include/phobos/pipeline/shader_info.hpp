@@ -10,6 +10,7 @@
 namespace ph {
 
 struct PipelineCreateInfo;
+struct ComputePipelineCreateInfo;
 
 class ShaderInfo {
 public:
@@ -28,6 +29,7 @@ private:
 // Provides meta info like descriptor bindings on shaders in the pipeline, and updates members of the pipeline 
 // create info to match these shaders (Pipeline layout and ShaderInfo field).
 void reflect_shaders(VulkanContext& ctx, ph::PipelineCreateInfo& pci);
+void reflect_shaders(VulkanContext& ctx, ph::ComputePipelineCreateInfo& pci);
 
 }
 

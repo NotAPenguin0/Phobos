@@ -12,7 +12,7 @@ class RenderTarget {
 public:
     RenderTarget() = default;
     RenderTarget(VulkanContext* ctx);
-    RenderTarget(VulkanContext* ctx, vk::RenderPass render_pass, std::vector<RenderAttachment> const& attachments);
+    RenderTarget(VulkanContext* ctx, PerThreadContext* ptc, vk::RenderPass render_pass, std::vector<RenderAttachment> const& attachments);
 
     RenderTarget(RenderTarget&& rhs);
     RenderTarget& operator=(RenderTarget&& rhs);

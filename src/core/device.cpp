@@ -14,12 +14,17 @@ vk::Device create_device(PhysicalDeviceDetails const& physical_device, DeviceReq
     transfer_queue.queueCount = 1;
     transfer_queue.pQueuePriorities = &priority;
 
+    vk::DeviceQueueCreateInfo compute_queue;
+    compute_queue.queueFamilyIndex = physical_device.queue_families.compute_family.value();
+    compute_queue.queueCount = 1;
+    compute_queue.pQueuePriorities = &priority;
+
     vk::DeviceCreateInfo info;
 
-    vk::DeviceQueueCreateInfo queues[]{ queue_info, transfer_queue };
+    vk::DeviceQueueCreateInfo queues[]{ queue_info, transfer_queue, compute_queue };
     
     info.pQueueCreateInfos = queues;
-    info.queueCreateInfoCount = 2;
+    info.queueCreateInfoCount = 3;
     info.enabledExtensionCount = requirements.extensions.size();
     info.ppEnabledExtensionNames = requirements.extensions.data();
     info.pEnabledFeatures = &requirements.features;

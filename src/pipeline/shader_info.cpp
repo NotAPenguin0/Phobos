@@ -29,6 +29,7 @@ static vk::ShaderStageFlags get_shader_stage(spirv_cross::Compiler& refl) {
     switch (entry_point.model) {
         case spv::ExecutionModel::ExecutionModelVertex: return vk::ShaderStageFlagBits::eVertex;
         case spv::ExecutionModel::ExecutionModelFragment: return vk::ShaderStageFlagBits::eFragment;
+        case spv::ExecutionModel::ExecutionModelGLCompute: return vk::ShaderStageFlagBits::eCompute;
         default: return vk::ShaderStageFlagBits::eAll;
     }
 }
@@ -53,7 +54,7 @@ static uint32_t get_byte_size(vk::Format fmt) {
     }
 }
 
-static std::unique_ptr<spirv_cross::Compiler> reflect_shader_stage(PipelineCreateInfo& pci, ShaderModuleCreateInfo& shader) {
+static std::unique_ptr<spirv_cross::Compiler> reflect_shader_stage(ShaderModuleCreateInfo& shader) {
     // Precalculate hash since this is a rather expensive process to do multiple times per frame
     if (shader.code_hash == 0) {
         ph::hash_combine(shader.code_hash, shader.code);
@@ -176,6 +177,21 @@ static void find_sampled_images(ShaderInfo& info, spirv_cross::Compiler& refl, D
     }
 }
 
+static void find_storage_images(ShaderInfo& info, spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
+    vk::ShaderStageFlags const stage = get_shader_stage(refl);
+    spirv_cross::ShaderResources res = refl.get_shader_resources();
+
+    for (auto& si : res.storage_images) {
+        vk::DescriptorSetLayoutBinding binding;
+        binding.binding = refl.get_decoration(si.id, spv::DecorationBinding);
+        binding.descriptorType = vk::DescriptorType::eStorageImage;
+        binding.stageFlags = stage;
+        binding.descriptorCount = 1;
+        info.add_binding(refl.get_name(si.id), { binding.binding, binding.descriptorType });
+        dslci.bindings.push_back(binding);
+    }
+}
+
 static void collapse_bindings(DescriptorSetLayoutCreateInfo& info) {
     stl::vector<vk::DescriptorSetLayoutBinding> final_bindings;
 
@@ -213,15 +229,17 @@ static DescriptorSetLayoutCreateInfo get_descriptor_set_layout(ShaderInfo& info,
         find_uniform_buffers(info, *refl, dslci);
         find_shader_storage_buffers(info, *refl, dslci);
         find_sampled_images(info, *refl, dslci);
+        find_storage_images(info, *refl, dslci);
     }
     collapse_bindings(dslci);
     return dslci;
 }
 
-static void make_pipeline_layout(stl::vector<std::unique_ptr<spirv_cross::Compiler>>& reflected_shaders, PipelineCreateInfo& pci) {  
-
-    pci.layout.push_constants = get_push_constants(reflected_shaders);
-    pci.layout.set_layout = get_descriptor_set_layout(pci.shader_info, reflected_shaders);
+static PipelineLayoutCreateInfo make_pipeline_layout(stl::vector<std::unique_ptr<spirv_cross::Compiler>>& reflected_shaders, ShaderInfo& shader_info) {  
+    PipelineLayoutCreateInfo layout;
+    layout.push_constants = get_push_constants(reflected_shaders);
+    layout.set_layout = get_descriptor_set_layout(shader_info, reflected_shaders);
+    return layout;
 }
 
 void reflect_shaders(VulkanContext& ctx, PipelineCreateInfo& pci) {
@@ -229,11 +247,17 @@ void reflect_shaders(VulkanContext& ctx, PipelineCreateInfo& pci) {
     for (auto handle : pci.shaders) {
         ph::ShaderModuleCreateInfo* shader = ctx.shader_module_info_cache.get(handle);
         STL_ASSERT(shader, "Invalid shader");
-        reflected_shaders.push_back(reflect_shader_stage(pci, *shader));
+        reflected_shaders.push_back(reflect_shader_stage(*shader));
     }
+    pci.layout = make_pipeline_layout(reflected_shaders, pci.shader_info);
+}
 
-    make_pipeline_layout(reflected_shaders, pci);
-
+void reflect_shaders(VulkanContext& ctx, ComputePipelineCreateInfo& pci) {
+    stl::vector<std::unique_ptr<spirv_cross::Compiler>> reflected_shaders;
+    ph::ShaderModuleCreateInfo* shader = ctx.shader_module_info_cache.get(pci.shader);
+    STL_ASSERT(shader, "Invalid shader");
+    reflected_shaders.push_back(reflect_shader_stage(*shader));
+    pci.layout = make_pipeline_layout(reflected_shaders, pci.shader_info);
 }
 
 }

@@ -5,21 +5,44 @@
 
 namespace ph {
 
-CommandBuffer::CommandBuffer(VulkanContext* ctx, FrameInfo* frame, vk::CommandBuffer cbuf) : ctx(ctx), frame(frame), cmd_buf(cbuf) {
+static vk::PipelineBindPoint pipeline_bind_point(Pipeline const& pipeline) {
+    switch (pipeline.type) {
+    case PipelineType::Graphics:
+        return vk::PipelineBindPoint::eGraphics;
+    case PipelineType::Compute:
+        return vk::PipelineBindPoint::eCompute;
+    }
+}
+
+CommandBuffer::CommandBuffer(VulkanContext* ctx, FrameInfo* frame, PerThreadContext* ptc, vk::CommandBuffer cbuf) 
+    : ctx(ctx), frame(frame), ptc(ptc), cmd_buf(cbuf) {
 
 }
 
 vk::DescriptorSet CommandBuffer::get_descriptor(DescriptorSetBinding set_binding, void* pNext) {
-    STL_ASSERT(active_renderpass, "get_descriptor called without an active renderpass");
-    auto const& set_layout_info = ctx->pipelines.get_named_pipeline(active_renderpass->active_pipeline.name)->layout.set_layout;
-    return get_descriptor(set_layout_info, stl::move(set_binding), pNext);
+    if (active_pipeline.type == PipelineType::Graphics) {
+        auto const& set_layout_info = ctx->pipelines.get_named_pipeline(active_pipeline.name)->layout.set_layout;
+        return get_descriptor(set_layout_info, stl::move(set_binding), pNext);
+    } else if (active_pipeline.type == PipelineType::Compute) {
+        auto const& set_layout_info = ctx->pipelines.get_named_compute_pipeline(active_pipeline.name)->layout.set_layout;
+        return get_descriptor(set_layout_info, stl::move(set_binding), pNext);
+    }
+    return nullptr;
 }
 
 Pipeline CommandBuffer::get_pipeline(std::string_view name) {
     ph::PipelineCreateInfo const* pci = ctx->pipelines.get_named_pipeline(std::string(name));
     STL_ASSERT(pci, "Pipeline not found");
     STL_ASSERT(active_renderpass, "get_pipeline without an active renderpass");
-    Pipeline pipeline = create_or_get_pipeline(ctx, active_renderpass, *pci);
+    Pipeline pipeline = create_or_get_pipeline(ctx, ptc, active_renderpass, *pci);
+    pipeline.name = name;
+    return pipeline;
+}
+
+Pipeline CommandBuffer::get_compute_pipeline(std::string_view name) {
+    ph::ComputePipelineCreateInfo const* pci = ctx->pipelines.get_named_compute_pipeline(std::string(name));
+    STL_ASSERT(pci, "Pipeline not found");
+    Pipeline pipeline = create_or_get_compute_pipeline(ctx, ptc, *pci);
     pipeline.name = name;
     return pipeline;
 }
@@ -37,23 +60,20 @@ CommandBuffer& CommandBuffer::set_scissor(vk::Rect2D const& scissor) {
 }
 
 CommandBuffer& CommandBuffer::bind_pipeline(Pipeline const& pipeline) {
-    STL_ASSERT(active_renderpass, "bind_pipeline called without an active renderpass");
-    active_renderpass->active_pipeline = pipeline;
-    cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.pipeline);
+    active_pipeline = pipeline;
+    cmd_buf.bindPipeline(pipeline_bind_point(pipeline), pipeline.pipeline);
     return *this;
 }
 
 CommandBuffer& CommandBuffer::bind_descriptor_set(uint32_t first_binding, vk::DescriptorSet set, stl::span<uint32_t> dynamic_offsets) {
-    STL_ASSERT(active_renderpass, "bind_descriptor_sets called without an active renderpass");
-    cmd_buf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, active_renderpass->active_pipeline.layout.layout, 
+    cmd_buf.bindDescriptorSets(pipeline_bind_point(active_pipeline), active_pipeline.layout.layout,
         first_binding, 1, &set, dynamic_offsets.size(), dynamic_offsets.begin());
     return *this;
 }
 
 CommandBuffer& CommandBuffer::bind_descriptor_sets(uint32_t first_binding, stl::span<vk::DescriptorSet> sets, stl::span<uint32_t> dynamic_offsets) {
-    STL_ASSERT(active_renderpass, "bind_descriptor_sets called without an active renderpass");
     STL_ASSERT(sets.size() > 0, "bind_descriptor_sets called without descriptor sets");
-    cmd_buf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, active_renderpass->active_pipeline.layout.layout, 
+    cmd_buf.bindDescriptorSets(pipeline_bind_point(active_pipeline), active_pipeline.layout.layout,
         first_binding, sets.size(), &*sets.begin(), dynamic_offsets.size(), dynamic_offsets.begin());
     return *this;
 }
@@ -88,13 +108,12 @@ CommandBuffer& CommandBuffer::bind_index_buffer(BufferSlice slice, vk::IndexType
 }
 
 CommandBuffer& CommandBuffer::push_constants(vk::ShaderStageFlags stage_flags, uint32_t offset, uint32_t size, void const* data) {
-    STL_ASSERT(active_renderpass, "push_constants called without an active renderpass");
-    cmd_buf.pushConstants(active_renderpass->active_pipeline.layout.layout, stage_flags, offset, size, data);
+    cmd_buf.pushConstants(active_pipeline.layout.layout, stage_flags, offset, size, data);
     return *this;
 }
 
 CommandBuffer& CommandBuffer::draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex, uint32_t first_instance) {
-    STL_ASSERT(active_renderpass, "draw_ called without an active renderpass");
+    STL_ASSERT(active_renderpass, "draw called without an active renderpass");
     cmd_buf.draw(vertex_count, instance_count, first_vertex, first_instance);
     frame->draw_calls++;
     return *this;
@@ -105,6 +124,16 @@ CommandBuffer& CommandBuffer::draw_indexed(uint32_t index_count, uint32_t instan
     STL_ASSERT(active_renderpass, "draw_indexed called without an active renderpass");
     cmd_buf.drawIndexed(index_count, instance_count, first_index, vertex_offset, first_instance);
     frame->draw_calls++;
+    return *this;
+}
+
+CommandBuffer& CommandBuffer::dispatch_compute(uint32_t workgroup_x, uint32_t workgroup_y, uint32_t workgroup_z) {
+    cmd_buf.dispatch(workgroup_x, workgroup_y, workgroup_z);
+    return *this;
+}
+
+CommandBuffer& CommandBuffer::barrier(vk::PipelineStageFlags src_stage, vk::PipelineStageFlags dst_stage, vk::ImageMemoryBarrier barrier) {
+    cmd_buf.pipelineBarrier(src_stage, dst_stage, vk::DependencyFlagBits::eByRegion, nullptr, nullptr, barrier);
     return *this;
 }
 
@@ -171,12 +200,12 @@ vk::DescriptorSet CommandBuffer::get_descriptor(DescriptorSetLayoutCreateInfo co
         // Create descriptor set layout and issue writes
         vk::DescriptorSetAllocateInfo alloc_info;
         // Get set layout. We can assume that it has already been created. If not, something went very wrong
-        vk::DescriptorSetLayout* set_layout = ctx->set_layout_cache.get(set_binding.set_layout);
+        vk::DescriptorSetLayout* set_layout = ptc->set_layout_cache.get(set_binding.set_layout);
         STL_ASSERT(set_layout, "Descriptor requested without creating desctiptor set layout first. This can happen if there is"
             " no active pipeline bound, or get_descriptor was called outside a valid ph::RenderPass callback.");
         alloc_info.pSetLayouts = set_layout;
         // add default descriptor pool if no custom one was specified
-        if (!set_binding.pool) { set_binding.pool = frame->descriptor_pool; };
+        if (!set_binding.pool) { set_binding.pool = ptc->descriptor_pool; };
         alloc_info.descriptorPool = set_binding.pool;
         alloc_info.descriptorSetCount = 1;
         alloc_info.pNext = pNext;
@@ -202,6 +231,7 @@ vk::DescriptorSet CommandBuffer::get_descriptor(DescriptorSetLayoutCreateInfo co
             write.descriptorType = binding.type;
             write.descriptorCount = binding.descriptors.size();
             switch (binding.type) {
+            case vk::DescriptorType::eStorageImage:
             case vk::DescriptorType::eCombinedImageSampler:
             case vk::DescriptorType::eSampledImage: {
                 write_info.image_infos.reserve(binding.descriptors.size());
@@ -233,6 +263,7 @@ vk::DescriptorSet CommandBuffer::get_descriptor(DescriptorSetLayoutCreateInfo co
 
         for (size_t i = 0; i < write_infos.size(); ++i) {
             switch (writes[i].descriptorType) {
+            case vk::DescriptorType::eStorageImage:
             case vk::DescriptorType::eSampledImage:
             case vk::DescriptorType::eCombinedImageSampler: {
                 writes[i].pImageInfo = write_infos[i].image_infos.data();

@@ -45,13 +45,10 @@ private:
     size_t max_frames_in_flight;
     size_t frame_index = 0;
     uint32_t image_index = 0;
-    stl::vector<vk::Fence> image_in_flight_fences;
-    stl::vector<FrameInfo> frames;
+    std::vector<vk::Fence> image_in_flight_fences;
+    std::vector<FrameInfo> frames;
 
     std::vector<vk::CommandBuffer> command_buffers;
-
-    // Pool for all "fixed" descriptors
-    vk::DescriptorPool main_descriptor_pool;
 
     // Samplers
     vk::Sampler default_sampler;

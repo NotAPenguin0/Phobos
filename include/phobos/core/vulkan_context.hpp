@@ -23,6 +23,16 @@
 
 namespace ph {
 
+struct PerThreadContext {
+    vk::DescriptorPool descriptor_pool;
+    Cache<vk::RenderPass, vk::RenderPassCreateInfo> renderpass_cache;
+    Cache<vk::Framebuffer, vk::FramebufferCreateInfo> framebuffer_cache;
+    Cache<vk::Pipeline, ph::PipelineCreateInfo> pipeline_cache;
+    Cache<vk::Pipeline, ph::ComputePipelineCreateInfo> compute_pipeline_cache;
+    Cache<ph::PipelineLayout, ph::PipelineLayoutCreateInfo> pipeline_layout_cache;
+    Cache<vk::DescriptorSetLayout, ph::DescriptorSetLayoutCreateInfo> set_layout_cache;
+};
+
 struct VulkanContext {
     vk::Instance instance;
     vk::DispatchLoaderDynamic dynamic_dispatcher;
@@ -37,8 +47,10 @@ struct VulkanContext {
     WindowContext* window_ctx;
 
     uint32_t num_threads;
+    std::vector<PerThreadContext> thread_contexts;
 
     std::unique_ptr<Queue> graphics;
+    std::unique_ptr<Queue> compute;
     std::unique_ptr<Queue> transfer;
     // Queue compute
 
@@ -48,11 +60,6 @@ struct VulkanContext {
     log::LogInterface* logger = nullptr;
     EventDispatcher event_dispatcher;
 
-    Cache<vk::RenderPass, vk::RenderPassCreateInfo> renderpass_cache;
-    Cache<vk::Framebuffer, vk::FramebufferCreateInfo> framebuffer_cache;
-    Cache<vk::Pipeline, ph::PipelineCreateInfo> pipeline_cache;
-    Cache<ph::PipelineLayout, ph::PipelineLayoutCreateInfo> pipeline_layout_cache;
-    Cache<vk::DescriptorSetLayout, ph::DescriptorSetLayoutCreateInfo> set_layout_cache;
     Cache<ph::ShaderModuleCreateInfo, ShaderHandle> shader_module_info_cache;
 
     VmaAllocator allocator;

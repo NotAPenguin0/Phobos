@@ -58,6 +58,17 @@ DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, ImageView vie
     descriptor.image.sampler = sampler;
     return descriptor_binding;
 }
+
+DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, ImageView view, vk::ImageLayout layout) {
+    DescriptorBinding descriptor_binding;
+    descriptor_binding.binding = binding.binding;
+    descriptor_binding.type = binding.type;
+    auto& descriptor = descriptor_binding.descriptors.emplace_back();
+    descriptor.image.view = view;
+    descriptor.image.layout = layout;
+    return descriptor_binding;
+}
+
 DescriptorBinding make_descriptor(ShaderInfo::BindingInfo binding, stl::span<ImageView> views, vk::Sampler sampler, vk::ImageLayout layout) {
     DescriptorBinding descriptor_binding;
     descriptor_binding.binding = binding.binding;
@@ -111,8 +122,8 @@ vk::GraphicsPipelineCreateInfo PipelineCreateInfo::vk_info() const {
 }
 
 void PipelineCreateInfo::finalize() {
-    vertex_input.vertexBindingDescriptionCount = 1;
-    vertex_input.pVertexBindingDescriptions = &vertex_input_binding;
+    vertex_input.vertexBindingDescriptionCount = vertex_input_bindings.size();
+    vertex_input.pVertexBindingDescriptions = vertex_input_bindings.data();
     vertex_input.vertexAttributeDescriptionCount = vertex_attributes.size();
     vertex_input.pVertexAttributeDescriptions = vertex_attributes.data();
 
@@ -129,8 +140,19 @@ void PipelineCreateInfo::finalize() {
     viewport_state.pScissors = scissors.data();
 }
 
-static vk::DescriptorSetLayout create_or_get_descriptor_set_layout(VulkanContext* ctx, DescriptorSetLayoutCreateInfo const& info) {
-    auto set_layout_opt = ctx->set_layout_cache.get(info);
+void ComputePipelineCreateInfo::finalize() {
+    // No work to do 
+}
+
+vk::ComputePipelineCreateInfo ComputePipelineCreateInfo::vk_info() const {
+    vk::ComputePipelineCreateInfo pci;
+    pci.layout = pipeline_layout.layout;
+    return pci;
+}
+
+static vk::DescriptorSetLayout create_or_get_descriptor_set_layout(VulkanContext* ctx, PerThreadContext* ptc, 
+    DescriptorSetLayoutCreateInfo const& info) {
+    auto set_layout_opt = ptc->set_layout_cache.get(info);
     if (!set_layout_opt) {
         // We have to create the descriptor set layout here
         vk::DescriptorSetLayoutCreateInfo set_layout_info;
@@ -146,16 +168,17 @@ static vk::DescriptorSetLayout create_or_get_descriptor_set_layout(VulkanContext
         vk::DescriptorSetLayout set_layout = ctx->device.createDescriptorSetLayout(set_layout_info); 
         // Store for further use when creating the pipeline layout
         vk::DescriptorSetLayout backup = set_layout;
-        ctx->set_layout_cache.insert(info, stl::move(backup));
+        ptc->set_layout_cache.insert(info, stl::move(backup));
         return set_layout;
     } else {
         return *set_layout_opt;
     }
 }
 
-static PipelineLayout create_or_get_pipeline_layout(VulkanContext* ctx, PipelineLayoutCreateInfo const& info, vk::DescriptorSetLayout set_layout) {
+static PipelineLayout create_or_get_pipeline_layout(VulkanContext* ctx, PerThreadContext* ptc, PipelineLayoutCreateInfo const& info, 
+    vk::DescriptorSetLayout set_layout) {
     // Create or get pipeline layout from cache
-    auto pipeline_layout_opt = ctx->pipeline_layout_cache.get(info);
+    auto pipeline_layout_opt = ptc->pipeline_layout_cache.get(info);
     if (!pipeline_layout_opt) {
         // We have to create a new pipeline layout
         vk::PipelineLayoutCreateInfo layout_create_info;
@@ -170,7 +193,7 @@ static PipelineLayout create_or_get_pipeline_layout(VulkanContext* ctx, Pipeline
         layout.set_layout = set_layout;
 
         PipelineLayout backup = layout;
-        ctx->pipeline_layout_cache.insert(info, stl::move(backup));
+        ptc->pipeline_layout_cache.insert(info, stl::move(backup));
         return layout;
     } else {
         return *pipeline_layout_opt;
@@ -185,23 +208,24 @@ static vk::ShaderModule create_shader_module(VulkanContext* ctx, ShaderModuleCre
     return ctx->device.createShaderModule(vk_info);
 }
 
-Pipeline create_or_get_pipeline(VulkanContext* ctx, RenderPass* pass, PipelineCreateInfo pci) {
+Pipeline create_or_get_pipeline(VulkanContext* ctx, PerThreadContext* ptc, RenderPass* pass, PipelineCreateInfo pci) {
     Pipeline pipeline;
-
+   
     // This has to be called before setting up any other pipeline stuff
     pci.finalize();
     pci.render_pass = pass->render_pass;
     // #Tag(Subpass)
     pci.subpass = 0;
 
-    vk::DescriptorSetLayout set_layout = create_or_get_descriptor_set_layout(ctx, pci.layout.set_layout);
-    PipelineLayout pipeline_layout = create_or_get_pipeline_layout(ctx, pci.layout, set_layout);
+    vk::DescriptorSetLayout set_layout = create_or_get_descriptor_set_layout(ctx, ptc, pci.layout.set_layout);
+    PipelineLayout pipeline_layout = create_or_get_pipeline_layout(ctx, ptc, pci.layout, set_layout);
     // Make sure to set pipeline layout before lookup
     pci.pipeline_layout = pipeline_layout;
     pipeline.layout = pipeline_layout;
+    pipeline.type = PipelineType::Graphics;
         
 
-    auto pipeline_ptr = ctx->pipeline_cache.get(pci);
+    auto pipeline_ptr = ptc->pipeline_cache.get(pci);
     if (pipeline_ptr) { pipeline.pipeline = *pipeline_ptr; }
     else {
         vk::GraphicsPipelineCreateInfo vk_pci = pci.vk_info();
@@ -231,22 +255,79 @@ Pipeline create_or_get_pipeline(VulkanContext* ctx, RenderPass* pass, PipelineCr
             ctx->device.setDebugUtilsObjectNameEXT(name_info, ctx->dynamic_dispatcher);
         }
         pipeline.pipeline = ppl;
-        ctx->pipeline_cache.insert(stl::move(pci), stl::move(ppl));
+        ptc->pipeline_cache.insert(stl::move(pci), stl::move(ppl));
+    }
+
+    return pipeline;
+}
+
+Pipeline create_or_get_compute_pipeline(VulkanContext* ctx, PerThreadContext* ptc, ComputePipelineCreateInfo pci) {
+    Pipeline pipeline;
+
+    // This has to be called before setting up any other pipeline stuff
+    pci.finalize();
+
+    vk::DescriptorSetLayout set_layout = create_or_get_descriptor_set_layout(ctx, ptc, pci.layout.set_layout);
+    PipelineLayout pipeline_layout = create_or_get_pipeline_layout(ctx, ptc, pci.layout, set_layout);
+    // Make sure to set pipeline layout before lookup
+    pci.pipeline_layout = pipeline_layout;
+    pipeline.layout = pipeline_layout;
+    pipeline.type = PipelineType::Compute;
+
+
+    auto pipeline_ptr = ptc->compute_pipeline_cache.get(pci);
+    if (pipeline_ptr) { pipeline.pipeline = *pipeline_ptr; }
+    else {
+        vk::ComputePipelineCreateInfo vk_pci = pci.vk_info();
+        // Create shader modules
+        vk::PipelineShaderStageCreateInfo ssci;
+        auto shader_info = ctx->shader_module_info_cache.get(pci.shader);
+        STL_ASSERT(shader_info, "Invalid shader handle");
+        ssci.module = create_shader_module(ctx, *shader_info);
+        ssci.pName = shader_info->entry_point.c_str();
+        ssci.stage = shader_info->stage;
+        vk_pci.stage = ssci;
+        vk::Pipeline ppl = ctx->device.createComputePipeline(nullptr, vk_pci);
+        // Pipeline was created, destroy shader modules as we don't need them anymore
+        ctx->device.destroyShaderModule(ssci.module);
+        if (ctx->has_validation && pci.debug_name != "") {
+            vk::DebugUtilsObjectNameInfoEXT name_info;
+            name_info.objectType = vk::ObjectType::ePipeline;
+            name_info.pObjectName = pci.debug_name.c_str();
+            name_info.objectHandle = memory_util::vk_to_u64(ppl);
+            ctx->device.setDebugUtilsObjectNameEXT(name_info, ctx->dynamic_dispatcher);
+        }
+        pipeline.pipeline = ppl;
+        ptc->compute_pipeline_cache.insert(stl::move(pci), stl::move(ppl));
     }
 
     return pipeline;
 }
 
 void PipelineManager::create_named_pipeline(std::string name, PipelineCreateInfo&& info) {
+    std::lock_guard lock(mutex);
     if (info.debug_name == "") { info.debug_name = "Pipeline - " + name; }
     pipeline_infos.emplace(stl::move(name), stl::move(info));
 }
 
+void PipelineManager::create_named_pipeline(std::string name, ComputePipelineCreateInfo&& info) {
+    std::lock_guard lock(compute_mutex);
+    if (info.debug_name == "") { info.debug_name = "Compute Pipeline - " + name; }
+    compute_pipelines.emplace(stl::move(name), stl::move(info));
+}
+
 PipelineCreateInfo const* PipelineManager::get_named_pipeline(std::string const& name) const {
+    std::lock_guard lock(mutex);
     auto it = pipeline_infos.find(name);
     if (it != pipeline_infos.end()) return &it->second;
     return nullptr;
 }
 
+ComputePipelineCreateInfo const* PipelineManager::get_named_compute_pipeline(std::string const& name) const {
+    std::lock_guard lock(compute_mutex);
+    auto it = compute_pipelines.find(name);
+    if (it != compute_pipelines.end()) return &it->second;
+    return nullptr;
+}
 
 }

@@ -9,6 +9,7 @@ namespace ph {
 
 struct QueueFamilyIndices {
     std::optional<size_t> graphics_family = std::nullopt;
+    std::optional<size_t> compute_family = std::nullopt;
     std::optional<size_t> transfer_family = std::nullopt;
 };
 

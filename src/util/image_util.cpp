@@ -16,16 +16,26 @@ static vk::ImageUsageFlags get_image_usage(ImageType type) {
     case ImageType::Texture: 
         return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
     case ImageType::Cubemap:
-        return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
+        return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eColorAttachment;
+    case ImageType::EnvMap:
+        return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage;
+    case ImageType::HdrImage:
+        return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage;
     }
 }
 
 static vk::ImageCreateFlags get_image_flags(ImageType type) {
     switch (type) {
     case ImageType::Cubemap:
+    case ImageType::EnvMap:
         return vk::ImageCreateFlagBits::eCubeCompatible;
     default: return {};
     }
+}
+
+static vk::ImageTiling get_image_tiling(ImageType type) {
+    auto usage = get_image_usage(type);
+    return vk::ImageTiling::eOptimal;
 }
 
 stl::uint64_t get_unique_image_view_id() {
@@ -36,10 +46,12 @@ stl::uint64_t get_unique_image_view_id() {
 vk::ImageViewType get_view_type(ImageType type) {
     switch (type) {
     case ImageType::Cubemap:
+    case ImageType::EnvMap:
         return vk::ImageViewType::eCube;
     case ImageType::Texture:
     case ImageType::ColorAttachment:
     case ImageType::DepthStencilAttachment:
+    case ImageType::HdrImage:
         return vk::ImageViewType::e2D;
     }
 }
@@ -58,6 +70,29 @@ ImageView create_image_view(vk::Device device, RawImage& image, vk::ImageAspectF
     info.subresourceRange.aspectMask = aspect;
     info.subresourceRange.baseArrayLayer = 0;
     info.subresourceRange.layerCount = image.layers;
+    info.subresourceRange.baseMipLevel = 0;
+    info.subresourceRange.levelCount = 1;
+
+    view.view = device.createImageView(info);
+    view.id = get_unique_image_view_id();
+
+    return view;
+}
+
+ImageView create_image_view(vk::Device device, RawImage& image, uint32_t layer, vk::ImageAspectFlags aspect) {
+    ImageView view;
+
+    vk::ImageViewCreateInfo info;
+    info.image = image.image;
+    info.viewType = get_view_type(image.type);
+    info.format = image.format;
+    info.components.r = vk::ComponentSwizzle::eIdentity;
+    info.components.g = vk::ComponentSwizzle::eIdentity;
+    info.components.b = vk::ComponentSwizzle::eIdentity;
+    info.components.a = vk::ComponentSwizzle::eIdentity;
+    info.subresourceRange.aspectMask = aspect;
+    info.subresourceRange.baseArrayLayer = layer;
+    info.subresourceRange.layerCount = 1;
     info.subresourceRange.baseMipLevel = 0;
     info.subresourceRange.levelCount = 1;
 
@@ -90,7 +125,7 @@ RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, Image
     info.sharingMode = vk::SharingMode::eExclusive;
 
     info.format = format;
-    info.tiling = vk::ImageTiling::eOptimal;
+    info.tiling = get_image_tiling(type);
     info.initialLayout = vk::ImageLayout::eUndefined;
     info.usage = get_image_usage(type);
     info.samples = vk::SampleCountFlagBits::e1;
@@ -202,6 +237,27 @@ void transition_image_layout(vk::CommandBuffer cmd_buf, RawImage& image, vk::Ima
         barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
 
         src_stage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+        dst_stage = vk::PipelineStageFlagBits::eFragmentShader;
+    }
+    else if (image.current_layout == vk::ImageLayout::eUndefined && final_layout == vk::ImageLayout::eGeneral) {
+        barrier.srcAccessMask = vk::AccessFlags{};
+        barrier.dstAccessMask = vk::AccessFlagBits::eShaderWrite;
+
+        src_stage = vk::PipelineStageFlagBits::eTopOfPipe;
+        dst_stage = vk::PipelineStageFlagBits::eComputeShader;
+    }
+    else if (image.current_layout == vk::ImageLayout::eTransferDstOptimal && final_layout == vk::ImageLayout::eGeneral) {
+        barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+        barrier.dstAccessMask = vk::AccessFlagBits::eShaderWrite;
+
+        src_stage = vk::PipelineStageFlagBits::eTransfer;
+        dst_stage = vk::PipelineStageFlagBits::eComputeShader;
+    }
+    else if (image.current_layout == vk::ImageLayout::eGeneral && final_layout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+        barrier.srcAccessMask = vk::AccessFlagBits::eShaderWrite;
+        barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+
+        src_stage = vk::PipelineStageFlagBits::eComputeShader;
         dst_stage = vk::PipelineStageFlagBits::eFragmentShader;
     }
     else {

@@ -38,28 +38,13 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
     sampler_info.mipLodBias = 0.0;
     default_sampler = ctx.device.createSampler(sampler_info);
 
-    // TODO: Allow for more descriptors
-    vk::DescriptorPoolSize sizes[] = {
-        vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 1000),
-        vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, 1000),
-        vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, meta::max_unbounded_array_size)
-    };
-     
-    vk::DescriptorPoolCreateInfo fixed_descriptor_pool_info;
-    fixed_descriptor_pool_info.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet;
-    fixed_descriptor_pool_info.poolSizeCount = sizeof(sizes) / sizeof(vk::DescriptorPoolSize);
-    fixed_descriptor_pool_info.pPoolSizes = sizes;
-    fixed_descriptor_pool_info.maxSets = sizeof(sizes) / sizeof(vk::DescriptorPoolSize) * 1000;
-    main_descriptor_pool = ctx.device.createDescriptorPool(fixed_descriptor_pool_info);
-
-    image_in_flight_fences = stl::vector<vk::Fence>(swapchain_image_count, nullptr);
-    frames.resize(max_frames_in_flight);
+    image_in_flight_fences = std::vector<vk::Fence>(swapchain_image_count, nullptr);
     // Initialize frame info data
-    for (auto& frame_info : frames) {
+    for (size_t i = 0; i < max_frames_in_flight; ++i) {
+        ph::FrameInfo frame_info;
         // #Tag(Sampler)
         frame_info.default_sampler = default_sampler;
         frame_info.present_manager = this;
-        frame_info.descriptor_pool = main_descriptor_pool;
 
         vk::FenceCreateInfo fence_info;
         fence_info.flags = vk::FenceCreateFlagBits::eSignaled;
@@ -77,6 +62,7 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
 
         frame_info.vbo_allocator = BufferAllocator(&context, 64 * 1024, 16, BufferType::VertexBufferDynamic);
         frame_info.ibo_allocator = BufferAllocator(&context, 64 * 1024, 16, BufferType::IndexBufferDynamic);
+        frames.emplace_back(std::move(frame_info));
     }
 }
 
@@ -122,11 +108,13 @@ void PresentManager::present_frame(FrameInfo& frame) {
     for (auto& frame : frames) {
         update_cache_resource_usage(&context, frame.descriptor_cache, max_frames_in_flight);
     }
-    update_cache_resource_usage(&context, context.framebuffer_cache, max_frames_in_flight);
-    update_cache_resource_usage(&context, context.renderpass_cache, max_frames_in_flight);
-    update_cache_resource_usage(&context, context.set_layout_cache, max_frames_in_flight);
-    update_cache_resource_usage(&context, context.pipeline_layout_cache, max_frames_in_flight);
-    update_cache_resource_usage(&context, context.pipeline_cache, max_frames_in_flight);
+    PerThreadContext& main_thread_ctx = context.thread_contexts[0];
+    update_cache_resource_usage(&context, main_thread_ctx.framebuffer_cache, max_frames_in_flight);
+    update_cache_resource_usage(&context, main_thread_ctx.renderpass_cache, max_frames_in_flight);
+    update_cache_resource_usage(&context, main_thread_ctx.set_layout_cache, max_frames_in_flight);
+    update_cache_resource_usage(&context, main_thread_ctx.pipeline_layout_cache, max_frames_in_flight);
+    update_cache_resource_usage(&context, main_thread_ctx.pipeline_cache, max_frames_in_flight);
+    update_cache_resource_usage(&context, main_thread_ctx.compute_pipeline_cache, max_frames_in_flight);
     // No update_cache_resource_usage for shader module create info as we need this information every frame.
 }
 
@@ -145,7 +133,7 @@ void PresentManager::wait_for_available_frame() {
     image_index = image_index_result.value;
     // Make sure its available
     if (image_in_flight_fences[image_index]) {
-        context.device.waitForFences(image_in_flight_fences[image_index], true, std::numeric_limits<uint32_t>::max());
+//        context.device.waitForFences(image_in_flight_fences[image_index], true, std::numeric_limits<uint32_t>::max());
     }
 
     // Mark the image as in use
@@ -169,7 +157,6 @@ void PresentManager::destroy() {
         attachment.destroy();
     }
     attachments.clear();
-    context.device.destroyDescriptorPool(main_descriptor_pool);
 }
 
 RenderAttachment& PresentManager::add_color_attachment(std::string const& name) {

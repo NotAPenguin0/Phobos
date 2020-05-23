@@ -3,22 +3,21 @@
 
 #include <phobos/renderer/render_pass.hpp>
 #include <phobos/present/frame_info.hpp>
-#include <stl/vector.hpp>
+#include <vector>
 
 namespace ph {
 
 class RenderGraph {
 public:
-    friend class Renderer;
-    RenderGraph(VulkanContext* ctx);
+    RenderGraph(VulkanContext* ctx, PerThreadContext* ptc);
 
     void add_pass(RenderPass&& pass);
     void build();
 
+    std::vector<RenderPass> passes;
 private:
     VulkanContext* ctx;
-    stl::vector<RenderPass> passes;
-
+    PerThreadContext* ptc;
     void create_render_passes();
 };
 

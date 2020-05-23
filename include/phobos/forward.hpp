@@ -23,6 +23,7 @@ class PipelineManager;
 struct WindowContext;
 
 struct VulkanContext;
+struct PerThreadContext;
 struct AppSettings;
 
 class Mesh;

@@ -28,8 +28,10 @@ Renderer::Renderer(VulkanContext& context) : ctx(context) {
     default_textures.normal = create_single_color_texture(ctx, 0, 255, 0, vk::Format::eR8G8B8A8Unorm);
 } 
 
+
 void Renderer::render_frame(FrameInfo& info) {
-    CommandBuffer cmd_buffer { &ctx, &info, info.command_buffer };
+    // Grab thread context of the main thread
+    CommandBuffer cmd_buffer { &ctx, &info, &ctx.thread_contexts[0], info.command_buffer };
     cmd_buffer.begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 
     for (auto& pass : info.render_graph->passes) {

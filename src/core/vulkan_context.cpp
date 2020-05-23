@@ -1,6 +1,8 @@
 #include <phobos/core/vulkan_context.hpp>
 #include <phobos/core/device.hpp>
 
+#include <phobos/renderer/meta.hpp>
+
 #include <mimas/mimas.h>
 #include <mimas/mimas_vk.h>
 #include <vector>
@@ -49,9 +51,8 @@ static vk::Instance create_vulkan_instance(vk::ApplicationInfo const& app_info, 
     std::vector<const char*> const layers = {
         "VK_LAYER_KHRONOS_validation"
     };
+    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     if (app_settings.enable_validation_layers) {
-        // Add debug callback extensions if validation layers are enabled
-        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         info.enabledLayerCount = layers.size();
         info.ppEnabledLayerNames = layers.data();
     } else {
@@ -81,36 +82,41 @@ static vk::DebugUtilsMessengerEXT create_debug_messenger(VulkanContext* ctx) {
 
 
 void VulkanContext::destroy() { 
-    for (auto&[info, pass] : renderpass_cache.get_all()) {
-        device.destroyRenderPass(pass.data);
-    }
-    renderpass_cache.get_all().clear();
+    for (auto& ptc : thread_contexts) {
+        for (auto& [info, pass] : ptc.renderpass_cache.get_all()) {
+            device.destroyRenderPass(pass.data);
+        }
+        ptc.renderpass_cache.get_all().clear();
 
-    for (auto&[info, framebuf] : framebuffer_cache.get_all()) {
-        device.destroyFramebuffer(framebuf.data);
-    }
-    framebuffer_cache.get_all().clear();
-    
-    for (auto&[hash, set_layout] : set_layout_cache.get_all()) {
-        device.destroyDescriptorSetLayout(set_layout.data);
-    }
-    set_layout_cache.get_all().clear();
+        for (auto& [info, framebuf] : ptc.framebuffer_cache.get_all()) {
+            device.destroyFramebuffer(framebuf.data);
+        }
+        ptc.framebuffer_cache.get_all().clear();
 
-    for (auto&[hash, layout] : pipeline_layout_cache.get_all()) {
-        device.destroyPipelineLayout(layout.data.layout);
-    }
-    pipeline_layout_cache.get_all().clear();
+        for (auto& [hash, set_layout] : ptc.set_layout_cache.get_all()) {
+            device.destroyDescriptorSetLayout(set_layout.data);
+        }
+        ptc.set_layout_cache.get_all().clear();
 
-    // Destroy the actual pipelines
-    for (auto&[info, pipeline] : pipeline_cache.get_all()) {
-        device.destroyPipeline(pipeline.data);
-    }
-    pipeline_cache.get_all().clear();
+        for (auto& [hash, layout] : ptc.pipeline_layout_cache.get_all()) {
+            device.destroyPipelineLayout(layout.data.layout);
+        }
+        ptc.pipeline_layout_cache.get_all().clear();
 
+        // Destroy the actual pipelines
+        for (auto& [info, pipeline] : ptc.pipeline_cache.get_all()) {
+            device.destroyPipeline(pipeline.data);
+        }
+        ptc.pipeline_cache.get_all().clear();
+    }
     for (auto& img_view : swapchain.image_views) {
         destroy_image_view(*this, img_view);
     }
     
+    for (auto& ptc : thread_contexts) {
+        device.destroyDescriptorPool(ptc.descriptor_pool);
+    }
+
     vmaDestroyAllocator(allocator);
     device.destroySwapchainKHR(swapchain.handle);
     device.destroy();
@@ -119,6 +125,24 @@ void VulkanContext::destroy() {
         instance.destroyDebugUtilsMessengerEXT(debug_messenger, nullptr, dynamic_dispatcher);
     }
     instance.destroy();
+}
+
+static void create_thread_contexts(VulkanContext* ctx) {
+    ctx->thread_contexts.resize(ctx->num_threads);
+    for (auto& ptc : ctx->thread_contexts) {
+        vk::DescriptorPoolSize sizes[] = {
+            vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 1000),
+            vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, 1000),
+            vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, meta::max_unbounded_array_size)
+        };
+
+        vk::DescriptorPoolCreateInfo fixed_descriptor_pool_info;
+        fixed_descriptor_pool_info.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet;
+        fixed_descriptor_pool_info.poolSizeCount = sizeof(sizes) / sizeof(vk::DescriptorPoolSize);
+        fixed_descriptor_pool_info.pPoolSizes = sizes;
+        fixed_descriptor_pool_info.maxSets = sizeof(sizes) / sizeof(vk::DescriptorPoolSize) * 1000;
+        ptc.descriptor_pool = ctx->device.createDescriptorPool(fixed_descriptor_pool_info);
+    }
 }
 
 VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterface* logger, AppSettings settings) {
@@ -188,7 +212,10 @@ VulkanContext* create_vulkan_context(WindowContext& window_ctx, log::LogInterfac
 
     // Finally, get the graphics queue
     context->graphics = std::make_unique<Queue>(*context, context->physical_device.queue_families.graphics_family.value(), 0);
+    context->compute = std::make_unique<Queue>(*context, context->physical_device.queue_families.compute_family.value(), 0);
     context->transfer = std::make_unique<Queue>(*context, context->physical_device.queue_families.transfer_family.value(), 0);
+
+    create_thread_contexts(context);
 
     context->swapchain = create_swapchain(context->device, window_ctx, context->physical_device);
 

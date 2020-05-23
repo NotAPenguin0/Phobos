@@ -20,7 +20,7 @@ TODO:
 
 namespace ph {
 
-RenderGraph::RenderGraph(VulkanContext* ctx) : ctx(ctx) {
+RenderGraph::RenderGraph(VulkanContext* ctx, PerThreadContext* ptc) : ctx(ctx), ptc(ptc) {
 
 }
 
@@ -60,6 +60,7 @@ static bool is_color_format(vk::Format fmt) {
         case vk::Format::eB8G8R8A8Srgb:
         case vk::Format::eR8G8Unorm:
         case vk::Format::eR8G8B8Unorm:
+        case vk::Format::eR32G32B32A32Sfloat:
             return true;
         default:
             return false;
@@ -73,7 +74,7 @@ static vk::ImageLayout get_output_layout_for_format(vk::Format fmt) {
     return vk::ImageLayout::eColorAttachmentOptimal;
 }
 
-static vk::ImageLayout get_final_layout(VulkanContext* ctx, stl::span<RenderPass> passes, stl::span<RenderPass>::iterator pass, 
+static vk::ImageLayout get_final_layout(VulkanContext* ctx, std::vector<RenderPass>& passes, std::vector<RenderPass>::iterator pass, 
     stl::vector<RenderAttachment>::iterator attachment) {
 
     // For the final layout, there are 3 (4?) options:
@@ -103,7 +104,7 @@ static vk::ImageLayout get_final_layout(VulkanContext* ctx, stl::span<RenderPass
     }
 
     // Now we have verified the current pass isn't the final renderpass, we can continue.
-    stl::span<RenderPass> next_passes = stl::span(pass + 1, passes.end());
+    stl::span<RenderPass> next_passes = stl::span(&*pass + 1, &*(passes.end() - 1) + 1);
 
     // For each following pass ...
     for (auto const& later_pass : next_passes) {
@@ -133,7 +134,7 @@ static vk::ImageLayout get_final_layout(VulkanContext* ctx, stl::span<RenderPass
     return get_output_layout_for_format(attachment->get_format());
 }
 
-static vk::ImageLayout get_initial_layout(VulkanContext* ctx, stl::span<RenderPass> renderpasses, stl::span<RenderPass>::iterator pass,
+static vk::ImageLayout get_initial_layout(VulkanContext* ctx, std::vector<RenderPass>& renderpasses, std::vector<RenderPass>::iterator pass,
     stl::vector<RenderAttachment>::iterator attachment) {
 
     // We need to find the most recent usage of this attachment as an output attachment and set the initial layout accordingly
@@ -162,14 +163,16 @@ static vk::ImageLayout get_initial_layout(VulkanContext* ctx, stl::span<RenderPa
             // The attachment was sampled in te previous pass, this means ShaderReadOnlyOptimal was the last layout
             return vk::ImageLayout::eShaderReadOnlyOptimal;
         }
+
+        if (it == renderpasses.begin()) { break; }
     }
 
     // If it was not used as an output attachment anywhere, we don't need to load and we can specify Undefined as layout
     return vk::ImageLayout::eUndefined;
 }
 
-static stl::vector<vk::AttachmentDescription> get_attachment_descriptions(VulkanContext* ctx, stl::span<RenderPass> passes, 
-    stl::span<RenderPass>::iterator pass) {
+static stl::vector<vk::AttachmentDescription> get_attachment_descriptions(VulkanContext* ctx, std::vector<RenderPass>& passes, 
+    std::vector<RenderPass>::iterator pass) {
 
     stl::vector<vk::AttachmentDescription> attachments;
     for (size_t i = 0; i < pass->outputs.size(); ++i) {
@@ -262,7 +265,7 @@ void RenderGraph::create_render_passes() {
         info.pDependencies = &dependency;
 
         // Now we have all the info to look up this renderpass in the renderpass cache
-        auto pass = ctx->renderpass_cache.get(info);
+        auto pass = ptc->renderpass_cache.get(info);
         if (pass) { it->render_pass = *pass; }
         else { 
             // Create the renderpass and insert it into the caches
@@ -275,11 +278,11 @@ void RenderGraph::create_render_passes() {
                 ctx->device.setDebugUtilsObjectNameEXT(name_info, ctx->dynamic_dispatcher);
             }
             it->render_pass = render_pass;
-            ctx->renderpass_cache.insert(info, stl::move(render_pass));
+            ptc->renderpass_cache.insert(info, stl::move(render_pass));
         }
 
         // Next we have to create the vkFramebuffer for this renderpass. This is abstracted away in the RenderTarget class
-        it->target = RenderTarget(ctx, it->render_pass, it->outputs);
+        it->target = RenderTarget(ctx, ptc, it->render_pass, it->outputs);
     }
 }
 
