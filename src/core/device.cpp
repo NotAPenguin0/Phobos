@@ -9,15 +9,17 @@ vk::Device create_device(PhysicalDeviceDetails const& physical_device, DeviceReq
     float priority = 1.0f;
     queue_info.pQueuePriorities = &priority;
 
+    float transfer_priority = 0.5f;
     vk::DeviceQueueCreateInfo transfer_queue;
     transfer_queue.queueFamilyIndex = physical_device.queue_families.transfer_family.value();
     transfer_queue.queueCount = 1;
-    transfer_queue.pQueuePriorities = &priority;
+    transfer_queue.pQueuePriorities = &transfer_priority;
 
+    float compute_priority = 0.5f;
     vk::DeviceQueueCreateInfo compute_queue;
     compute_queue.queueFamilyIndex = physical_device.queue_families.compute_family.value();
     compute_queue.queueCount = 1;
-    compute_queue.pQueuePriorities = &priority;
+    compute_queue.pQueuePriorities = &compute_priority;
 
     vk::DeviceCreateInfo info;
 

@@ -28,6 +28,7 @@ struct RawImage {
     vk::Format format = vk::Format::eUndefined;
     vk::Extent2D size{};
     uint32_t layers = 1;
+    uint32_t mip_levels = 1;
     vk::ImageLayout current_layout = vk::ImageLayout::eUndefined;
     vk::Image image = nullptr;
     VmaAllocation memory = nullptr;
@@ -46,12 +47,14 @@ struct ImageView {
 
 ImageView create_image_view(vk::Device device, RawImage& image, vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor);
 ImageView create_image_view(vk::Device device, RawImage& image, uint32_t layer, vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor);
+ImageView create_image_view(vk::Device device, RawImage& image, uint32_t layer, uint32_t mip_level, vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor);
+ImageView create_image_view_level(vk::Device device, RawImage& image, uint32_t mip_level, vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor);
 void destroy_image_view(VulkanContext& ctx, ImageView& view);
 
 // this function is thread safe
 stl::uint64_t get_unique_image_view_id();
 
-RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format, uint32_t layers = 1);
+RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format, uint32_t layers = 1, uint32_t mip_levels = 1);
 
 void transition_image_layout(vk::CommandBuffer cmd_buf, vk::Image image, vk::Format format,
     vk::ImageLayout initial_layout, vk::ImageLayout final_layout);

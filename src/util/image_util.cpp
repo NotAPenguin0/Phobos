@@ -71,7 +71,7 @@ ImageView create_image_view(vk::Device device, RawImage& image, vk::ImageAspectF
     info.subresourceRange.baseArrayLayer = 0;
     info.subresourceRange.layerCount = image.layers;
     info.subresourceRange.baseMipLevel = 0;
-    info.subresourceRange.levelCount = 1;
+    info.subresourceRange.levelCount = image.mip_levels;
 
     view.view = device.createImageView(info);
     view.id = get_unique_image_view_id();
@@ -102,25 +102,72 @@ ImageView create_image_view(vk::Device device, RawImage& image, uint32_t layer, 
     return view;
 }
 
+ImageView create_image_view(vk::Device device, RawImage& image, uint32_t layer, uint32_t mip_level, vk::ImageAspectFlags aspect) {
+    ImageView view;
+
+    vk::ImageViewCreateInfo info;
+    info.image = image.image;
+    info.viewType = get_view_type(image.type);
+    info.format = image.format;
+    info.components.r = vk::ComponentSwizzle::eIdentity;
+    info.components.g = vk::ComponentSwizzle::eIdentity;
+    info.components.b = vk::ComponentSwizzle::eIdentity;
+    info.components.a = vk::ComponentSwizzle::eIdentity;
+    info.subresourceRange.aspectMask = aspect;
+    info.subresourceRange.baseArrayLayer = layer;
+    info.subresourceRange.layerCount = 1;
+    info.subresourceRange.baseMipLevel = mip_level;
+    info.subresourceRange.levelCount = 1;
+
+    view.view = device.createImageView(info);
+    view.id = get_unique_image_view_id();
+
+    return view;
+}
+
+ImageView create_image_view_level(vk::Device device, RawImage& image, uint32_t mip_level, vk::ImageAspectFlags aspect) {
+    ImageView view;
+
+    vk::ImageViewCreateInfo info;
+    info.image = image.image;
+    info.viewType = get_view_type(image.type);
+    info.format = image.format;
+    info.components.r = vk::ComponentSwizzle::eIdentity;
+    info.components.g = vk::ComponentSwizzle::eIdentity;
+    info.components.b = vk::ComponentSwizzle::eIdentity;
+    info.components.a = vk::ComponentSwizzle::eIdentity;
+    info.subresourceRange.aspectMask = aspect;
+    info.subresourceRange.baseArrayLayer = 0;
+    info.subresourceRange.layerCount = image.layers;
+    info.subresourceRange.baseMipLevel = mip_level;
+    info.subresourceRange.levelCount = 1;
+
+    view.view = device.createImageView(info);
+    view.id = get_unique_image_view_id();
+
+    return view;
+}
+
 void destroy_image_view(VulkanContext& ctx, ImageView& view) {
     ctx.device.destroyImageView(view.view);
     view.view = nullptr;
     view.id = static_cast<stl::uint64_t>(-1);
 }
 
-RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format, uint32_t layers) {
+RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format, uint32_t layers, uint32_t mip_levels) {
     RawImage image;
     image.format = format;
     image.size = vk::Extent2D{ width, height };
     image.type = type;
     image.layers = layers;
+    image.mip_levels = mip_levels;
 
     vk::ImageCreateInfo info;
     info.imageType = vk::ImageType::e2D;
     info.extent.width = width;
     info.extent.height = height;
     info.extent.depth = 1;
-    info.mipLevels = 1;
+    info.mipLevels = mip_levels;
     info.arrayLayers = layers;
     info.sharingMode = vk::SharingMode::eExclusive;
 
@@ -205,7 +252,7 @@ void transition_image_layout(vk::CommandBuffer cmd_buf, RawImage& image, vk::Ima
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.baseMipLevel = 0;
     barrier.subresourceRange.layerCount = image.layers;
-    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.levelCount = image.mip_levels;
 
     vk::PipelineStageFlags src_stage;
     vk::PipelineStageFlags dst_stage;

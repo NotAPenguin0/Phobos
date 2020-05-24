@@ -34,7 +34,7 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
     sampler_info.compareOp = vk::CompareOp::eAlways;
     sampler_info.mipmapMode = vk::SamplerMipmapMode::eLinear;
     sampler_info.minLod = 0.0;
-    sampler_info.maxLod = 0.0;
+    sampler_info.maxLod = 7.0;
     sampler_info.mipLodBias = 0.0;
     default_sampler = ctx.device.createSampler(sampler_info);
 
@@ -130,10 +130,15 @@ void PresentManager::wait_for_available_frame() {
         context.event_dispatcher.fire_event(
             WindowResizeEvent{context.window_ctx, (int32_t)context.window_ctx->width, (int32_t)context.window_ctx->height});
     }
+
+    if (image_index_result.result == vk::Result::eErrorDeviceLost) {
+        context.logger->write_fmt(ph::log::Severity::Fatal, "Device Lost!");
+    }
+
     image_index = image_index_result.value;
     // Make sure its available
     if (image_in_flight_fences[image_index]) {
-//        context.device.waitForFences(image_in_flight_fences[image_index], true, std::numeric_limits<uint32_t>::max());
+        context.device.waitForFences(image_in_flight_fences[image_index], true, std::numeric_limits<uint32_t>::max());
     }
 
     // Mark the image as in use
