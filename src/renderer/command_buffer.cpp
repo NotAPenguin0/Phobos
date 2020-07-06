@@ -137,6 +137,18 @@ CommandBuffer& CommandBuffer::barrier(vk::PipelineStageFlags src_stage, vk::Pipe
     return *this;
 }
 
+CommandBuffer& CommandBuffer::blit_image(RawImage& src_image, vk::ImageLayout src_layout, RawImage& dst_image, vk::ImageLayout dst_layout,
+    vk::ImageBlit blit_region, vk::Filter filter) {
+    cmd_buf.blitImage(src_image.image, src_layout, dst_image.image, dst_layout, 1, &blit_region, filter);
+    return *this;
+}
+
+CommandBuffer& CommandBuffer::blit_image(RawImage& src_image, vk::ImageLayout src_layout, RawImage& dst_image, vk::ImageLayout dst_layout,
+    stl::span<vk::ImageBlit> blit_regions, vk::Filter filter) {
+    cmd_buf.blitImage(src_image.image, src_layout, dst_image.image, dst_layout, blit_regions.size(), &*blit_regions.begin(), filter);
+    return *this;
+}
+
 BufferSlice CommandBuffer::allocate_scratch_ubo(vk::DeviceSize size) {
     return frame->ubo_allocator.allocate(size);
 }

@@ -16,9 +16,11 @@ static vk::ImageUsageFlags get_image_usage(ImageType type) {
     case ImageType::Texture: 
         return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
     case ImageType::Cubemap:
-        return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eColorAttachment;
+        return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | 
+            vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eColorAttachment;
     case ImageType::EnvMap:
-        return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage;
+        return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc |
+            vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage;
     case ImageType::HdrImage:
         return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage;
     }
@@ -94,7 +96,7 @@ ImageView create_image_view(vk::Device device, RawImage& image, uint32_t layer, 
     info.subresourceRange.baseArrayLayer = layer;
     info.subresourceRange.layerCount = 1;
     info.subresourceRange.baseMipLevel = 0;
-    info.subresourceRange.levelCount = 1;
+    info.subresourceRange.levelCount = image.mip_levels;
 
     view.view = device.createImageView(info);
     view.id = get_unique_image_view_id();
@@ -306,6 +308,19 @@ void transition_image_layout(vk::CommandBuffer cmd_buf, RawImage& image, vk::Ima
 
         src_stage = vk::PipelineStageFlagBits::eComputeShader;
         dst_stage = vk::PipelineStageFlagBits::eFragmentShader;
+    }
+    else if (image.current_layout == vk::ImageLayout::eGeneral && final_layout == vk::ImageLayout::eTransferSrcOptimal) {
+        barrier.srcAccessMask = vk::AccessFlagBits::eShaderWrite;
+        barrier.dstAccessMask = vk::AccessFlagBits::eTransferRead;
+
+        src_stage = vk::PipelineStageFlagBits::eComputeShader;
+        dst_stage = vk::PipelineStageFlagBits::eTransfer;
+    } else if (image.current_layout == vk::ImageLayout::eTransferSrcOptimal && final_layout == vk::ImageLayout::eGeneral) {
+        barrier.srcAccessMask = vk::AccessFlagBits::eTransferRead;
+        barrier.dstAccessMask = vk::AccessFlagBits::eShaderWrite;
+
+        src_stage = vk::PipelineStageFlagBits::eTransfer;
+        dst_stage = vk::PipelineStageFlagBits::eComputeShader;
     }
     else {
         throw std::invalid_argument("Unsupported image layout transition");
