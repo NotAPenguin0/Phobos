@@ -61,6 +61,7 @@ static bool is_color_format(vk::Format fmt) {
         case vk::Format::eR8G8Unorm:
         case vk::Format::eR8G8B8Unorm:
         case vk::Format::eR32G32B32A32Sfloat:
+        case vk::Format::eR16G16B16A16Sfloat:
             return true;
         default:
             return false;
