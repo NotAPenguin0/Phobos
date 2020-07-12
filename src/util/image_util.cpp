@@ -14,7 +14,7 @@ static vk::ImageUsageFlags get_image_usage(ImageType type) {
     case ImageType::DepthStencilAttachment:
         return vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
     case ImageType::Texture: 
-        return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
+        return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled;
     case ImageType::Cubemap:
         return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | 
             vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eColorAttachment;

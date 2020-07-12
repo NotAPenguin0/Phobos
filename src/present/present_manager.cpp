@@ -27,14 +27,14 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
     sampler_info.addressModeV = vk::SamplerAddressMode::eRepeat;
     sampler_info.addressModeW = vk::SamplerAddressMode::eRepeat;
     sampler_info.anisotropyEnable = true;
-    sampler_info.maxAnisotropy = 8;
+    sampler_info.maxAnisotropy = 16;
     sampler_info.borderColor = vk::BorderColor::eIntOpaqueBlack;
     sampler_info.unnormalizedCoordinates = false;
     sampler_info.compareEnable = false;
     sampler_info.compareOp = vk::CompareOp::eAlways;
     sampler_info.mipmapMode = vk::SamplerMipmapMode::eLinear;
     sampler_info.minLod = 0.0;
-    sampler_info.maxLod = 7.0;
+    sampler_info.maxLod = 64.0;
     sampler_info.mipLodBias = 0.0;
     default_sampler = ctx.device.createSampler(sampler_info);
 
