@@ -31,6 +31,7 @@ struct RenderPass {
 
     // This callback is called right when executing the renderpass
     std::function<void(CommandBuffer&)> callback = [](CommandBuffer&) {};
+    std::function<void(CommandBuffer&)> pre_callback = [](CommandBuffer&) {};
 
     RenderTarget const& get_target() const { return target; }
     bool is_active() const { return active; }

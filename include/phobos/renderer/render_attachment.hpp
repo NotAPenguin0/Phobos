@@ -28,6 +28,8 @@ public:
 
     void resize(uint32_t new_width, uint32_t new_height);
 
+    ph::RawImage get_image() const { return image; }
+
     vk::Image image_handle() const {
         return image.image;
     }
@@ -54,6 +56,10 @@ public:
 
     vk::Format get_format() const {
         return image.format;
+    }
+
+    vk::SampleCountFlagBits get_sample_count() const {
+        return image.samples;
     }
 
 protected:

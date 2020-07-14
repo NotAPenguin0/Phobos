@@ -173,8 +173,8 @@ RenderAttachment& PresentManager::add_color_attachment(std::string const& name, 
     return add_color_attachment(name, size, context.swapchain.format.format);
 }
 
-RenderAttachment& PresentManager::add_color_attachment(std::string const& name, vk::Extent2D size, vk::Format format) {
-    RawImage image = create_image(context, size.width, size.height, ImageType::ColorAttachment, format);
+RenderAttachment& PresentManager::add_color_attachment(std::string const& name, vk::Extent2D size, vk::Format format, vk::SampleCountFlagBits samples) {
+    RawImage image = create_image(context, size.width, size.height, ImageType::ColorAttachment, format, 1, 1, samples);
     ImageView view = create_image_view(context.device, image);
     return attachments[name] = RenderAttachment(&context, image, view, vk::ImageAspectFlagBits::eColor);
 }
@@ -183,9 +183,9 @@ RenderAttachment& PresentManager::add_depth_attachment(std::string const& name) 
     return add_depth_attachment(name, context.swapchain.extent);
 }
 
-RenderAttachment& PresentManager::add_depth_attachment(std::string const& name, vk::Extent2D size) {
+RenderAttachment& PresentManager::add_depth_attachment(std::string const& name, vk::Extent2D size, vk::SampleCountFlagBits samples) {
     RawImage image = create_image(context, size.width, size.height, ImageType::DepthStencilAttachment,
-        vk::Format::eD32Sfloat);
+        vk::Format::eD32Sfloat, 1, 1, samples);
     ImageView view = create_image_view(context.device, image, vk::ImageAspectFlagBits::eDepth);
 
     return attachments[name] = RenderAttachment(&context, image, view, vk::ImageAspectFlagBits::eDepth);

@@ -12,7 +12,8 @@ static vk::ImageUsageFlags get_image_usage(ImageType type) {
     case ImageType::ColorAttachment:
         return vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
     case ImageType::DepthStencilAttachment:
-        return vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
+        return vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled 
+            | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc;
     case ImageType::Texture: 
         return vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled;
     case ImageType::Cubemap:
@@ -156,13 +157,15 @@ void destroy_image_view(VulkanContext& ctx, ImageView& view) {
     view.id = static_cast<stl::uint64_t>(-1);
 }
 
-RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format, uint32_t layers, uint32_t mip_levels) {
+RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format, uint32_t layers, 
+    uint32_t mip_levels, vk::SampleCountFlagBits sample_count) {
     RawImage image;
     image.format = format;
     image.size = vk::Extent2D{ width, height };
     image.type = type;
     image.layers = layers;
     image.mip_levels = mip_levels;
+    image.samples = sample_count;
 
     vk::ImageCreateInfo info;
     info.imageType = vk::ImageType::e2D;
@@ -177,7 +180,7 @@ RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, Image
     info.tiling = get_image_tiling(type);
     info.initialLayout = vk::ImageLayout::eUndefined;
     info.usage = get_image_usage(type);
-    info.samples = vk::SampleCountFlagBits::e1;
+    info.samples = sample_count;
     info.flags = get_image_flags(type);
 
     VmaAllocationCreateInfo alloc_info{};

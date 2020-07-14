@@ -29,6 +29,7 @@ struct RawImage {
     vk::Extent2D size{};
     uint32_t layers = 1;
     uint32_t mip_levels = 1;
+    vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1;
     vk::ImageLayout current_layout = vk::ImageLayout::eUndefined;
     vk::Image image = nullptr;
     VmaAllocation memory = nullptr;
@@ -54,7 +55,8 @@ void destroy_image_view(VulkanContext& ctx, ImageView& view);
 // this function is thread safe
 stl::uint64_t get_unique_image_view_id();
 
-RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format, uint32_t layers = 1, uint32_t mip_levels = 1);
+RawImage create_image(VulkanContext& ctx, uint32_t width, uint32_t height, ImageType type, vk::Format format, uint32_t layers = 1, uint32_t mip_levels = 1, 
+    vk::SampleCountFlagBits sample_count = vk::SampleCountFlagBits::e1);
 
 void transition_image_layout(vk::CommandBuffer cmd_buf, vk::Image image, vk::Format format,
     vk::ImageLayout initial_layout, vk::ImageLayout final_layout);

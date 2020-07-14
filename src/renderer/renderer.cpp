@@ -35,6 +35,7 @@ void Renderer::render_frame(FrameInfo& info) {
     cmd_buffer.begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 
     for (auto& pass : info.render_graph->passes) {
+        pass.pre_callback(cmd_buffer);
         cmd_buffer.begin_renderpass(pass);
         pass.callback(cmd_buffer);
         cmd_buffer.end_renderpass();

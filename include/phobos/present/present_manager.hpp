@@ -29,9 +29,11 @@ public:
 
     RenderAttachment& add_color_attachment(std::string const& name);
     RenderAttachment& add_color_attachment(std::string const& name, vk::Extent2D size);
-    RenderAttachment& add_color_attachment(std::string const& name, vk::Extent2D size, vk::Format format);
+    RenderAttachment& add_color_attachment(std::string const& name, vk::Extent2D size, vk::Format format, 
+        vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1);
     RenderAttachment& add_depth_attachment(std::string const& name);
-    RenderAttachment& add_depth_attachment(std::string const& name, vk::Extent2D size);
+    RenderAttachment& add_depth_attachment(std::string const& name, vk::Extent2D size, 
+        vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1);
     RenderAttachment& get_attachment(std::string const& name);
     RenderAttachment get_swapchain_attachment(FrameInfo& frame);
 

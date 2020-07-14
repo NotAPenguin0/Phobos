@@ -180,24 +180,29 @@ static stl::vector<vk::AttachmentDescription> get_attachment_descriptions(Vulkan
         RenderAttachment& attachment = pass->outputs[i];
         vk::AttachmentDescription description;
         description.format = attachment.get_format();
-        // #Tag(Multisample)
-        description.samples = vk::SampleCountFlagBits::e1;
+        description.samples = attachment.get_sample_count();
+
+        // Now we have to find the correct attachment layouts to use.
+        description.initialLayout = get_initial_layout(ctx, passes, pass, &attachment);
+        description.finalLayout = get_final_layout(ctx, passes, pass, &attachment);
+
         // If this attachment has a clear value associated with it, set the load op to clear. Otherwise we want to load the previous data
         if (i < pass->clear_values.size()) {
             description.loadOp = vk::AttachmentLoadOp::eClear;
         }
-        else {
+        else if (description.initialLayout == vk::ImageLayout::eUndefined) {
+            description.loadOp = vk::AttachmentLoadOp::eDontCare;
+        } else {
             description.loadOp = vk::AttachmentLoadOp::eLoad;
         }
+
         description.storeOp = vk::AttachmentStoreOp::eStore;
         // We don't care about stencil attachments right now.
         // #Tag(Stencil)
         description.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
         description.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
 
-        // Now we have to find the correct attachment layouts to use.
-        description.initialLayout = get_initial_layout(ctx, passes, pass, &attachment);
-        description.finalLayout = get_final_layout(ctx, passes, pass, &attachment);
+
 
         attachments.push_back(stl::move(description));
     }
