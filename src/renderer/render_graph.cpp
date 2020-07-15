@@ -244,6 +244,12 @@ void RenderGraph::create_render_passes() {
         // Note that get_depth_reference returns an optional, since depth is optional
         auto depth_ref_opt = get_depth_reference(attachments);
 
+        // If there are no attachments at all, we have a compute pass and we don't need a renderpass
+        if (attachments.empty()) {
+            it->render_pass = nullptr;
+            continue;
+        }
+
         // Create the subpass
         vk::SubpassDescription subpass;
         subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;

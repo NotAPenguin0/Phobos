@@ -57,8 +57,10 @@ PresentManager::PresentManager(VulkanContext& ctx, size_t max_frames_in_flight)
         vk::DeviceSize const ubo_alignment = context.physical_device.properties.limits.minUniformBufferOffsetAlignment;
         frame_info.ubo_allocator = BufferAllocator(&context, 128 * 1024, ubo_alignment, BufferType::MappedUniformBuffer);
 
+        // Our renderer is using quite a few large SSBOs, so we are allocating a 64 MB buffer for this.
+        // TODO: Make these settings somewhere because this should not be hardcoded in the library
         vk::DeviceSize const ssbo_alignment = context.physical_device.properties.limits.minStorageBufferOffsetAlignment;
-        frame_info.ssbo_allocator = BufferAllocator(&context, 512 * 1024, ssbo_alignment, BufferType::StorageBufferDynamic);
+        frame_info.ssbo_allocator = BufferAllocator(&context, 64 * 1024 * 1024, ssbo_alignment, BufferType::StorageBufferDynamic);
 
         frame_info.vbo_allocator = BufferAllocator(&context, 64 * 1024, 16, BufferType::VertexBufferDynamic);
         frame_info.ibo_allocator = BufferAllocator(&context, 64 * 1024, 16, BufferType::IndexBufferDynamic);

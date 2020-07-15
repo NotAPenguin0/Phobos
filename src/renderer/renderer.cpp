@@ -36,9 +36,14 @@ void Renderer::render_frame(FrameInfo& info) {
 
     for (auto& pass : info.render_graph->passes) {
         pass.pre_callback(cmd_buffer);
-        cmd_buffer.begin_renderpass(pass);
+        // Only call begin/end renderpass if there is an actual renderpass. render_pass can be null when the pass is a compute pass.
+        if (pass.render_pass) {
+            cmd_buffer.begin_renderpass(pass);
+        }
         pass.callback(cmd_buffer);
-        cmd_buffer.end_renderpass();
+        if (pass.render_pass) {
+            cmd_buffer.end_renderpass();
+        }
     }
 
     cmd_buffer.end();
