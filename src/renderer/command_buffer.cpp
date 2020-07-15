@@ -137,6 +137,11 @@ CommandBuffer& CommandBuffer::barrier(vk::PipelineStageFlags src_stage, vk::Pipe
     return *this;
 }
 
+CommandBuffer& CommandBuffer::barrier(vk::PipelineStageFlags src_stage, vk::PipelineStageFlags dst_stage, vk::BufferMemoryBarrier barrier) {
+    cmd_buf.pipelineBarrier(src_stage, dst_stage, vk::DependencyFlagBits::eByRegion, nullptr, barrier, nullptr);
+    return *this;
+}
+
 CommandBuffer& CommandBuffer::blit_image(RawImage& src_image, vk::ImageLayout src_layout, RawImage& dst_image, vk::ImageLayout dst_layout,
     vk::ImageBlit blit_region, vk::Filter filter) {
     cmd_buf.blitImage(src_image.image, src_layout, dst_image.image, dst_layout, 1, &blit_region, filter);

@@ -38,6 +38,7 @@ public:
     CommandBuffer& dispatch_compute(uint32_t workgroup_x, uint32_t workgroup_y, uint32_t workgroup_z);
 
     CommandBuffer& barrier(vk::PipelineStageFlags src_stage, vk::PipelineStageFlags dst_stage, vk::ImageMemoryBarrier barrier);
+    CommandBuffer& barrier(vk::PipelineStageFlags src_stage, vk::PipelineStageFlags dst_stage, vk::BufferMemoryBarrier barrier);
     CommandBuffer& blit_image(RawImage& src_image, vk::ImageLayout src_layout, RawImage& dst_image, vk::ImageLayout dst_layout,
         vk::ImageBlit blit_region, vk::Filter filter = vk::Filter::eLinear);
     CommandBuffer& blit_image(RawImage& src_image, vk::ImageLayout src_layout, RawImage& dst_image, vk::ImageLayout dst_layout,

@@ -194,6 +194,7 @@ static void find_storage_images(ShaderInfo& info, spirv_cross::Compiler& refl, D
 
 static void collapse_bindings(DescriptorSetLayoutCreateInfo& info) {
     stl::vector<vk::DescriptorSetLayoutBinding> final_bindings;
+    stl::vector<vk::DescriptorBindingFlags> final_flags;
 
     for (size_t i = 0; i < info.bindings.size(); ++i) {
         auto binding = info.bindings[i];
@@ -218,9 +219,13 @@ static void collapse_bindings(DescriptorSetLayoutCreateInfo& info) {
         }
         binding.stageFlags = stages;
         final_bindings.push_back(binding);
+        if (!info.flags.empty()) {
+            final_flags.push_back(info.flags[i]);
+        }
     }
 
     info.bindings = final_bindings;
+    info.flags = final_flags;
 }
 
 static DescriptorSetLayoutCreateInfo get_descriptor_set_layout(ShaderInfo& info, stl::vector<std::unique_ptr<spirv_cross::Compiler>>& reflected_shaders) {
