@@ -106,12 +106,13 @@ void RenderAttachment::resize(uint32_t new_width, uint32_t new_height) {
     VulkanContext* ctx_backup = ctx;
     ImageType old_type = image.type;
     vk::Format old_format = image.format;
+    vk::SampleCountFlagBits old_samples = image.samples;
     destroy();
     ctx = ctx_backup;
 
     ctx->event_dispatcher.add_listener(this);
 
-    image = create_image(*ctx, new_width, new_height, old_type, old_format);
+    image = create_image(*ctx, new_width, new_height, old_type, old_format, 1, 1, old_samples);
     view = create_image_view(ctx->device, image, aspect);
 
     owning = true;
