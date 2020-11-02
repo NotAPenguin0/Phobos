@@ -1,6 +1,7 @@
 add_subdirectory("mimas")
 add_subdirectory("fmt")
 add_subdirectory("stl")
+cmake_policy(SET CMP0077 NEW)
 set(SPIRV_CROSS_STATIC ON)
 set(SPIRV_CROSS_CLI OFF)
 add_subdirectory("SPIRV-Cross")

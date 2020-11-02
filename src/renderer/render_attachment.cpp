@@ -102,6 +102,8 @@ void RenderAttachment::resize(uint32_t new_width, uint32_t new_height) {
     if (!owning) { return; }
     // Don't resize if the attachment already has the correct size
     if (new_width == image.size.width && new_height == image.size.height) { return; }
+    // Don't resize if new size is invalid (has a zero)
+    if (new_width == 0 || new_height == 0) { return; }
 
     VulkanContext* ctx_backup = ctx;
     ImageType old_type = image.type;
