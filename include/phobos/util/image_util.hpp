@@ -46,6 +46,8 @@ struct ImageView {
     }
 };
 
+uint32_t format_byte_size(vk::Format format);
+
 ImageView create_image_view(vk::Device device, RawImage& image, vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor);
 ImageView create_image_view(vk::Device device, RawImage& image, uint32_t layer, vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor);
 ImageView create_image_view(vk::Device device, RawImage& image, uint32_t layer, uint32_t mip_level, vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor);
@@ -62,7 +64,7 @@ void transition_image_layout(vk::CommandBuffer cmd_buf, vk::Image image, vk::For
     vk::ImageLayout initial_layout, vk::ImageLayout final_layout);
 void transition_image_layout(vk::CommandBuffer cmd_buf, RawImage& image, vk::ImageLayout final_layout);
 
-void copy_buffer_to_image(vk::CommandBuffer cmd_buf, BufferSlice slice, RawImage& image);
+void copy_buffer_to_image(vk::CommandBuffer cmd_buf, BufferSlice slice, RawImage& image, uint32_t miplevels = 1);
 void copy_buffer_to_image(vk::CommandBuffer cmd_buf, stl::span<BufferSlice> slices, RawImage& image);
 
 void destroy_image(VulkanContext& ctx, RawImage& image);

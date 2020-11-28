@@ -334,22 +334,45 @@ void transition_image_layout(vk::CommandBuffer cmd_buf, RawImage& image, vk::Ima
     image.current_layout = final_layout;
 }
 
-void copy_buffer_to_image(vk::CommandBuffer cmd_buf, BufferSlice slice, RawImage& image) {
-    vk::BufferImageCopy copy_region;
-    copy_region.bufferOffset = slice.offset;
-    // Values of 0 means tightly packed here
-    copy_region.bufferRowLength = 0;
-    copy_region.bufferImageHeight = 0;
+static uint32_t mip_size(uint32_t base_size, uint32_t mip) {
+    return (base_size >> mip);
+}
 
-    copy_region.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
-    copy_region.imageSubresource.baseArrayLayer = 0;
-    copy_region.imageSubresource.layerCount = image.layers;
-    copy_region.imageSubresource.mipLevel = 0;
+uint32_t format_byte_size(vk::Format format) {
+    switch (format) {
+    case vk::Format::eR8G8B8A8Unorm:
+    case vk::Format::eR8G8B8A8Srgb:
+        return 4;
+    case vk::Format::eR8G8B8Unorm:
+    case vk::Format::eR8G8B8Srgb:
+        return 3;
+    default:
+        return 0;
+    }
+}
 
-    copy_region.imageOffset = vk::Offset3D{ 0, 0, 0 };
-    copy_region.imageExtent = vk::Extent3D{ image.size.width, image.size.height, 1 };
+void copy_buffer_to_image(vk::CommandBuffer cmd_buf, BufferSlice slice, RawImage& image, uint32_t mip_levels) {
+    std::vector<vk::BufferImageCopy> regions;
+    uint32_t cur_offset = 0;
+    for (uint32_t mip = 0; mip < mip_levels; ++mip) {
+        vk::BufferImageCopy copy_region;
+        copy_region.bufferOffset = slice.offset + cur_offset;
+        // Values of 0 means tightly packed here
+        copy_region.bufferRowLength = 0;
+        copy_region.bufferImageHeight = 0;
 
-    cmd_buf.copyBufferToImage(slice.buffer, image.image, image.current_layout, copy_region);
+        copy_region.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+        copy_region.imageSubresource.baseArrayLayer = 0;
+        copy_region.imageSubresource.layerCount = image.layers;
+        copy_region.imageSubresource.mipLevel = mip;
+
+        copy_region.imageOffset = vk::Offset3D{ 0, 0, 0 };
+        copy_region.imageExtent = vk::Extent3D{ mip_size(image.size.width, mip), mip_size(image.size.height, mip), 1 };
+        regions.push_back(copy_region);
+        cur_offset += copy_region.imageExtent.width * copy_region.imageExtent.height * format_byte_size(image.format);
+    }
+
+    cmd_buf.copyBufferToImage(slice.buffer, image.image, image.current_layout, regions);
 }
 
 void copy_buffer_to_image(vk::CommandBuffer cmd_buf, stl::span<BufferSlice> slices, RawImage& image) {
