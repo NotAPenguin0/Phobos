@@ -4,9 +4,6 @@
 [submodule "external/mimas"]
 	path = external/mimas
 	url = https://github.com/kociap/mimas
-[submodule "external/stb"]
-	path = external/stb
-	url = https://github.com/nothings/stb
 [submodule "external/fmt"]
 	path = external/fmt
 	url = https://github.com/fmtlib/fmt
@@ -19,6 +16,3 @@
 [submodule "external/VMA"]
 	path = external/VMA
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
-[submodule "external/assimp"]
-	path = external/assimp
-	url = https://github.com/assimp/assimp
