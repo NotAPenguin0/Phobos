@@ -51,6 +51,10 @@ target_link_libraries(Phobos PUBLIC Vulkan::Vulkan)
 
 # Test Application
 
+if (PHOBOS_ENABLE_TEST_APP)
+    add_subdirectory("test")
+endif()
+
 #if (PHOBOS_ENABLE_TEST_APP)
 #    function(add_test_app EXEC_NAME SRC_FILES)
 #        add_executable(${EXEC_NAME} "imgui_style.cpp" "test_app_framework.cpp" "external/imgui/imgui.cpp" "external/imgui/imgui_draw.cpp" 

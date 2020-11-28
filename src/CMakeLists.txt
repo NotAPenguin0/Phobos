@@ -1,4 +1,7 @@
 
+target_sources(Phobos PRIVATE 
+	"core/context.cpp"
+)
 
 # if (NOT ${PHOBOS_NO_FIXED_PIPELINE}) 
 #    message("Phobos: Compiling fixed pipeline")
