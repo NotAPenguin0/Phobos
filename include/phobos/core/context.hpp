@@ -2,20 +2,45 @@
 
 #include <phobos/version.hpp>
 #include <phobos/core/window_interface.hpp>
+#include <phobos/core/log_interface.hpp>
 
 #include <vulkan/vulkan.h>
 #include <string_view>
 #include <vector>
+#include <optional>
 
 namespace ph {
 
+enum class QueueType {
+	Graphics = VK_QUEUE_GRAPHICS_BIT,
+	Compute = VK_QUEUE_COMPUTE_BIT,
+	Transfer = VK_QUEUE_TRANSFER_BIT
+};
+
+struct QueueRequest {
+	// This flag is a preference. If no dedicated queue was found, a shared one will be selected.
+	bool dedicated = false;
+	QueueType type{};
+};
+
+struct QueueInfo {
+	bool dedicated = false;
+	QueueType type{};
+	size_t family_index;
+};
+
 // This struct describes capabilities the user wants the GPU to have.
-// If no GPU matching the requirements is found, the first GPU in the list of available devices is selected.
 struct GPURequirements {
 	bool dedicated = false;
 	// Minimum amount of dedicated video memory (in bytes). This only counts memory heaps with the DEVICE_LOCAL bit set.
 	uint64_t min_video_memory = 0;
-	// TODO: Add queues and other settings here
+	// Request queues and add them to this list
+	std::vector<QueueRequest> requested_queues;
+	// Device extensions and features
+	std::vector<const char*> device_extensions;
+	VkPhysicalDeviceFeatures features{};
+	// To add a pNext chain to the VkDeviceCreateInfo
+	void* pNext = nullptr;
 };
 
 struct AppSettings {
@@ -35,14 +60,29 @@ struct AppSettings {
 	// Pointer to the windowing system interface.
 	// Note that this pointer must be valid for the entire lifetime of the created ph::Context
 	WindowInterface* wsi = nullptr;
+	// Pointer to the logging interface.
+	// Like the wsi pointer, this must be valid for the entire lifetime of the ph::Context
+	LogInterface* log = nullptr;
 	// Minimum GPU capabilities requested by the user. This will decide which GPU will be used.
 	GPURequirements gpu_requirements{};
+};
+
+struct SurfaceInfo {
+	VkSurfaceKHR handle = nullptr;
+	VkSurfaceCapabilitiesKHR capabilities{};
+	std::vector<VkSurfaceFormatKHR> formats{};
+	std::vector<VkPresentModeKHR> present_modes{};
 };
 
 struct PhysicalDevice {
 	VkPhysicalDevice handle = nullptr;
 	VkPhysicalDeviceProperties properties{};
 	VkPhysicalDeviceMemoryProperties memory_properties{};
+	std::vector<VkQueueFamilyProperties> queue_families{};
+	// Contains details of all used queues.
+	std::vector<QueueInfo> found_queues{};
+	// This is std::nullopt for a headless context
+	std::optional<SurfaceInfo> surface;
 };
 
 struct PerThreadContext {
@@ -51,7 +91,7 @@ struct PerThreadContext {
 
 class Context {
 public:
-	Context(AppSettings const& settings);
+	Context(AppSettings settings);
 	~Context();
 
 	bool is_headless() const;
@@ -67,6 +107,7 @@ private:
 	uint32_t num_threads = 0;
 	std::vector<PerThreadContext> ptcs{};
 	WindowInterface* wsi = nullptr;
+	LogInterface* log = nullptr;
 };
 
 }

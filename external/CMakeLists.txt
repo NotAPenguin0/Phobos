@@ -1,3 +1,4 @@
+include(FetchContent)
 
 cmake_policy(SET CMP0077 NEW)
 # set(SPIRV_CROSS_STATIC ON)
@@ -16,6 +17,19 @@ elseif(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang" AND MSVC) # clang-cl
 elseif(MSVC) # MSVC
     set(PHOBOS_DEPENDENCY_COMPILE_OPTIONS "/w")
 endif()
+
+add_library(phobos-dependency INTERFACE)
+target_compile_options(phobos-dependency INTERFACE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
+
+FetchContent_Declare(
+    fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt
+)
+
+FetchContent_MakeAvailable(fmt)
+
+target_link_libraries(fmt PRIVATE phobos-dependency)
+target_link_libraries(Phobos PUBLIC fmt)
 
 #target_compile_options(stl PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
 #target_compile_options(mimas PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
