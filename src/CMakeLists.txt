@@ -2,6 +2,7 @@
 target_sources(Phobos PRIVATE 
 	"core/context.cpp"
 	"core/log_interface.cpp"
+	"core/queue.cpp"
 )
 
 # if (NOT ${PHOBOS_NO_FIXED_PIPELINE}) 

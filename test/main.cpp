@@ -45,6 +45,18 @@ public:
 	bool close() {
 		glfwSetWindowShouldClose(window, true);
 	}
+	
+	uint32_t width() const override {
+		int w = 0;
+		glfwGetFramebufferSize(window, &w, nullptr);
+		return w;
+	}
+
+	uint32_t height() const override {
+		int h = 0;
+		glfwGetFramebufferSize(window, nullptr, &h);
+		return h;
+	}
 
 private:
 	GLFWwindow* window = nullptr;

@@ -1,6 +1,9 @@
 #include <phobos/core/context.hpp>
 #include <cassert>
 
+#include <limits>
+#include <algorithm>
+
 namespace ph {
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
@@ -18,10 +21,10 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
 	return VK_FALSE;
 }
 
-static std::optional<size_t> get_queue_family_prefer_dedicated(std::vector<VkQueueFamilyProperties> const& properties, VkQueueFlagBits required, VkQueueFlags avoid) {
+static std::optional<uint32_t> get_queue_family_prefer_dedicated(std::vector<VkQueueFamilyProperties> const& properties, VkQueueFlagBits required, VkQueueFlags avoid) {
 
-	std::optional<size_t> best_match = std::nullopt;
-	for (size_t i = 0; i < properties.size(); ++i) {
+	std::optional<uint32_t> best_match = std::nullopt;
+	for (uint32_t i = 0; i < properties.size(); ++i) {
 		VkQueueFlags flags = properties[i].queueFlags;
 		if (!(flags & required)) { continue; }
 		if (!(flags & avoid)) { return i; }
@@ -30,7 +33,7 @@ static std::optional<size_t> get_queue_family_prefer_dedicated(std::vector<VkQue
 	return best_match;
 }
 
-static PhysicalDevice select_physical_device(VkInstance instance, GPURequirements const& requirements) {
+static PhysicalDevice select_physical_device(VkInstance instance, SurfaceInfo const& surface, GPURequirements const& requirements) {
 	uint32_t device_count;
 	VkResult result = vkEnumeratePhysicalDevices(instance, &device_count, nullptr);
 	assert(result == VK_SUCCESS && device_count > 0 && "Could not find any vulkan-capable devices");
@@ -82,6 +85,18 @@ static PhysicalDevice select_physical_device(VkInstance instance, GPURequirement
 		}
 		if (must_skip) continue;
 
+		// Check support for our surface. We'll simply check every queue we are requesting for present support
+		bool found_one = false;
+		for (QueueInfo const& queue : found_queues) {
+			VkBool32 supported = false;
+			vkGetPhysicalDeviceSurfaceSupportKHR(device, queue.family_index, surface.handle, &supported);
+			if (supported) {
+				found_one = true;
+				break;
+			}
+		}
+		if (!found_one) continue;
+
 		return { .handle = device, .properties = properties, .memory_properties = mem_properties, .found_queues = std::move(found_queues) };
 	}
 
@@ -99,6 +114,49 @@ static void fill_surface_details(PhysicalDevice& device) {
 	vkGetPhysicalDeviceSurfacePresentModesKHR(device.handle, device.surface->handle, &mode_count, nullptr);
 	device.surface->present_modes.resize(mode_count);
 	vkGetPhysicalDeviceSurfacePresentModesKHR(device.handle, device.surface->handle, &mode_count, device.surface->present_modes.data());
+}
+
+static VkSurfaceFormatKHR choose_surface_format(AppSettings const& settings, PhysicalDevice const& device) {
+	for (auto const& fmt : device.surface->formats) {
+		// Srgb framebuffer so we can have gamma correction
+		if (fmt.format == settings.surface_format.format && fmt.colorSpace == settings.surface_format.colorSpace) {
+			return fmt;
+		}
+	}
+	// If our preferred format isn't found, check if the fallback is supported. 
+	VkSurfaceFormatKHR fallback = { .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR };
+	for (auto const& fmt : device.surface->formats) {
+		if (fmt.format == fallback.format && fmt.colorSpace == fallback.colorSpace) {
+			return fmt;
+		}
+	}
+	// If it isn't, return the first format in the list
+	return device.surface->formats[0];
+}
+
+static VkExtent2D choose_swapchain_extent(WindowInterface* wsi, PhysicalDevice const& device) {
+	if (device.surface->capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+		return device.surface->capabilities.currentExtent;
+	}
+	else {
+		// Clamp the extent to be within the allowed range
+		VkExtent2D extent = VkExtent2D{ .width = wsi->width(), .height = wsi->height() };
+		extent.width = std::clamp(extent.width, device.surface->capabilities.minImageExtent.width,
+			device.surface->capabilities.maxImageExtent.width);
+		extent.height = std::clamp(extent.height, device.surface->capabilities.minImageExtent.height,
+			device.surface->capabilities.maxImageExtent.height);
+		return extent;
+	}
+}
+
+static VkPresentModeKHR choose_present_mode(AppSettings const& settings, PhysicalDevice const& device) {
+	for (auto const& mode : device.surface->present_modes) {
+		if (mode == settings.present_mode) {
+			return mode;
+		}
+	}
+	// Vsync. The only present mode that is required to be supported
+	return VK_PRESENT_MODE_FIFO_KHR;
 }
 
 Context::Context(AppSettings settings) {
@@ -158,14 +216,15 @@ Context::Context(AppSettings settings) {
 		assert(result == VK_SUCCESS && "Failed to create debug messenger");
 	}
 
-	phys_device = select_physical_device(instance, settings.gpu_requirements);
+	phys_device.surface = SurfaceInfo{};
+	phys_device.surface->handle = wsi->create_surface(instance);
+
+	phys_device = select_physical_device(instance, *phys_device.surface, settings.gpu_requirements);
 	if (!phys_device.handle) {
 		log->write(LogSeverity::Fatal, "Could not find a suitable physical device");
 		return;
 	}
 
-	phys_device.surface = SurfaceInfo{};
-	phys_device.surface->handle = wsi->create_surface(instance);
 	fill_surface_details(phys_device);
 
 	// Get the logical device using the queues we found.
@@ -197,6 +256,50 @@ Context::Context(AppSettings settings) {
 		VkResult result = vkCreateDevice(phys_device.handle, &info, nullptr, &device);
 		assert(result == VK_SUCCESS && "Failed to create logical device");
  	}
+
+	// Get device queues
+	{
+		std::unordered_map<uint32_t /* Queue Family Index*/, uint32_t /*Queues already requested with this index*/> queue_counts;
+		for (QueueInfo queue : phys_device.found_queues) {
+			uint32_t index = queue_counts[queue.family_index];
+			VkQueue handle = nullptr;
+			vkGetDeviceQueue(device, queue.family_index, index, &handle);
+			queues.push_back(Queue{ queue, handle });
+			queue_counts[queue.family_index] += 1;
+		}
+	}
+
+	// Create swapchain, but only if the context is not headless
+	if (!is_headless()) {
+		swapchain->format = choose_surface_format(settings, phys_device);
+		swapchain->present_mode = choose_present_mode(settings, phys_device);
+		swapchain->extent = choose_swapchain_extent(wsi, phys_device);
+
+		uint32_t image_count = std::max(settings.min_swapchain_image_count, phys_device.surface->capabilities.minImageCount + 1);
+		// Make sure not to exceed maximum. A value of 0 means there is no maximum
+		if (uint32_t max_image_count = phys_device.surface->capabilities.maxImageCount; max_image_count != 0) {
+			image_count = std::min(max_image_count, image_count);
+		}
+
+		VkSwapchainCreateInfoKHR info{};
+		info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+		info.oldSwapchain = nullptr;
+		info.surface = phys_device.surface->handle;
+		info.imageFormat = swapchain->format.format;
+		info.imageColorSpace = swapchain->format.colorSpace;
+		info.imageExtent = swapchain->extent;
+		info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		info.imageArrayLayers = 1;
+		info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		info.presentMode = swapchain->present_mode;
+		info.minImageCount = image_count;
+		info.clipped = true;
+		info.preTransform = phys_device.surface->capabilities.currentTransform;
+		info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+
+		VkResult result = vkCreateSwapchainKHR(device, &info, nullptr, &swapchain->handle);
+		assert(result == VK_SUCCESS && "Failed to create swapchain");
+	}
 }
 
 Context::~Context() {
@@ -205,6 +308,7 @@ Context::~Context() {
 		destroy_func(instance, debug_messenger, nullptr);
 	}
 	if (!is_headless()) {
+		vkDestroySwapchainKHR(device, swapchain->handle, nullptr);
 		vkDestroySurfaceKHR(instance, phys_device.surface->handle, nullptr);
 	}
 	vkDestroyDevice(device, nullptr);
@@ -217,6 +321,15 @@ bool Context::is_headless() const {
 
 bool Context::validation_enabled() const {
 	return has_validation;
+}
+
+std::optional<Queue*> Context::get_queue(QueueType type) {
+	for (Queue& queue : queues) {
+		if (queue.type() == type) {
+			return &queue;
+		}
+	}
+	return std::nullopt;
 }
 
 }

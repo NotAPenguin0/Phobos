@@ -3,6 +3,7 @@
 #include <phobos/version.hpp>
 #include <phobos/core/window_interface.hpp>
 #include <phobos/core/log_interface.hpp>
+#include <phobos/core/queue.hpp>
 
 #include <vulkan/vulkan.h>
 #include <string_view>
@@ -10,24 +11,6 @@
 #include <optional>
 
 namespace ph {
-
-enum class QueueType {
-	Graphics = VK_QUEUE_GRAPHICS_BIT,
-	Compute = VK_QUEUE_COMPUTE_BIT,
-	Transfer = VK_QUEUE_TRANSFER_BIT
-};
-
-struct QueueRequest {
-	// This flag is a preference. If no dedicated queue was found, a shared one will be selected.
-	bool dedicated = false;
-	QueueType type{};
-};
-
-struct QueueInfo {
-	bool dedicated = false;
-	QueueType type{};
-	size_t family_index;
-};
 
 // This struct describes capabilities the user wants the GPU to have.
 struct GPURequirements {
@@ -65,6 +48,16 @@ struct AppSettings {
 	LogInterface* log = nullptr;
 	// Minimum GPU capabilities requested by the user. This will decide which GPU will be used.
 	GPURequirements gpu_requirements{};
+	// Surface format. If this is not available the best available fallback will be picked.
+	// When create_headless is true, this value is ignored.
+	// The default value for this, and also the fallback value, is B8G8R8A8_SRGB with COLORSPACE_SRGB_NONLINEAR
+	VkSurfaceFormatKHR surface_format{ .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR };
+	// Preferred present mode. The default value for this is FIFO, as this is always supported.
+	// If your requested present mode is not supported, this will fallback to FIFO
+	VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
+	// Minimum amount of swapchain images to present to.
+	// The final value chosen is min(surface.maxImageCount, max(surface.minImageCount + 1, min_swapchain_image_count))
+	uint32_t min_swapchain_image_count = 1;
 };
 
 struct SurfaceInfo {
@@ -82,7 +75,17 @@ struct PhysicalDevice {
 	// Contains details of all used queues.
 	std::vector<QueueInfo> found_queues{};
 	// This is std::nullopt for a headless context
-	std::optional<SurfaceInfo> surface;
+	std::optional<SurfaceInfo> surface = std::nullopt;
+};
+
+struct Swapchain {
+	VkSwapchainKHR handle = nullptr;
+	VkSurfaceFormatKHR format{};
+	VkPresentModeKHR present_mode{};
+	VkExtent2D extent{};
+
+	std::vector<VkImage> images{};
+	std::vector<VkImageView> view{};
 };
 
 struct PerThreadContext {
@@ -96,16 +99,19 @@ public:
 
 	bool is_headless() const;
 	bool validation_enabled() const;
+	std::optional<Queue*> get_queue(QueueType type);
 
 	VkInstance instance = nullptr;
 	VkDevice device = nullptr;
 	PhysicalDevice phys_device{};
-
+	// This is std::nullopt for a headless context
+	std::optional<Swapchain> swapchain = std::nullopt;
 private:
 	VkDebugUtilsMessengerEXT debug_messenger = nullptr;
 	bool has_validation = false;
 	uint32_t num_threads = 0;
 	std::vector<PerThreadContext> ptcs{};
+	std::vector<Queue> queues{};
 	WindowInterface* wsi = nullptr;
 	LogInterface* log = nullptr;
 };
