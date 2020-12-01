@@ -388,22 +388,22 @@ uint32_t Context::thread_count() const {
 	return num_threads;
 }
 
-std::optional<Queue*> Context::get_queue(QueueType type) {
+Queue* Context::get_queue(QueueType type) {
 	for (Queue& queue : queues) {
 		if (queue.type() == type) {
 			return &queue;
 		}
 	}
-	return std::nullopt;
+	return nullptr;
 }
 
-std::optional<Queue*> Context::get_present_queue() {
+Queue* Context::get_present_queue() {
 	for (Queue& queue : queues) {
 		if (queue.can_present()) {
 			return &queue;
 		}
 	}
-	return std::nullopt;
+	return nullptr;
 }
 
 size_t Context::max_frames_in_flight() const {

@@ -110,9 +110,9 @@ public:
 	bool is_headless() const;
 	bool validation_enabled() const;
 	uint32_t thread_count() const;
-	std::optional<Queue*> get_queue(QueueType type);
+	Queue* get_queue(QueueType type);
 	// Gets the pointer to the first present-capable queue.
-	std::optional<Queue*> get_present_queue();
+	Queue* get_present_queue();
 
 	size_t max_frames_in_flight() const;
 	void wait_for_frame();

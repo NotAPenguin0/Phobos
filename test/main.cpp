@@ -120,7 +120,7 @@ int main() {
 	config.gpu_requirements.pNext = &descriptor_indexing;
 	{
 		ph::Context ctx(config);
-		ph::Queue& graphics = *ctx.get_queue(ph::QueueType::Graphics).value();
+		ph::Queue& graphics = *ctx.get_queue(ph::QueueType::Graphics);
 		ph::RingBuffer<ph::CommandBuffer> frame_commands = ph::RingBuffer<ph::CommandBuffer>(ctx.max_frames_in_flight());
 		for (size_t i = 0; i < frame_commands.size(); ++i) {
 			frame_commands.set(i, graphics.create_command_buffer());
@@ -132,7 +132,7 @@ int main() {
 			commands.begin();
 			commands.end();
 			ctx.submit_frame_commands(graphics, commands);
-			ctx.present(*ctx.get_present_queue().value());
+			ctx.present(*ctx.get_present_queue());
 
 			wsi->swap_buffers();
 			frame_commands.next();
