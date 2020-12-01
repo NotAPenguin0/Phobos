@@ -1,4 +1,4 @@
-#include <phobos/core/context.hpp>
+#include <phobos/context.hpp>
 #include <GLFW/glfw3.h>
 
 #include <iostream>
@@ -109,6 +109,7 @@ int main() {
 	config.gpu_requirements.features.samplerAnisotropy = true;
 	config.gpu_requirements.features.fillModeNonSolid = true;
 	config.gpu_requirements.features.independentBlend = true;
+	config.present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
 	// Add descriptor indexing feature
 	VkPhysicalDeviceDescriptorIndexingFeatures descriptor_indexing{};
 	descriptor_indexing.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
@@ -119,9 +120,22 @@ int main() {
 	config.gpu_requirements.pNext = &descriptor_indexing;
 	{
 		ph::Context ctx(config);
+		ph::Queue& graphics = *ctx.get_queue(ph::QueueType::Graphics).value();
+		ph::RingBuffer<ph::CommandBuffer> frame_commands = ph::RingBuffer<ph::CommandBuffer>(ctx.max_frames_in_flight());
+		for (size_t i = 0; i < frame_commands.size(); ++i) {
+			frame_commands.set(i, graphics.create_command_buffer());
+		}
 		while (wsi->is_open()) {
 			wsi->poll_events();
+			ctx.wait_for_frame();
+			ph::CommandBuffer& commands = frame_commands.current();
+			commands.begin();
+			commands.end();
+			ctx.submit_frame_commands(graphics, commands);
+			ctx.present(*ctx.get_present_queue().value());
+
 			wsi->swap_buffers();
+			frame_commands.next();
 		}
 	}
 	delete wsi;
