@@ -1,8 +1,10 @@
 
 target_sources(Phobos PRIVATE 
-	"core/context.cpp"
-	"core/log_interface.cpp"
-	"core/queue.cpp"
+	"command_buffer.cpp"
+	"context.cpp"
+	"log_interface.cpp"
+	"queue.cpp"
+	"image.cpp"
 )
 
 # if (NOT ${PHOBOS_NO_FIXED_PIPELINE}) 

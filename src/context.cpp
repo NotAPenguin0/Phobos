@@ -1,6 +1,6 @@
-#include <phobos/core/context.hpp>
-#include <cassert>
+#include <phobos/context.hpp>
 
+#include <cassert>
 #include <limits>
 #include <algorithm>
 
@@ -28,6 +28,7 @@ static std::optional<uint32_t> get_queue_family_prefer_dedicated(std::vector<VkQ
 		VkQueueFlags flags = properties[i].queueFlags;
 		if (!(flags & required)) { continue; }
 		if (!(flags & avoid)) { return i; }
+		
 		best_match = i;
 	}
 	return best_match;
@@ -87,12 +88,12 @@ static PhysicalDevice select_physical_device(VkInstance instance, SurfaceInfo co
 
 		// Check support for our surface. We'll simply check every queue we are requesting for present support
 		bool found_one = false;
-		for (QueueInfo const& queue : found_queues) {
+		for (QueueInfo& queue : found_queues) {
 			VkBool32 supported = false;
 			vkGetPhysicalDeviceSurfaceSupportKHR(device, queue.family_index, surface.handle, &supported);
 			if (supported) {
 				found_one = true;
-				break;
+				queue.can_present = true;
 			}
 		}
 		if (!found_one) continue;
@@ -164,6 +165,7 @@ Context::Context(AppSettings settings) {
 	has_validation = settings.enable_validation;
 	if (!settings.create_headless) {
 		wsi = settings.wsi;
+		in_flight_frames = settings.max_frames_in_flight;
 	}
 	log = settings.log;
 
@@ -264,13 +266,14 @@ Context::Context(AppSettings settings) {
 			uint32_t index = queue_counts[queue.family_index];
 			VkQueue handle = nullptr;
 			vkGetDeviceQueue(device, queue.family_index, index, &handle);
-			queues.push_back(Queue{ queue, handle });
+			queues.emplace_back(*this, queue, handle);
 			queue_counts[queue.family_index] += 1;
 		}
 	}
 
 	// Create swapchain, but only if the context is not headless
 	if (!is_headless()) {
+		swapchain = Swapchain{};
 		swapchain->format = choose_surface_format(settings, phys_device);
 		swapchain->present_mode = choose_present_mode(settings, phys_device);
 		swapchain->extent = choose_swapchain_extent(wsi, phys_device);
@@ -299,15 +302,73 @@ Context::Context(AppSettings settings) {
 
 		VkResult result = vkCreateSwapchainKHR(device, &info, nullptr, &swapchain->handle);
 		assert(result == VK_SUCCESS && "Failed to create swapchain");
+
+		vkGetSwapchainImagesKHR(device, swapchain->handle, &image_count, nullptr);
+		std::vector<VkImage> images(image_count);
+		vkGetSwapchainImagesKHR(device, swapchain->handle, &image_count, images.data());
+		
+		swapchain->per_image = std::vector<Swapchain::PerImage>(image_count);
+		for (size_t i = 0; i < swapchain->per_image.size(); ++i) {
+			Swapchain::PerImage data{};
+			data.image = {
+				.type = ImageType::ColorAttachment,
+				.format = swapchain->format.format,
+				.size = swapchain->extent,
+				.layers = 1,
+				.mip_levels = 1,
+				.samples = VK_SAMPLE_COUNT_1_BIT,
+				.current_layout = VK_IMAGE_LAYOUT_UNDEFINED,
+				.handle = images[i],
+				.memory = nullptr
+			};
+			data.view = ph::create_image_view(*this, data.image, ph::ImageAspect::Color);
+			swapchain->per_image[i] = std::move(data);
+		}
+
+		per_frame = RingBuffer<PerFrame>(max_frames_in_flight());
+		for (size_t i = 0; i < max_frames_in_flight(); ++i) {
+			VkFence fence = nullptr;
+			VkFenceCreateInfo info{};
+			info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+			info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+			vkCreateFence(device, &info, nullptr, &fence);
+
+			VkSemaphore semaphore = nullptr;
+			VkSemaphore semaphore2 = nullptr;
+			VkSemaphoreCreateInfo sem_info{};
+			sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+			vkCreateSemaphore(device, &sem_info, nullptr, &semaphore);
+			vkCreateSemaphore(device, &sem_info, nullptr, &semaphore2);
+
+			per_frame.set(i, PerFrame{ .fence = fence, .gpu_finished = semaphore, .image_ready = semaphore2 });
+		}
 	}
 }
 
 Context::~Context() {
+	// First wait until there is no more running work.
+	vkDeviceWaitIdle(device);
+
+	// Destroy the queues. This will clean up the command pools they have in use
+	queues.clear();
+
 	if (validation_enabled()) {
 		auto destroy_func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
 		destroy_func(instance, debug_messenger, nullptr);
 	}
 	if (!is_headless()) {
+		for (PerFrame& frame : per_frame) {
+			vkDestroyFence(device, frame.fence, nullptr);
+			vkDestroySemaphore(device, frame.gpu_finished, nullptr);
+			vkDestroySemaphore(device, frame.image_ready, nullptr);
+		}
+
+		for (Swapchain::PerImage& image : swapchain->per_image) {
+			destroy_image_view(*this, image.view);
+			image.fence = nullptr;
+			image.image = {};
+		}
+
 		vkDestroySwapchainKHR(device, swapchain->handle, nullptr);
 		vkDestroySurfaceKHR(instance, phys_device.surface->handle, nullptr);
 	}
@@ -323,6 +384,10 @@ bool Context::validation_enabled() const {
 	return has_validation;
 }
 
+uint32_t Context::thread_count() const {
+	return num_threads;
+}
+
 std::optional<Queue*> Context::get_queue(QueueType type) {
 	for (Queue& queue : queues) {
 		if (queue.type() == type) {
@@ -330,6 +395,71 @@ std::optional<Queue*> Context::get_queue(QueueType type) {
 		}
 	}
 	return std::nullopt;
+}
+
+std::optional<Queue*> Context::get_present_queue() {
+	for (Queue& queue : queues) {
+		if (queue.can_present()) {
+			return &queue;
+		}
+	}
+	return std::nullopt;
+}
+
+size_t Context::max_frames_in_flight() const {
+	return in_flight_frames;
+}
+
+void Context::wait_for_frame() {
+	// Wait for an available frame context
+	PerFrame& frame_data = per_frame.current();
+	vkWaitForFences(device, 1, &frame_data.fence, true, std::numeric_limits<uint64_t>::max());
+
+	// Get an image index to present to
+	vkAcquireNextImageKHR(device, swapchain->handle, std::numeric_limits<uint64_t>::max(), frame_data.image_ready, nullptr, &swapchain->image_index);
+
+	// Wait until the image is absolutely no longer in use. This can happen when there are more frames in flight than swapchain images, or when
+	// vkAcquireNextImageKHR returns indices out of order
+	if (swapchain->per_image[swapchain->image_index].fence != nullptr) {
+		vkWaitForFences(device, 1, &swapchain->per_image[swapchain->image_index].fence, true, std::numeric_limits<uint64_t>::max());
+	}
+	// Mark this image as in use by the current frame
+	swapchain->per_image[swapchain->image_index].fence = frame_data.fence;
+}
+
+void Context::submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf) {
+	PerFrame& frame_data = per_frame.current();
+
+	// Reset our fence from last time so we can use it again now
+	vkResetFences(device, 1, &frame_data.fence);
+
+	queue.submit(cmd_buf, frame_data.fence, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, frame_data.image_ready, frame_data.gpu_finished);
+}
+
+void Context::present(Queue& queue) {
+	assert(!is_headless() && "Tried presenting from a headless context.\n");
+
+	PerFrame& frame_data = per_frame.current();
+	
+	// Present to chosen queue
+	VkPresentInfoKHR info{};
+	info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	info.swapchainCount = 1;
+	info.pSwapchains = &swapchain->handle;
+	info.waitSemaphoreCount = 1;
+	info.pWaitSemaphores = &frame_data.gpu_finished;
+	info.pImageIndices = &swapchain->image_index;
+	queue.present(info);
+
+	// Advance per-frame ringbuffers to the next element
+	next_frame();
+}
+
+void Context::next_frame() {
+	per_frame.next();
+	for (Queue& queue : queues) {
+		queue.next_frame();
+	}
 }
 
 }

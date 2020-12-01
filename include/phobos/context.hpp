@@ -1,9 +1,11 @@
 #pragma once
 
 #include <phobos/version.hpp>
-#include <phobos/core/window_interface.hpp>
-#include <phobos/core/log_interface.hpp>
-#include <phobos/core/queue.hpp>
+#include <phobos/window_interface.hpp>
+#include <phobos/log_interface.hpp>
+#include <phobos/queue.hpp>
+#include <phobos/ring_buffer.hpp>
+#include <phobos/image.hpp>
 
 #include <vulkan/vulkan.h>
 #include <string_view>
@@ -58,6 +60,8 @@ struct AppSettings {
 	// Minimum amount of swapchain images to present to.
 	// The final value chosen is min(surface.maxImageCount, max(surface.minImageCount + 1, min_swapchain_image_count))
 	uint32_t min_swapchain_image_count = 1;
+	// Maximum amount of in-flight frames. Default value is 2. This value is ignored for a headless context.
+	uint32_t max_frames_in_flight = 2;
 };
 
 struct SurfaceInfo {
@@ -84,8 +88,14 @@ struct Swapchain {
 	VkPresentModeKHR present_mode{};
 	VkExtent2D extent{};
 
-	std::vector<VkImage> images{};
-	std::vector<VkImageView> view{};
+	struct PerImage {
+		RawImage image{};
+		ImageView view{};
+		VkFence fence = nullptr;
+	};
+
+	std::vector<PerImage> per_image{};
+	uint32_t image_index = 0;
 };
 
 struct PerThreadContext {
@@ -99,7 +109,15 @@ public:
 
 	bool is_headless() const;
 	bool validation_enabled() const;
+	uint32_t thread_count() const;
 	std::optional<Queue*> get_queue(QueueType type);
+	// Gets the pointer to the first present-capable queue.
+	std::optional<Queue*> get_present_queue();
+
+	size_t max_frames_in_flight() const;
+	void wait_for_frame();
+	void submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf);
+	void present(Queue& queue);
 
 	VkInstance instance = nullptr;
 	VkDevice device = nullptr;
@@ -110,10 +128,22 @@ private:
 	VkDebugUtilsMessengerEXT debug_messenger = nullptr;
 	bool has_validation = false;
 	uint32_t num_threads = 0;
+
+	struct PerFrame {
+		VkFence fence = nullptr;
+		VkSemaphore gpu_finished = nullptr;
+		VkSemaphore image_ready = nullptr;
+	};
+
+	uint32_t in_flight_frames = 0;
+	RingBuffer<PerFrame> per_frame{}; // RingBuffer with in_flight_frames elements.
+
 	std::vector<PerThreadContext> ptcs{};
 	std::vector<Queue> queues{};
 	WindowInterface* wsi = nullptr;
 	LogInterface* log = nullptr;
+
+	void next_frame();
 };
 
 }

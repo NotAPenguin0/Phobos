@@ -1,4 +1,4 @@
-#include <phobos/core/log_interface.hpp>
+#include <phobos/log_interface.hpp>
 
 #include <ctime>
 #include <string>
