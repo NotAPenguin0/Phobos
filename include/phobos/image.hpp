@@ -36,6 +36,7 @@ struct ImageView {
     VkImageView handle = nullptr;
     VkFormat format = VK_FORMAT_UNDEFINED;
     VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
+    VkExtent2D size{};
 
     // Id that is guaranteed to be unique for each VkImageView.
     // We need this because Vulkan doesn't guarantee unique id's for vk handles.
@@ -49,5 +50,11 @@ struct ImageView {
 ImageView create_image_view(Context& ctx, RawImage const& target, ImageAspect aspect = ImageAspect::Color);
 
 void destroy_image_view(Context& ctx, ImageView& view);
+
+
+// Common utilities
+
+
+bool is_depth_format(VkFormat format);
 
 }

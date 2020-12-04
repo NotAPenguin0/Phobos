@@ -11,7 +11,98 @@ void RenderGraph::build(Context& ctx) {
 	for (auto it = passes.begin(); it != passes.end(); ++it) {
         Pass* pass = &*it;
         auto attachments = get_attachment_descriptions(ctx, pass);
-        (void)0;
+       
+        // Create attachment references
+        std::vector<VkAttachmentReference> color_attachments{};
+        std::optional<VkAttachmentReference> depth_ref{};
+        for (size_t i = 0; i < pass->outputs.size(); ++i) {
+            PassOutput const& output = pass->outputs[i];
+            Attachment* attachment = ctx.get_attachment(output.name);
+            VkAttachmentReference ref{};
+            ref.attachment = i;
+            if (is_depth_format(attachment->view.format)) {
+                ref.layout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+                depth_ref = ref;
+            }
+            else {
+                // If an attachment is not a depth attachment, it's a color attachment
+                ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                color_attachments.push_back(ref);
+            }
+        }
+
+        BuiltPass& build = built_passes.emplace_back();
+        // If there are no attachments, we don't need to create a VkRenderPass
+        if (color_attachments.empty() && depth_ref == std::nullopt) {
+            continue;
+        }
+
+        // Create subpass description
+        VkSubpassDescription subpass{};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount = color_attachments.size();
+        subpass.pColorAttachments = color_attachments.data();
+        if (depth_ref != std::nullopt) {
+            subpass.pDepthStencilAttachment = &*depth_ref;
+        }
+        
+        std::vector<VkSubpassDependency> dependencies{};
+        for (size_t i = 0; i < pass->outputs.size(); ++i) {
+            PassOutput const& output = pass->outputs[i];
+            Attachment* attachment = ctx.get_attachment(output.name);
+
+            AttachmentUsage previous_usage = find_previous_usage(ctx, pass, attachment);
+            if (previous_usage.pass == nullptr) { // Not used earlier, no dependency needed
+                continue;
+            }
+
+            VkSubpassDependency dependency{};
+            dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+            dependency.dstSubpass = 0;
+            if (is_depth_format(attachment->view.format)) {
+                dependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            }
+            else {
+                dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            }
+            dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            dependency.srcAccessMask = previous_usage.access;
+            dependency.srcStageMask = previous_usage.stage;
+            dependencies.push_back(dependency);
+        }
+
+        // Now that we have the dependencies sorted we need to create the VkRenderPass
+        VkRenderPassCreateInfo rpci{};
+        rpci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        rpci.attachmentCount = attachments.size();
+        rpci.pAttachments = attachments.data();
+        rpci.dependencyCount = dependencies.size();
+        rpci.pDependencies = dependencies.data();
+        rpci.subpassCount = 1;
+        rpci.pSubpasses = &subpass;
+        rpci.pNext = nullptr;
+
+        build.handle = ctx.get_or_create_renderpass(rpci);
+
+        // Step 2: Create VkFramebuffer for this renderpass
+        VkFramebufferCreateInfo fbci{};
+        fbci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        std::vector<VkImageView> attachment_views{};
+        for (PassOutput const& output : pass->outputs) {
+            attachment_views.push_back(ctx.get_attachment(output.name)->view.handle);
+        }
+        fbci.attachmentCount = attachments.size();
+        fbci.pAttachments = attachment_views.data();
+        fbci.renderPass = build.handle;
+        fbci.layers = 1;
+        // Figure out width and height of the framebuffer. For this we need to find the largest size of all attachments.
+        for (PassOutput const& output : pass->outputs) {
+            Attachment* attachment = ctx.get_attachment(output.name);
+            fbci.width = std::max(attachment->view.size.width, fbci.width);
+            fbci.height = std::max(attachment->view.size.height, fbci.height);
+        }
+        build.render_area = VkExtent2D{ .width = fbci.width, .height = fbci.height };
+        build.framebuf = ctx.get_or_create_framebuffer(fbci);
 	}
 }
 
@@ -31,20 +122,10 @@ std::vector<VkAttachmentDescription> RenderGraph::get_attachment_descriptions(Co
 		description.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         description.initialLayout = get_initial_layout(ctx, pass, &pass->outputs[i]);
         description.finalLayout = get_final_layout(ctx, pass, &pass->outputs[i]);
-
+        
 		attachments.push_back(description);
 	}
 	return attachments;
-}
-
-static bool is_depth_format(VkFormat format) {
-    switch (format) {
-    case VK_FORMAT_D16_UNORM:
-    case VK_FORMAT_D32_SFLOAT:
-        return true;
-    default:
-        return false;
-    }
 }
 
 static VkImageLayout get_output_layout_for_format(VkFormat format) {
@@ -58,43 +139,25 @@ VkImageLayout RenderGraph::get_initial_layout(Context& ctx, Pass* pass, PassOutp
 
     if (attachment->load_op == LoadOp::DontCare) return VK_IMAGE_LAYOUT_UNDEFINED;
 
-    // If this pass is the first pass in the list of renderpasses, we can simply put the initialLayout as UNDEFINED
-    if (pass == &passes.front()) { return VK_IMAGE_LAYOUT_UNDEFINED; }
-
-    // For each earlier pass ...
-    for (auto it = pass - 1; it >= &passes.front(); --it) {
-        // ... we check if this pass contains the current attachment as an output attachment
-
-        // Custom comparator to compare ph::PassOutputs by their attachment's name. See also get_final_layout
-        auto find_func = [&ctx, attachment](ph::PassOutput const& candidate) {
-            return attachment->name == candidate.name;
-        };
-
-        Attachment* att = ctx.get_attachment(attachment->name);
-
-        auto found_it = std::find_if(it->outputs.begin(), it->outputs.end(), find_func);
-
-        if (found_it != it->outputs.end()) {
-            // The attachment is used as an output attachment in a previous pass. Return the matching layout.
-            return get_output_layout_for_format(att->view.format);
-        }
-
-        // If it wasn't found in the outputs vector, check if it was sampled instead
-        auto find_in_sampled_func = [&ctx, attachment](std::string_view candidate) {
-            return attachment->name == candidate;
-        };
-
-        auto found_sampled = std::find_if(it->sampled_attachments.begin(), it->sampled_attachments.end(), find_in_sampled_func);
-        if (found_sampled != it->sampled_attachments.end()) {
-            // The attachment was sampled in te previous pass, this means ShaderReadOnlyOptimal was the last layout
-            return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        }
-
-        if (it == &passes.front()) { break; }
+    AttachmentUsage previous_usage = find_previous_usage(ctx, pass, ctx.get_attachment(attachment->name));
+    // Not used previously
+    if (previous_usage.pass == nullptr) {
+        return VK_IMAGE_LAYOUT_UNDEFINED;
     }
 
-    // If it was not used as an output attachment anywhere, we don't need to load and we can specify Undefined as layout
-    return VK_IMAGE_LAYOUT_UNDEFINED;
+    // Used as color output attachment previously
+    if (previous_usage.access == VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT) {
+        return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    }
+
+    // Used as depth output attachment previously
+    if (previous_usage.access == VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT) {
+        return VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    }
+
+    if (previous_usage.access == VK_ACCESS_SHADER_READ_BIT) {
+        return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    }
 }
 
 VkImageLayout RenderGraph::get_final_layout(Context& ctx, Pass* pass, PassOutput* attachment) {
@@ -109,9 +172,10 @@ VkImageLayout RenderGraph::get_final_layout(Context& ctx, Pass* pass, PassOutput
     // Note that 'later used' in this case only means the NEXT usage of this attachment. Any further usage can be taken care of by
     // further renderpasses
 
-    // First, we create a span of passes following the current renderpass. We check if this pass is the last pass first.
     Attachment* att = ctx.get_attachment(attachment->name);
-    if (pass == &passes.back()) {
+    AttachmentUsage next_usage = find_next_usage(ctx, pass, att);
+
+    if (next_usage.pass == nullptr) {
         // In this case, the attachments are not used later. We only need to check if this attachment is a swapchain attachment (in which case its used to present)
         if (ctx.is_swapchain_attachment(attachment->name)) {
             // Case 2
@@ -122,42 +186,145 @@ VkImageLayout RenderGraph::get_final_layout(Context& ctx, Pass* pass, PassOutput
         return get_output_layout_for_format(att->view.format);
     }
 
-    // Now we have verified the current pass isn't the final renderpass, we can continue.
-
-    // For each following pass ...
-    for (Pass* later_pass = pass + 1; later_pass <= &passes.back(); ++later_pass) {
-        // ... we check if this pass contains the current attachment as an input attachment
-
-        auto find_in_sampled_func = [&ctx, attachment](std::string_view candidate) {
-            return attachment->name == candidate;
-        };
-
-        auto found_it = std::find_if(later_pass->sampled_attachments.begin(), later_pass->sampled_attachments.end(), find_in_sampled_func);
-
-        if (found_it != later_pass->sampled_attachments.end()) {
-            // The attachment is used as an input attachment in a later pass. This is case 1
-            return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        }
-
-        // Custom comparator to compare ph::PassOutputs by their attachment's name. See also get_intial_layout
-        auto find_func = [&ctx, attachment](ph::PassOutput const& candidate) {
-            return attachment->name == candidate.name;
-        };
-        auto found_in_outputs = std::find_if(later_pass->outputs.begin(), later_pass->outputs.end(), find_func);
-        if (found_in_outputs != later_pass->outputs.end()) {
-            return get_output_layout_for_format(att->view.format);
-        }
+    if (next_usage.access == VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT) {
+        return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     }
 
-    // If we haven't encountered a single return in the previous loop, the attachment is not used anywhere else, 
-    // or only again as an output attachment.
-    // Case 3
-    return get_output_layout_for_format(att->view.format);
+    if (next_usage.access == VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT) {
+        return VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    }
+
+    if (next_usage.access == VK_ACCESS_SHADER_READ_BIT) {
+        return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    }
 }
 
+RenderGraph::AttachmentUsage RenderGraph::find_previous_usage(Context& ctx, Pass* current_pass, Attachment* attachment) {
+    // First pass isn't used earlier
+    if (current_pass == &passes.front()) {
+        return AttachmentUsage{};
+    }
+
+    // Go over each earlier pass
+    for (Pass* pass = current_pass - 1; pass != &passes.front(); --pass) {
+
+        // Look in this pass's outputs and inputs
+
+        auto find_in_output = [&ctx, attachment](ph::PassOutput const& candidate) {
+            return attachment->view.id == ctx.get_attachment(candidate.name)->view.id;
+        };
+
+        auto in_output = std::find_if(pass->outputs.begin(), pass->outputs.end(), find_in_output);
+
+        if (in_output != pass->outputs.end()) {
+            // The attachment is used as an output attachment in a previous pass. Return proper AttachmentUsage structure
+            VkAccessFlags access = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            if (is_depth_format(attachment->view.format)) {
+                access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            }
+            return AttachmentUsage{
+                .stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .access = access,
+                .pass = pass
+            };
+        }
+
+        auto find_in_sampled = [&ctx, attachment](std::string_view candidate) {
+            return attachment->view.id == ctx.get_attachment(candidate)->view.id;
+        };
+
+        // If it wasn't found in the outputs vector, check if it was sampled instead
+        auto sampled = std::find_if(pass->sampled_attachments.begin(), pass->sampled_attachments.end(), find_in_sampled);
+        if (sampled != pass->sampled_attachments.end()) {
+            return AttachmentUsage{
+                .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, // TODO: Handle case where attachment is sampled in vertex shader
+                .access = VK_ACCESS_SHADER_READ_BIT,
+                .pass = pass
+            };
+        }
+    }
+    // Not used in an earlier pass. Return empty AttachmentUsage
+    return AttachmentUsage{};
+}
+
+RenderGraph::AttachmentUsage RenderGraph::find_next_usage(Context& ctx, Pass* current_pass, Attachment* attachment) {
+    // Last pass isn't used later
+    if (current_pass == &passes.back()) {
+        return AttachmentUsage{};
+    }
+
+    // Go over each earlier pass
+    for (Pass* pass = current_pass + 1; pass != &passes.back(); ++pass) {
+
+        // Look in this pass's outputs and inputs
+
+        auto find_in_output = [&ctx, attachment](ph::PassOutput const& candidate) {
+            return attachment->view.id == ctx.get_attachment(candidate.name)->view.id;
+        };
+
+        auto in_output = std::find_if(pass->outputs.begin(), pass->outputs.end(), find_in_output);
+
+        if (in_output != pass->outputs.end()) {
+            // The attachment is used as an output attachment in a later pass. Return proper AttachmentUsage structure
+            VkAccessFlags access = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            if (is_depth_format(attachment->view.format)) {
+                access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            }
+            return AttachmentUsage{
+                .stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .access = access,
+                .pass = pass
+            };
+        }
+
+        auto find_in_sampled = [&ctx, attachment](std::string_view candidate) {
+            return attachment->view.id == ctx.get_attachment(candidate)->view.id;
+        };
+
+        // If it wasn't found in the outputs vector, check if it was sampled instead
+        auto sampled = std::find_if(pass->sampled_attachments.begin(), pass->sampled_attachments.end(), find_in_sampled);
+        if (sampled != pass->sampled_attachments.end()) {
+            return AttachmentUsage{
+                .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, // TODO: Handle case where attachment is sampled in vertex shader
+                .access = VK_ACCESS_SHADER_READ_BIT,
+                .pass = pass
+            };
+        }
+    }
+    // Not used in a later pass. Return empty AttachmentUsage
+    return AttachmentUsage{};
+}
+
+
 void RenderGraphExecutor::execute(ph::CommandBuffer& cmd_buf, RenderGraph& graph) {
-	for (Pass const& pass : graph.passes) {
+    for (size_t i = 0; i < graph.passes.size(); ++i) { 
+        Pass& pass = graph.passes[i];
+        RenderGraph::BuiltPass& build = graph.built_passes[i];
+        if (build.handle) {
+            VkRenderPassBeginInfo pass_begin_info{};
+            pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            pass_begin_info.framebuffer = build.framebuf;
+            pass_begin_info.renderArea.offset = VkOffset2D{ .x = 0, .y = 0 };
+            pass_begin_info.renderArea.extent = build.render_area;
+            pass_begin_info.renderPass = build.handle;
+            std::vector<VkClearValue> clear_values;
+            for (PassOutput const& output : pass.outputs) {
+                if (output.load_op == LoadOp::Clear) {
+                    VkClearValue cv{};
+                    static_assert(sizeof(VkClearValue) == sizeof(ph::ClearValue));
+                    std::memcpy(&cv, &output.clear, sizeof(VkClearValue));
+                    clear_values.push_back(cv);
+                }
+            }
+            pass_begin_info.clearValueCount = clear_values.size();
+            pass_begin_info.pClearValues = clear_values.data();
+
+            cmd_buf.begin_renderpass(pass_begin_info);
+        }
 		pass.execute(cmd_buf);
+        if (build.handle) {
+            cmd_buf.end_renderpass();
+        }
 	}
 }
 

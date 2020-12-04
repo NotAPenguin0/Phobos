@@ -126,12 +126,14 @@ int main() {
 		for (size_t i = 0; i < frame_commands.size(); ++i) {
 			frame_commands.set(i, graphics.create_command_buffer());
 		}
+
 		while (wsi->is_open()) {
 			wsi->poll_events();
 			ctx.wait_for_frame();
 
+			// Create render graph. You don't need to do this every frame
 			ph::RenderGraph graph{};
-			std::vector<ph::PassOutput> outputs = { ph::PassOutput{.name = ctx.get_swapchain_attachment_name() , .load_op = ph::LoadOp::Clear, .clear = {.color = {0.0f, 0.0f, 0.0f, 0.1f} } } };
+			std::vector<ph::PassOutput> outputs = { ph::PassOutput{.name = ctx.get_swapchain_attachment_name() , .load_op = ph::LoadOp::Clear, .clear = {.color = {1.0f, 0.0f, 0.0f, 0.1f} } } };
 			graph.add_pass(ph::Pass{
 				.sampled_attachments = {},
 				.outputs = std::move(outputs),
@@ -140,12 +142,17 @@ int main() {
 
 				}
 			});
+			// Build it. This needs to happen every frame
 			graph.build(ctx);
 
+			// Get current command buffer
 			ph::CommandBuffer& commands = frame_commands.current();
+			// Start recording
 			commands.begin();
+			// Send commands to executor.
 			ph::RenderGraphExecutor executor{};
 			executor.execute(commands, graph);
+			// Stop recording, submit and present
 			commands.end();
 			ctx.submit_frame_commands(graphics, commands);
 			ctx.present(*ctx.get_present_queue());

@@ -11,8 +11,11 @@ public:
 	CommandBuffer() = default;
 	CommandBuffer(Context& context, VkCommandBuffer&& cmd_buf);
 
-	void begin(VkCommandBufferUsageFlags flags = {});
-	void end();
+	CommandBuffer& begin(VkCommandBufferUsageFlags flags = {});
+	CommandBuffer& end();
+
+	CommandBuffer& begin_renderpass(VkRenderPassBeginInfo const& info);
+	CommandBuffer& end_renderpass();
 
 	VkCommandBuffer handle();
 

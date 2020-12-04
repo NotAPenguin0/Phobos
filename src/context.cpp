@@ -352,6 +352,14 @@ Context::~Context() {
 	// Destroy the queues. This will clean up the command pools they have in use
 	queues.clear();
 
+	// Clear out all caches
+	cache.framebuffer.foreach([this](VkFramebuffer framebuf) {
+		vkDestroyFramebuffer(device, framebuf, nullptr);
+	});
+	cache.renderpass.foreach([this](VkRenderPass pass) {
+		vkDestroyRenderPass(device, pass, nullptr);
+	});
+
 	if (validation_enabled()) {
 		auto destroy_func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
 		destroy_func(instance, debug_messenger, nullptr);
@@ -473,6 +481,30 @@ bool Context::is_swapchain_attachment(std::string const& name) {
 
 std::string Context::get_swapchain_attachment_name() const {
 	return swapchain_attachment_name;
+}
+
+VkFramebuffer Context::get_or_create_framebuffer(VkFramebufferCreateInfo const& info) {
+	{
+		VkFramebuffer* framebuf = cache.framebuffer.get(info);
+		if (framebuf) { return *framebuf; }
+	}
+
+	VkFramebuffer framebuf;
+	vkCreateFramebuffer(device, &info, nullptr, &framebuf);
+	cache.framebuffer.insert(info, framebuf);
+	return framebuf;
+}
+
+VkRenderPass Context::get_or_create_renderpass(VkRenderPassCreateInfo const& info) {
+	{
+		VkRenderPass* pass = cache.renderpass.get(info);
+		if (pass) { return *pass; }
+	}
+
+	VkRenderPass pass;
+	vkCreateRenderPass(device, &info, nullptr, &pass);
+	cache.renderpass.insert(info, pass);
+	return pass;
 }
 
 void Context::next_frame() {

@@ -45,6 +45,7 @@ ImageView create_image_view(Context& ctx, RawImage const& target, ImageAspect as
     view.id = get_unique_image_view_id();
     view.format = info.format;
     view.samples = target.samples;
+    view.size = target.size;
 
     return view;
 }
@@ -53,6 +54,16 @@ void destroy_image_view(Context& ctx, ImageView& view) {
     vkDestroyImageView(ctx.device, view.handle, nullptr);
     view.handle = nullptr;
     view.id = static_cast<uint64_t>(-1);
+}
+
+bool is_depth_format(VkFormat format) {
+    switch (format) {
+    case VK_FORMAT_D16_UNORM:
+    case VK_FORMAT_D32_SFLOAT:
+        return true;
+    default:
+        return false;
+    }
 }
 
 } // namespace ph

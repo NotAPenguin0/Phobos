@@ -7,6 +7,7 @@
 #include <phobos/ring_buffer.hpp>
 #include <phobos/image.hpp>
 #include <phobos/attachment.hpp>
+#include <phobos/cache.hpp>
 
 #include <vulkan/vulkan.h>
 #include <string_view>
@@ -125,6 +126,9 @@ public:
 	bool is_swapchain_attachment(std::string const& name);
 	std::string get_swapchain_attachment_name() const;
 
+	VkFramebuffer get_or_create_framebuffer(VkFramebufferCreateInfo const& info);
+	VkRenderPass get_or_create_renderpass(VkRenderPassCreateInfo const& info);
+
 	VkInstance instance = nullptr;
 	VkDevice device = nullptr;
 	PhysicalDevice phys_device{};
@@ -151,6 +155,11 @@ private:
 
 	static inline std::string swapchain_attachment_name = "swapchain";
 	std::unordered_map<std::string, Attachment> attachments{};
+
+	struct Caches {
+		Cache<VkFramebufferCreateInfo, VkFramebuffer> framebuffer{};
+		Cache<VkRenderPassCreateInfo, VkRenderPass> renderpass{};
+	} cache{};
 
 	void next_frame();
 };

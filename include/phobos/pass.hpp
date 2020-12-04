@@ -28,6 +28,11 @@ enum class LoadOp {
 	Clear = VK_ATTACHMENT_LOAD_OP_CLEAR
 };
 
+enum class PipelineStage {
+	VertexShader = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+	FragmentShader = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+};
+
 struct PassOutput {
 	std::string name = "";
 	LoadOp load_op = LoadOp::DontCare;
