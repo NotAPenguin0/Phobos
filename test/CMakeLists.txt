@@ -8,6 +8,8 @@ set(GLFW_BUILD_DOCS OFF)
 
 FetchContent_MakeAvailable(glfw)
 
+#target_link_libraries(glfw INTERFACE phobos-dependency)
+
 add_executable(TestApp)
 target_link_libraries(TestApp PRIVATE Phobos glfw)
 target_sources(TestApp PRIVATE "main.cpp")

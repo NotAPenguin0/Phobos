@@ -425,6 +425,9 @@ void Context::wait_for_frame() {
 	}
 	// Mark this image as in use by the current frame
 	swapchain->per_image[swapchain->image_index].fence = frame_data.fence;
+
+	// Once we have a frame we need to update where the swapchain attachment in our attachments list is pointing to
+	attachments[std::string(swapchain_attachment_name)] = Attachment{ .view = swapchain->per_image[swapchain->image_index].view };
 }
 
 void Context::submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf) {
@@ -453,6 +456,23 @@ void Context::present(Queue& queue) {
 
 	// Advance per-frame ringbuffers to the next element
 	next_frame();
+}
+
+Attachment* Context::get_attachment(std::string_view name) {
+	std::string key{ name };
+	if (auto it = attachments.find(key); it != attachments.end()) {
+		return &it->second;
+	}
+	return nullptr;
+}
+
+bool Context::is_swapchain_attachment(std::string const& name) {
+	bool result = name == swapchain_attachment_name;
+	return result;
+}
+
+std::string Context::get_swapchain_attachment_name() const {
+	return swapchain_attachment_name;
 }
 
 void Context::next_frame() {

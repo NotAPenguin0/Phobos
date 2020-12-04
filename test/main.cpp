@@ -1,4 +1,5 @@
 #include <phobos/context.hpp>
+#include <phobos/render_graph.hpp>
 #include <GLFW/glfw3.h>
 
 #include <iostream>
@@ -102,7 +103,7 @@ int main() {
 	config.gpu_requirements.dedicated = true;
 	config.gpu_requirements.min_video_memory = 2u * 1024u * 1024u * 1024u; // 2 GB of video memory
 	config.gpu_requirements.requested_queues = { 
-		ph::QueueRequest{.dedicated = false, .type = ph::QueueType::Graphics },
+		ph::QueueRequest{.dedicated = false, .type = ph::QueueType::Graphics},
 		ph::QueueRequest{.dedicated = true, .type = ph::QueueType::Transfer},
 		ph::QueueRequest{.dedicated = true, .type = ph::QueueType::Compute}
 	};
@@ -128,8 +129,23 @@ int main() {
 		while (wsi->is_open()) {
 			wsi->poll_events();
 			ctx.wait_for_frame();
+
+			ph::RenderGraph graph{};
+			std::vector<ph::PassOutput> outputs = { ph::PassOutput{.name = ctx.get_swapchain_attachment_name() , .load_op = ph::LoadOp::Clear, .clear = {.color = {0.0f, 0.0f, 0.0f, 0.1f} } } };
+			graph.add_pass(ph::Pass{
+				.sampled_attachments = {},
+				.outputs = std::move(outputs),
+				.name = {"simple_clear"},
+				.execute = [](ph::CommandBuffer& cmd_buf) {
+
+				}
+			});
+			graph.build(ctx);
+
 			ph::CommandBuffer& commands = frame_commands.current();
 			commands.begin();
+			ph::RenderGraphExecutor executor{};
+			executor.execute(commands, graph);
 			commands.end();
 			ctx.submit_frame_commands(graphics, commands);
 			ctx.present(*ctx.get_present_queue());

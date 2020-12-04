@@ -34,6 +34,8 @@ struct RawImage {
 
 struct ImageView {
     VkImageView handle = nullptr;
+    VkFormat format = VK_FORMAT_UNDEFINED;
+    VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
 
     // Id that is guaranteed to be unique for each VkImageView.
     // We need this because Vulkan doesn't guarantee unique id's for vk handles.

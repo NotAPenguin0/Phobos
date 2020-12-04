@@ -22,6 +22,7 @@ add_library(Phobos STATIC ${PHOBOS_SOURCES})
 if (${CMAKE_CXX_COMPILER_ID} MATCHES Clang)
     target_compile_options(Phobos PRIVATE 
         "-Wall" "-Wextra" "-Werror" "-Wno-reorder" "-Wno-unused-parameter" "-Wno-deprecated-declarations"
+        "-Wno-c++98-compat-pedantic"
         "-Wno-enum-compare")
 endif() 
  

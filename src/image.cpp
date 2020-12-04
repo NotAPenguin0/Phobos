@@ -43,6 +43,8 @@ ImageView create_image_view(Context& ctx, RawImage const& target, ImageAspect as
 
     vkCreateImageView(ctx.device, &info, nullptr, &view.handle);
     view.id = get_unique_image_view_id();
+    view.format = info.format;
+    view.samples = target.samples;
 
     return view;
 }

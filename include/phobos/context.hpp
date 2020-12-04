@@ -6,9 +6,11 @@
 #include <phobos/queue.hpp>
 #include <phobos/ring_buffer.hpp>
 #include <phobos/image.hpp>
+#include <phobos/attachment.hpp>
 
 #include <vulkan/vulkan.h>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 #include <optional>
 
@@ -119,6 +121,10 @@ public:
 	void submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf);
 	void present(Queue& queue);
 
+	Attachment* get_attachment(std::string_view name);
+	bool is_swapchain_attachment(std::string const& name);
+	std::string get_swapchain_attachment_name() const;
+
 	VkInstance instance = nullptr;
 	VkDevice device = nullptr;
 	PhysicalDevice phys_device{};
@@ -142,6 +148,9 @@ private:
 	std::vector<Queue> queues{};
 	WindowInterface* wsi = nullptr;
 	LogInterface* log = nullptr;
+
+	static inline std::string swapchain_attachment_name = "swapchain";
+	std::unordered_map<std::string, Attachment> attachments{};
 
 	void next_frame();
 };

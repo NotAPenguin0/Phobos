@@ -4,6 +4,7 @@ target_sources(Phobos PRIVATE
 	"context.cpp"
 	"log_interface.cpp"
 	"queue.cpp"
+	"render_graph.cpp"
 	"image.cpp"
 )
 
