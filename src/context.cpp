@@ -507,6 +507,194 @@ VkRenderPass Context::get_or_create_renderpass(VkRenderPassCreateInfo const& inf
 	return pass;
 }
 
+VkDescriptorSetLayout Context::get_or_create_descriptor_set_layout(DescriptorSetLayoutCreateInfo const& dslci) {
+	auto set_layout_opt = cache.set_layout.get(dslci);
+	if (!set_layout_opt) {
+		// We have to create the descriptor set layout here
+		VkDescriptorSetLayoutCreateInfo set_layout_info{ };
+		set_layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		set_layout_info.bindingCount = dslci.bindings.size();
+		set_layout_info.pBindings = dslci.bindings.data();
+		VkDescriptorSetLayoutBindingFlagsCreateInfo flags_info{};
+		if (!dslci.flags.empty()) {
+			flags_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+			assert(dslci.bindings.size() == dslci.flags.size() && "flag count doesn't match binding count");
+			flags_info.bindingCount = dslci.bindings.size();
+			flags_info.pBindingFlags = dslci.flags.data();
+			set_layout_info.pNext = &flags_info;
+		}
+		VkDescriptorSetLayout set_layout = nullptr;
+		vkCreateDescriptorSetLayout(device, &set_layout_info, nullptr, &set_layout);
+		// Store for further use when creating the pipeline layout
+		cache.set_layout.insert(dslci, set_layout);
+		return set_layout;
+	}
+	else {
+		return *set_layout_opt;
+	}
+}
+
+PipelineLayout Context::get_or_create_pipeline_layout(PipelineLayoutCreateInfo const& plci, VkDescriptorSetLayout set_layout) {
+	// Create or get pipeline layout from cache
+	auto pipeline_layout_opt = cache.pipeline_layout.get(plci);
+	if (!pipeline_layout_opt) {
+		// We have to create a new pipeline layout
+		VkPipelineLayoutCreateInfo layout_create_info{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+			.pNext = nullptr,
+			.flags = {},
+			.setLayoutCount = 1,
+			.pSetLayouts = &set_layout,
+			.pushConstantRangeCount = (uint32_t)plci.push_constants.size(),
+			.pPushConstantRanges = plci.push_constants.data(),
+		};
+		VkPipelineLayout vk_layout = nullptr;
+		vkCreatePipelineLayout(device, &layout_create_info, nullptr, &vk_layout);
+		PipelineLayout layout;
+		layout.handle = vk_layout;
+		layout.set_layout = set_layout;
+		cache.pipeline_layout.insert(plci, layout);
+		return layout;
+	}
+	else {
+		return *pipeline_layout_opt;
+	}
+}
+
+static VkShaderModule create_shader_module(Context& ctx, ShaderModuleCreateInfo const& info) {
+	VkShaderModuleCreateInfo vk_info{};
+	vk_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	constexpr size_t bytes_per_spv_element = 4;
+	vk_info.codeSize = info.code.size() * bytes_per_spv_element;
+	vk_info.pCode = info.code.data();
+	VkShaderModule module = nullptr;
+	vkCreateShaderModule(ctx.device, &vk_info, nullptr, &module);
+	return module;
+}
+
+Pipeline Context::get_or_create_pipeline(std::string_view name, VkRenderPass render_pass) {
+	ph::PipelineCreateInfo& pci = pipelines[std::string(name)];
+	{
+		Pipeline* pipeline = cache.pipeline.get(pci);
+		if (pipeline) { return *pipeline; }
+	}
+
+	// Set up pipeline create info
+	VkGraphicsPipelineCreateInfo gpci{};
+	VkDescriptorSetLayout set_layout = get_or_create_descriptor_set_layout(pci.layout.set_layout);
+	ph::PipelineLayout layout = get_or_create_pipeline_layout(pci.layout, set_layout);
+	gpci.layout = layout.handle;
+	gpci.renderPass = render_pass;
+	gpci.subpass = 0;
+	VkPipelineColorBlendStateCreateInfo blend_info{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = {},
+		.logicOpEnable = pci.blend_logic_op_enable,
+		.logicOp = {},
+		.attachmentCount = (uint32_t)pci.blend_attachments.size(),
+		.pAttachments = pci.blend_attachments.data(),
+		.blendConstants = {}
+	};
+	gpci.pColorBlendState = &blend_info;
+	gpci.pDepthStencilState = &pci.depth_stencil;
+	VkPipelineDynamicStateCreateInfo dynamic_state{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = {},
+		.dynamicStateCount = (uint32_t)pci.dynamic_states.size(),
+		.pDynamicStates = pci.dynamic_states.data()
+	};
+	gpci.pDynamicState = &dynamic_state;
+	gpci.pInputAssemblyState = &pci.input_assembly;
+	gpci.pMultisampleState = &pci.multisample;
+	gpci.pNext = nullptr;
+	gpci.pRasterizationState = &pci.rasterizer;
+	VkPipelineVertexInputStateCreateInfo vertex_input{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = {},
+		.vertexBindingDescriptionCount = (uint32_t)pci.vertex_input_bindings.size(),
+		.pVertexBindingDescriptions = pci.vertex_input_bindings.data(),
+		.vertexAttributeDescriptionCount = (uint32_t)pci.vertex_attributes.size(),
+		.pVertexAttributeDescriptions = pci.vertex_attributes.data()
+	};
+	gpci.pVertexInputState = &vertex_input;
+	VkPipelineViewportStateCreateInfo viewport_state{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = {},
+		.viewportCount = (uint32_t)pci.viewports.size(),
+		.pViewports = pci.viewports.data(),
+		.scissorCount = (uint32_t)pci.scissors.size(),
+		.pScissors = pci.scissors.data()
+	};
+	
+	// Shader modules
+	std::vector<VkPipelineShaderStageCreateInfo> shader_infos;
+	for (auto const& handle : pci.shaders) {
+		auto shader_info = cache.shader.get(handle);
+		assert(shader_info && "Invalid shader handle");
+		VkShaderStageFlagBits stage{};
+		if (shader_info->stage == PipelineStage::VertexShader) stage = VK_SHADER_STAGE_VERTEX_BIT;
+		else if (shader_info->stage == PipelineStage::FragmentShader) stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		else if (shader_info->stage == PipelineStage::ComputeShader) stage = VK_SHADER_STAGE_COMPUTE_BIT;
+		else assert(false && "Invalid shader stage");
+		VkPipelineShaderStageCreateInfo ssci{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+			.pNext = nullptr,
+			.flags = {},
+			.stage = stage,
+			.module = create_shader_module(*this, *shader_info),
+			.pName = shader_info->entry_point.c_str(),
+			.pSpecializationInfo = nullptr
+		};
+		shader_infos.push_back(ssci);
+	}
+	gpci.stageCount = shader_infos.size();
+	gpci.pStages = shader_infos.data();
+
+	Pipeline pipeline;
+	vkCreateGraphicsPipelines(device, nullptr, 1, &gpci, nullptr, &pipeline.handle);
+	pipeline.name = pci.name;
+	pipeline.layout = layout;
+	pipeline.type = PipelineType::Graphics;
+
+	return pipeline;
+}
+
+namespace {
+
+struct ShaderHandleId {
+	static inline std::atomic<uint32_t> cur = 0;
+	static inline uint32_t next() {
+		return cur++;
+	}
+};
+
+}
+
+ShaderHandle Context::create_shader(std::string_view path, std::string_view entry_point, PipelineStage stage) {
+	uint32_t id = ShaderHandleId::next();
+
+	ph::ShaderModuleCreateInfo info;
+	info.code = load_shader_code(path);
+	info.entry_point = entry_point;
+	info.stage = stage;
+
+	cache.shader.insert(ShaderHandle{ id }, std::move(info));
+
+	return ShaderHandle{ id };
+}
+
+void Context::reflect_shaders(ph::PipelineCreateInfo& pci) {
+
+}
+
+void Context::create_named_pipeline(ph::PipelineCreateInfo pci) {
+	pipelines[pci.name] = std::move(pci);
+}
+
 void Context::next_frame() {
 	per_frame.next();
 	for (Queue& queue : queues) {

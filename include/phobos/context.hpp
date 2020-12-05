@@ -8,6 +8,8 @@
 #include <phobos/image.hpp>
 #include <phobos/attachment.hpp>
 #include <phobos/cache.hpp>
+#include <phobos/pipeline.hpp>
+#include <phobos/shader.hpp>
 
 #include <vulkan/vulkan.h>
 #include <string_view>
@@ -128,6 +130,13 @@ public:
 
 	VkFramebuffer get_or_create_framebuffer(VkFramebufferCreateInfo const& info);
 	VkRenderPass get_or_create_renderpass(VkRenderPassCreateInfo const& info);
+	VkDescriptorSetLayout get_or_create_descriptor_set_layout(DescriptorSetLayoutCreateInfo const& dslci);
+	PipelineLayout get_or_create_pipeline_layout(PipelineLayoutCreateInfo const& plci, VkDescriptorSetLayout set_layout);
+	Pipeline get_or_create_pipeline(std::string_view name, VkRenderPass render_pass);
+
+	ShaderHandle create_shader(std::string_view path, std::string_view entry_point, PipelineStage stage);
+	void reflect_shaders(ph::PipelineCreateInfo& pci);
+	void create_named_pipeline(ph::PipelineCreateInfo pci);
 
 	VkInstance instance = nullptr;
 	VkDevice device = nullptr;
@@ -155,10 +164,15 @@ private:
 
 	static inline std::string swapchain_attachment_name = "swapchain";
 	std::unordered_map<std::string, Attachment> attachments{};
+	std::unordered_map<std::string, ph::PipelineCreateInfo> pipelines{};
 
 	struct Caches {
 		Cache<VkFramebufferCreateInfo, VkFramebuffer> framebuffer{};
 		Cache<VkRenderPassCreateInfo, VkRenderPass> renderpass{};
+		Cache<ph::DescriptorSetLayoutCreateInfo, VkDescriptorSetLayout> set_layout{};
+		Cache<ph::PipelineLayoutCreateInfo, ph::PipelineLayout> pipeline_layout{};
+		Cache<ph::PipelineCreateInfo, ph::Pipeline> pipeline{};
+		Cache<ShaderHandle, ph::ShaderModuleCreateInfo> shader{};
 	} cache{};
 
 	void next_frame();

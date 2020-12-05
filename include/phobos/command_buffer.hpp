@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include <string_view>
 
 namespace ph {
 
@@ -16,6 +17,8 @@ public:
 
 	CommandBuffer& begin_renderpass(VkRenderPassBeginInfo const& info);
 	CommandBuffer& end_renderpass();
+
+	CommandBuffer& bind_pipeline(std::string_view name);
 
 	VkCommandBuffer handle();
 

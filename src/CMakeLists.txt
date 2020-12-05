@@ -2,11 +2,14 @@
 target_sources(Phobos PRIVATE 
 	"command_buffer.cpp"
 	"context.cpp"
+	"image.cpp"
 	"log_interface.cpp"
+	"memory.cpp"
 	"pass.cpp"
+	"pipeline.cpp"
 	"queue.cpp"
 	"render_graph.cpp"
-	"image.cpp"
+	"shader.cpp"
 )
 
 # if (NOT ${PHOBOS_NO_FIXED_PIPELINE}) 
