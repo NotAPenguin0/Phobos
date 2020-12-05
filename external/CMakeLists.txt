@@ -25,11 +25,18 @@ FetchContent_Declare(
     fmt
     GIT_REPOSITORY https://github.com/fmtlib/fmt
 )
+FetchContent_Declare(
+    plib
+    GIT_REPOSITORY https://github.com/NotAPenguin0/plib
+)
 
 FetchContent_MakeAvailable(fmt)
+FetchContent_MakeAvailable(plib)
 
-target_link_libraries(fmt PRIVATE phobos-dependency)
+target_link_libraries(fmt INTERFACE phobos-dependency)
+#target_link_libraries(plib INTERFACE phobos-dependency)
 target_link_libraries(Phobos PUBLIC fmt)
+target_include_directories(Phobos PUBLIC ${plib_SOURCE_DIR}/include)
 
 #target_compile_options(stl PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
 #target_compile_options(mimas PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})

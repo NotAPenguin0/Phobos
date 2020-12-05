@@ -232,7 +232,7 @@ RenderGraph::AttachmentUsage RenderGraph::find_previous_usage(Context& ctx, Pass
             // Sampled in a previous pass
             if (usage->access == ResourceAccess::ShaderRead) {
                 return AttachmentUsage{
-                    .stage = static_cast<VkPipelineStageFlags>(usage->stage),
+                    .stage = static_cast<VkPipelineStageFlags>(usage->stage.value()),
                     .access = static_cast<VkAccessFlags>(usage->access),
                     .pass = pass
                 };
@@ -244,7 +244,7 @@ RenderGraph::AttachmentUsage RenderGraph::find_previous_usage(Context& ctx, Pass
                     access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
                 }
                 return AttachmentUsage{
-                    .stage = static_cast<VkPipelineStageFlags>(usage->stage),
+                    .stage = static_cast<VkPipelineStageFlags>(usage->stage.value()),
                     .access = access,
                     .pass = pass
                 };
@@ -274,7 +274,7 @@ RenderGraph::AttachmentUsage RenderGraph::find_next_usage(Context& ctx, Pass* cu
             // Sampled in a later pass
             if (usage->access == ResourceAccess::ShaderRead) {
                 return AttachmentUsage{
-                    .stage = static_cast<VkPipelineStageFlags>(usage->stage),
+                    .stage = static_cast<VkPipelineStageFlags>(usage->stage.value()),
                     .access = static_cast<VkAccessFlags>(usage->access),
                     .pass = pass
                 };
@@ -286,7 +286,7 @@ RenderGraph::AttachmentUsage RenderGraph::find_next_usage(Context& ctx, Pass* cu
                     access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
                 }
                 return AttachmentUsage{
-                    .stage = static_cast<VkPipelineStageFlags>(usage->stage),
+                    .stage = static_cast<VkPipelineStageFlags>(usage->stage.value()),
                     .access = access,
                     .pass = pass
                 };

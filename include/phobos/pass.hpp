@@ -3,7 +3,10 @@
 #include <string_view>
 #include <vector>
 #include <functional>
+
 #include <vulkan/vulkan.h>
+
+#include <plib/bit_flag.hpp>
 
 #include <phobos/command_buffer.hpp>
 #include <phobos/image.hpp>
@@ -49,10 +52,8 @@ enum class ResourceType {
 	Attachment
 };
 
-// TODO: Flags<...> type for PipelineStage and ResourceAccess (use plib::bit_flag?)
-
 struct ResourceUsage {
-	PipelineStage stage{};
+	plib::bit_flag<PipelineStage> stage{};
 	ResourceAccess access{};
 
 	struct Attachment {
@@ -88,7 +89,7 @@ public:
 	static PassBuilder create(std::string_view name);
 
 	PassBuilder& add_attachment(std::string_view name, LoadOp load_op, ClearValue clear = { .color {} });
-	PassBuilder& sample_attachment(std::string_view name, PipelineStage stage);
+	PassBuilder& sample_attachment(std::string_view name, plib::bit_flag<PipelineStage> stage);
 	PassBuilder& execute(std::function<void(ph::CommandBuffer&)> callback);
 
 	Pass get();

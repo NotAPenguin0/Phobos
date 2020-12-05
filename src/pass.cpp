@@ -20,7 +20,7 @@ PassBuilder& PassBuilder::add_attachment(std::string_view name, LoadOp load_op, 
 	return *this;
 }
 
-PassBuilder& PassBuilder::sample_attachment(std::string_view name, PipelineStage stage) {
+PassBuilder& PassBuilder::sample_attachment(std::string_view name, plib::bit_flag<PipelineStage> stage) {
 	ResourceUsage usage{};
 	usage.type = ResourceType::Attachment;
 	usage.access = ResourceAccess::ShaderRead;
