@@ -22,8 +22,8 @@ private:
 	std::vector<BuiltPass> built_passes;
 
 	std::vector<VkAttachmentDescription> get_attachment_descriptions(Context& ctx, Pass* pass);
-	VkImageLayout get_initial_layout(Context& ctx, Pass* pass, PassOutput* attachment);
-	VkImageLayout get_final_layout(Context& ctx, Pass* pass, PassOutput* attachment);
+	VkImageLayout get_initial_layout(Context& ctx, Pass* pass, ResourceUsage const& resource);
+	VkImageLayout get_final_layout(Context& ctx, Pass* pass, ResourceUsage const& resource);
 
 	struct AttachmentUsage {
 		VkPipelineStageFlags stage{};

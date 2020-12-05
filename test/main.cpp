@@ -35,10 +35,6 @@ public:
 		glfwPollEvents();
 	}
 
-	void swap_buffers() {
-		glfwSwapBuffers(window);
-	}
-
 	bool is_open() {
 		return !glfwWindowShouldClose(window);
 	}
@@ -133,15 +129,14 @@ int main() {
 
 			// Create render graph. You don't need to do this every frame
 			ph::RenderGraph graph{};
-			std::vector<ph::PassOutput> outputs = { ph::PassOutput{.name = ctx.get_swapchain_attachment_name() , .load_op = ph::LoadOp::Clear, .clear = {.color = {1.0f, 0.0f, 0.0f, 0.1f} } } };
-			graph.add_pass(ph::Pass{
-				.sampled_attachments = {},
-				.outputs = std::move(outputs),
-				.name = {"simple_clear"},
-				.execute = [](ph::CommandBuffer& cmd_buf) {
-
-				}
-			});
+			ph::Pass pass =
+				ph::PassBuilder::create("simple_clear")
+				.add_attachment(ctx.get_swapchain_attachment_name(), ph::LoadOp::Clear, { .color = {1.0f, 0.0f, 0.0f, 1.0f} })
+				.execute([](ph::CommandBuffer& cmd_buf) {
+					// Add commands
+				})
+				.get();
+			graph.add_pass(pass);
 			// Build it. This needs to happen every frame
 			graph.build(ctx);
 
@@ -157,7 +152,6 @@ int main() {
 			ctx.submit_frame_commands(graphics, commands);
 			ctx.present(*ctx.get_present_queue());
 
-			wsi->swap_buffers();
 			frame_commands.next();
 		}
 	}

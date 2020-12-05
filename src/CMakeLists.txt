@@ -3,6 +3,7 @@ target_sources(Phobos PRIVATE
 	"command_buffer.cpp"
 	"context.cpp"
 	"log_interface.cpp"
+	"pass.cpp"
 	"queue.cpp"
 	"render_graph.cpp"
 	"image.cpp"

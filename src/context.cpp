@@ -489,7 +489,7 @@ VkFramebuffer Context::get_or_create_framebuffer(VkFramebufferCreateInfo const& 
 		if (framebuf) { return *framebuf; }
 	}
 
-	VkFramebuffer framebuf;
+	VkFramebuffer framebuf = nullptr;
 	vkCreateFramebuffer(device, &info, nullptr, &framebuf);
 	cache.framebuffer.insert(info, framebuf);
 	return framebuf;
@@ -501,7 +501,7 @@ VkRenderPass Context::get_or_create_renderpass(VkRenderPassCreateInfo const& inf
 		if (pass) { return *pass; }
 	}
 
-	VkRenderPass pass;
+	VkRenderPass pass = nullptr;
 	vkCreateRenderPass(device, &info, nullptr, &pass);
 	cache.renderpass.insert(info, pass);
 	return pass;

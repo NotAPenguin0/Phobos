@@ -3,8 +3,10 @@
 #include <string_view>
 #include <vector>
 #include <functional>
-#include <phobos/command_buffer.hpp>
 #include <vulkan/vulkan.h>
+
+#include <phobos/command_buffer.hpp>
+#include <phobos/image.hpp>
 
 namespace ph {
 
@@ -30,26 +32,69 @@ enum class LoadOp {
 
 enum class PipelineStage {
 	VertexShader = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
-	FragmentShader = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+	FragmentShader = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+	ComputeShader = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+	AttachmentOutput = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
 };
 
-struct PassOutput {
-	std::string name = "";
-	LoadOp load_op = LoadOp::DontCare;
-	ClearValue clear{ .color{} };
+enum class ResourceAccess {
+	ShaderRead = VK_ACCESS_SHADER_READ_BIT,
+	ShaderWrite = VK_ACCESS_SHADER_WRITE_BIT,
+	AttachmentOutput
+};
+
+enum class ResourceType {
+	Image,
+	Buffer,
+	Attachment
+};
+
+// TODO: Flags<...> type for PipelineStage and ResourceAccess (use plib::bit_flag?)
+
+struct ResourceUsage {
+	PipelineStage stage{};
+	ResourceAccess access{};
+
+	struct Attachment {
+		std::string name = "";
+		LoadOp load_op = LoadOp::DontCare;
+		ClearValue clear{ .color{} };
+	};
+
+	struct Image {
+		ImageView view;
+	};
+
+	struct Buffer {
+
+	};
+
+	Attachment attachment{};
+	Image image{};
+	Buffer buffer{};
+	ResourceType type{};
 };
 
 struct Pass {
-	// List of names of the attachments sampled by this pass.
-	// TODO: Replace with proper resource-usage list so we can put all resources in here
-	std::vector<std::string_view> sampled_attachments{};
-	// List of attachments this pass writes to.
-	// TODO: Replace with proper resource-usage list
-	std::vector<PassOutput> outputs{};
+	std::vector<ResourceUsage> resources{};
 	// Name of this pass
 	std::string name = "";
 	// Execution callback
 	std::function<void(ph::CommandBuffer&)> execute{};
+};
+
+class PassBuilder {
+public:
+	static PassBuilder create(std::string_view name);
+
+	PassBuilder& add_attachment(std::string_view name, LoadOp load_op, ClearValue clear = { .color {} });
+	PassBuilder& sample_attachment(std::string_view name, PipelineStage stage);
+	PassBuilder& execute(std::function<void(ph::CommandBuffer&)> callback);
+
+	Pass get();
+
+private:
+	Pass pass;
 };
 
 }
