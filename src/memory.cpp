@@ -16,6 +16,8 @@ uint32_t format_byte_size(VkFormat format) {
 		return 3 * 4;
 	case VK_FORMAT_R32G32_SFLOAT:
 		return 2 * 4;
+	case VK_FORMAT_R32_SFLOAT:
+		return 4;
 	default:
 		return 0;
 	}

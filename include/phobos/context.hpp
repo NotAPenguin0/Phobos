@@ -12,6 +12,8 @@
 #include <phobos/shader.hpp>
 
 #include <vulkan/vulkan.h>
+#include "vk_mem_alloc.h"
+
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -67,6 +69,8 @@ struct AppSettings {
 	uint32_t min_swapchain_image_count = 1;
 	// Maximum amount of in-flight frames. Default value is 2. This value is ignored for a headless context.
 	uint32_t max_frames_in_flight = 2;
+	// Maximum size of an unbounded sampler array
+	uint32_t max_unbounded_array_size = 4096;
 };
 
 struct SurfaceInfo {
@@ -125,6 +129,7 @@ public:
 	void present(Queue& queue);
 
 	Attachment* get_attachment(std::string_view name);
+	void create_attachment(std::string_view name, VkExtent2D size, VkFormat format);
 	bool is_swapchain_attachment(std::string const& name);
 	std::string get_swapchain_attachment_name() const;
 
@@ -133,16 +138,24 @@ public:
 	VkDescriptorSetLayout get_or_create_descriptor_set_layout(DescriptorSetLayoutCreateInfo const& dslci);
 	PipelineLayout get_or_create_pipeline_layout(PipelineLayoutCreateInfo const& plci, VkDescriptorSetLayout set_layout);
 	Pipeline get_or_create_pipeline(std::string_view name, VkRenderPass render_pass);
+	VkDescriptorSet get_or_create_descriptor_set(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext = nullptr);
 
 	ShaderHandle create_shader(std::string_view path, std::string_view entry_point, PipelineStage stage);
 	void reflect_shaders(ph::PipelineCreateInfo& pci);
 	void create_named_pipeline(ph::PipelineCreateInfo pci);
+	ShaderMeta const& get_shader_meta(std::string_view pipeline_name);
 
 	VkInstance instance = nullptr;
 	VkDevice device = nullptr;
 	PhysicalDevice phys_device{};
+	VmaAllocator allocator{};
 	// This is std::nullopt for a headless context
 	std::optional<Swapchain> swapchain = std::nullopt;
+	
+	VkSampler basic_sampler = nullptr;
+
+	uint32_t max_unbounded_array_size = 0;
+
 private:
 	VkDebugUtilsMessengerEXT debug_messenger = nullptr;
 	bool has_validation = false;
@@ -163,7 +176,12 @@ private:
 	LogInterface* log = nullptr;
 
 	static inline std::string swapchain_attachment_name = "swapchain";
-	std::unordered_map<std::string, Attachment> attachments{};
+
+	struct InternalAttachment {
+		Attachment attachment;
+		std::optional<RawImage> image;
+	};
+	std::unordered_map<std::string, InternalAttachment> attachments{};
 	std::unordered_map<std::string, ph::PipelineCreateInfo> pipelines{};
 
 	struct Caches {
@@ -173,7 +191,12 @@ private:
 		Cache<ph::PipelineLayoutCreateInfo, ph::PipelineLayout> pipeline_layout{};
 		Cache<ph::PipelineCreateInfo, ph::Pipeline> pipeline{};
 		Cache<ShaderHandle, ph::ShaderModuleCreateInfo> shader{};
+		RingBuffer<Cache<DescriptorSetBinding, VkDescriptorSet>> descriptor_set{};
 	} cache{};
+
+	// TODO: automatically growing descriptor pool
+	static constexpr size_t sets_per_type = 1024;
+	VkDescriptorPool descr_pool = nullptr;
 
 	void next_frame();
 };

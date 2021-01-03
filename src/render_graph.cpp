@@ -262,7 +262,7 @@ RenderGraph::AttachmentUsage RenderGraph::find_next_usage(Context& ctx, Pass* cu
     }
 
     // Go over each earlier pass
-    for (Pass* pass = current_pass + 1; pass != &passes.back(); ++pass) {
+    for (Pass* pass = current_pass + 1; pass <= &passes.back(); ++pass) {
 
         auto find_resource = [&ctx, attachment](ph::ResourceUsage const& resource) {
             if (resource.type != ResourceType::Attachment) return false;

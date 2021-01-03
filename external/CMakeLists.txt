@@ -7,6 +7,8 @@ cmake_policy(SET CMP0077 NEW)
 
 set(BUILD_SHARED_LIBS OFF)
 
+find_package(Vulkan REQUIRED)
+
 set(PHOBOS_DEPENDENCY_COMPILE_OPTIONS "")
 
 if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang" OR ${CMAKE_CXX_COMPILER_ID} MATCHES "gcc") # clang or gcc
@@ -30,13 +32,35 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/NotAPenguin0/plib
 )
 
+# Use custom fork of VMA that exports a cmake target
+FetchContent_Declare(
+    vma
+    GIT_REPOSITORY https://github.com/NotAPenguin0/VulkanMemoryAllocator
+)
+
+FetchContent_Declare(
+    spirv_cross
+    GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Cross
+)
+
 FetchContent_MakeAvailable(fmt)
 FetchContent_MakeAvailable(plib)
+FetchContent_MakeAvailable(vma)
+FetchContent_MakeAvailable(spirv_cross)
+
+set(SPIRV_CROSS_STATIC ON)
+set(SPIRV_CROSS_CLI OFF)
 
 target_link_libraries(fmt INTERFACE phobos-dependency)
+target_link_libraries(vma INTERFACE phobos-dependency)
+#target_link_libraries(spirv-cross-core INTERFACE phobos-dependency)
+#target_link_libraries(spirv-cross-c INTERFACE phobos-dependency)
+#target_link_libraries(spirv-cross-cpp INTERFACE phobos-dependency)
+#target_link_libraries(spirv-cross-glsl INTERFACE phobos-dependency)
 #target_link_libraries(plib INTERFACE phobos-dependency)
-target_link_libraries(Phobos PUBLIC fmt)
-target_include_directories(Phobos PUBLIC ${plib_SOURCE_DIR}/include)
+target_link_libraries(Phobos PUBLIC Vulkan::Vulkan fmt vma spirv-cross-core)
+target_include_directories(Phobos PUBLIC ${plib_SOURCE_DIR}/include Vulkan::Vulkan)
+target_include_directories(Phobos PRIVATE ${spirv_cross_SOURCE_DIR})
 
 #target_compile_options(stl PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})
 #target_compile_options(mimas PRIVATE ${PHOBOS_DEPENDENCY_COMPILE_OPTIONS})

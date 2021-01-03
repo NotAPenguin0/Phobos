@@ -219,7 +219,7 @@ template<>
 struct hash<ph::DescriptorSetBinding> {
     size_t operator()(ph::DescriptorSetBinding const& x) const noexcept {
         size_t h = 0;
-        ph::hash_combine(h, x.bindings, x.set_layout);
+        ph::hash_combine(h, x.bindings, reinterpret_cast<uint64_t>(x.set_layout));
         return h;
     }
 };

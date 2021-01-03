@@ -4,6 +4,53 @@
 
 namespace ph {
 
+DescriptorBuilder DescriptorBuilder::create(Context& ctx, Pipeline const& pipeline) {
+	DescriptorBuilder builder{};
+	builder.ctx = &ctx;
+	builder.pipeline = pipeline;
+	return builder;
+}
+
+DescriptorBuilder& DescriptorBuilder::add_pNext(void* p) {
+	pNext_chain.push_back(p);
+	return *this;
+}
+
+DescriptorBuilder& DescriptorBuilder::add_sampled_image(uint32_t binding, ImageView view, VkSampler sampler, VkImageLayout layout) {
+	DescriptorBinding descr{};
+	descr.binding = binding;
+	descr.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	auto& descriptor = descr.descriptors.emplace_back();
+	descriptor.image = ph::DescriptorImageInfo{
+		.sampler = sampler,
+		.view = view,
+		.layout = layout
+	};
+	info.bindings.push_back(std::move(descr));
+	return *this;
+}
+
+DescriptorBuilder& DescriptorBuilder::add_sampled_image(ShaderMeta::Binding const& binding, ImageView view, VkSampler sampler, VkImageLayout layout) {
+	return add_sampled_image(binding.binding, view, sampler, layout);
+}
+
+DescriptorBuilder& DescriptorBuilder::add_sampled_image(std::string_view binding, ImageView view, VkSampler sampler, VkImageLayout layout) {
+	return add_sampled_image(ctx->get_shader_meta(pipeline.name)[binding], view, sampler, layout);
+}
+
+VkDescriptorSet DescriptorBuilder::get() {
+	void* pNext = nullptr;
+	if (!pNext_chain.empty()) {
+		pNext = pNext_chain.front();
+		VkBaseOutStructure* cur = reinterpret_cast<VkBaseOutStructure*>(pNext);
+		for (size_t i = 1; i < pNext_chain.size(); ++i) {
+			cur->pNext = reinterpret_cast<VkBaseOutStructure*>(pNext_chain[i]);
+			cur = cur->pNext;
+		}
+	}
+	return ctx->get_or_create_descriptor_set(info, pipeline, pNext);
+}
+
 PipelineBuilder PipelineBuilder::create(Context& ctx, std::string_view name) {
 	PipelineBuilder builder{};
 	builder.ctx = &ctx;

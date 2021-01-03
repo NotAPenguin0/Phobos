@@ -123,20 +123,53 @@ int main() {
 			frame_commands.set(i, graphics.create_command_buffer());
 		}
 
+		// Create our offscreen attachment
+		ctx.create_attachment("offscreen", VkExtent2D{ 500, 500 }, VK_FORMAT_R8G8B8A8_SRGB);
+
+		// Create copy pipeline
+		ph::PipelineCreateInfo pci =
+			ph::PipelineBuilder::create(ctx, "copy")
+			.add_shader("data/shaders/blit.vert.spv", "main", ph::PipelineStage::VertexShader)
+			.add_shader("data/shaders/blit.frag.spv", "main", ph::PipelineStage::FragmentShader)
+			.add_dynamic_state(VK_DYNAMIC_STATE_VIEWPORT)
+			.add_dynamic_state(VK_DYNAMIC_STATE_SCISSOR)
+			.add_blend_attachment()
+			.set_depth_test(false)
+			.set_depth_write(false)
+			.set_cull_mode(VK_CULL_MODE_NONE)
+			.reflect()
+			.get();
+		ctx.create_named_pipeline(std::move(pci));
+
 		while (wsi->is_open()) {
 			wsi->poll_events();
 			ctx.wait_for_frame();
 
 			// Create render graph. You don't need to do this every frame
 			ph::RenderGraph graph{};
-			ph::Pass pass =
+			ph::Pass clear_pass =
 				ph::PassBuilder::create("simple_clear")
-				.add_attachment(ctx.get_swapchain_attachment_name(), ph::LoadOp::Clear, { .color = {1.0f, 0.0f, 0.0f, 1.0f} })
+				.add_attachment("offscreen", ph::LoadOp::Clear, { .color = {1.0f, 0.0f, 0.0f, 1.0f} })
 				.execute([](ph::CommandBuffer& cmd_buf) {
-					// Add commands
+					
 				})
 				.get();
-			graph.add_pass(pass);
+			ph::Pass copy_pass =
+				ph::PassBuilder::create("simple_copy")
+				.add_attachment(ctx.get_swapchain_attachment_name(), ph::LoadOp::Clear, { .color = {0.0f, 0.0f, 0.0f, 1.0f} })
+				.sample_attachment("offscreen", ph::PipelineStage::FragmentShader)
+				.execute([&ctx](ph::CommandBuffer& cmd_buf) {
+					cmd_buf.bind_pipeline("copy");
+					cmd_buf.auto_viewport_scissor();
+					VkDescriptorSet set = ph::DescriptorBuilder::create(ctx, cmd_buf.get_bound_pipeline())
+						.add_sampled_image("image", ctx.get_attachment("offscreen")->view, ctx.basic_sampler)
+						.get();
+					cmd_buf.bind_descriptor_set(set);
+					cmd_buf.draw(6, 1, 0, 0);
+				})
+				.get();
+			graph.add_pass(clear_pass);
+			graph.add_pass(copy_pass);
 			// Build it. This needs to happen every frame
 			graph.build(ctx);
 

@@ -6,8 +6,6 @@ set(CMAKE_CXX_STANDARD 20)
 project(Phobos)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-find_package(Vulkan REQUIRED)
-
 set(PHOBOS_INCLUDE_DIRECTORIES ${PHOBOS_INCLUDE_DIRECTORIES}
     ""
 )
@@ -35,8 +33,7 @@ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/external")
 
 #target_compile_definitions(Phobos PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
-target_include_directories(Phobos PUBLIC Vulkan::Vulkan "include/")
-target_link_libraries(Phobos PUBLIC Vulkan::Vulkan)
+target_include_directories(Phobos PUBLIC "include/")
 
 #if (NOT ${PHOBOS_NO_FIXED_PIPELINE})
 #    file(GLOB PHOBOS_SHADERS "${CMAKE_CURRENT_SOURCE_DIR}/data/shaders/*")

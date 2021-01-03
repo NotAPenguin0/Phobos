@@ -14,7 +14,7 @@ void ShaderMeta::add_binding(std::string_view name, Binding info) {
 }
 
 std::vector<uint32_t> load_shader_code(std::string_view path) {
-    std::ifstream file(file_path.data(), std::ios::binary);
+    std::ifstream file(path.data(), std::ios::binary);
     std::string code = std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
 
     std::vector<uint32_t> spv(code.size() / 4);

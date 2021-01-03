@@ -3,8 +3,230 @@
 #include <cassert>
 #include <limits>
 #include <algorithm>
+#include <spirv_cross.hpp>
 
 namespace ph {
+
+namespace reflect {
+	static PipelineStage get_shader_stage(spirv_cross::Compiler& refl) {
+		auto entry_point_name = refl.get_entry_points_and_stages()[0];
+		auto entry_point = refl.get_entry_point(entry_point_name.name, entry_point_name.execution_model);
+
+		switch (entry_point.model) {
+		case spv::ExecutionModel::ExecutionModelVertex: return PipelineStage::VertexShader;
+		case spv::ExecutionModel::ExecutionModelFragment: return PipelineStage::FragmentShader;
+		case spv::ExecutionModel::ExecutionModelGLCompute: return PipelineStage::ComputeShader;
+		default: return {};
+		}
+	}
+
+	static VkFormat get_vk_format(uint32_t vecsize) {
+		switch (vecsize) {
+		case 1: return VK_FORMAT_R32_SFLOAT;
+		case 2: return VK_FORMAT_R32G32_SFLOAT;
+		case 3: return VK_FORMAT_R32G32B32_SFLOAT;
+		case 4: return VK_FORMAT_R32G32B32A32_SFLOAT;
+		default: return VK_FORMAT_UNDEFINED;
+		}
+	}
+
+	static std::unique_ptr<spirv_cross::Compiler> reflect_shader_stage(ShaderModuleCreateInfo& shader) {
+		auto refl = std::make_unique<spirv_cross::Compiler>(shader.code);
+
+		assert(refl && "Failed to reflect shader");
+		spirv_cross::ShaderResources res = refl->get_shader_resources();
+
+		return refl;
+	}
+
+	static VkShaderStageFlags pipeline_to_shader_stage(PipelineStage stage) {
+		switch (stage) {
+		case PipelineStage::VertexShader: return VK_SHADER_STAGE_VERTEX_BIT;
+		case PipelineStage::FragmentShader: return VK_SHADER_STAGE_FRAGMENT_BIT;
+		case PipelineStage::ComputeShader: return VK_SHADER_STAGE_COMPUTE_BIT;
+		default: return {};
+		}
+	}
+
+	// This function merges all push constant ranges in a single shader stage into one push constant range.
+	// We need this because spirv-cross reports one push constant range for each variable, instead of for each block.
+	static void merge_ranges(std::vector<VkPushConstantRange>& out, std::vector<VkPushConstantRange> const& in,
+		PipelineStage stage) {
+
+		VkPushConstantRange merged{};
+		merged.size = 0;
+		merged.offset = 1000000; // some arbitrarily large value to start with, we'll make this smaller using std::min() later
+		merged.stageFlags = pipeline_to_shader_stage(stage);
+		for (auto& range : in) {
+			if (range.stageFlags == merged.stageFlags) {
+				merged.offset = std::min(merged.offset, range.offset);
+				merged.size += range.size;
+			}
+		}
+
+		if (merged.size != 0) {
+			out.push_back(merged);
+		}
+	}
+
+	static std::vector<VkPushConstantRange> get_push_constants(std::vector<std::unique_ptr<spirv_cross::Compiler>>& reflected_shaders) {
+		std::vector<VkPushConstantRange> pc_ranges;
+		std::vector<VkPushConstantRange> final;
+		for (auto& refl : reflected_shaders) {
+			spirv_cross::ShaderResources res = refl->get_shader_resources();
+			auto const stage = get_shader_stage(*refl);
+			for (auto& pc : res.push_constant_buffers) {
+				auto ranges = refl->get_active_buffer_ranges(pc.id);
+				for (auto& range : ranges) {
+					VkPushConstantRange pc_range{};
+					pc_range.offset = range.offset;
+					pc_range.size = range.range;
+					pc_range.stageFlags = pipeline_to_shader_stage(stage);
+					pc_ranges.push_back(pc_range);
+				}
+			}
+			merge_ranges(final, pc_ranges, stage);
+		}
+		return final;
+	}
+
+	static void find_uniform_buffers(ShaderMeta& info, spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
+		VkShaderStageFlags const stage = pipeline_to_shader_stage(get_shader_stage(refl));
+		spirv_cross::ShaderResources res = refl.get_shader_resources();
+		for (auto& ubo : res.uniform_buffers) {
+			VkDescriptorSetLayoutBinding binding{};
+			binding.binding = refl.get_decoration(ubo.id, spv::DecorationBinding);
+			binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			binding.descriptorCount = 1;
+			binding.stageFlags = stage;
+			dslci.bindings.push_back(binding);
+
+			info.add_binding(refl.get_name(ubo.id), { binding.binding, binding.descriptorType });
+		}
+	}
+
+	static void find_shader_storage_buffers(ShaderMeta& info, spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
+		VkShaderStageFlags const stage = pipeline_to_shader_stage(get_shader_stage(refl));
+		spirv_cross::ShaderResources res = refl.get_shader_resources();
+		for (auto& ssbo : res.storage_buffers) {
+			VkDescriptorSetLayoutBinding binding{};
+			binding.binding = refl.get_decoration(ssbo.id, spv::DecorationBinding);
+			binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			binding.descriptorCount = 1;
+			binding.stageFlags = stage;
+			dslci.bindings.push_back(binding);
+
+			info.add_binding(refl.get_name(ssbo.id), { binding.binding, binding.descriptorType });
+		}
+	}
+
+	static void find_sampled_images(Context& ctx, ShaderMeta& info, spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
+		VkShaderStageFlags const stage = pipeline_to_shader_stage(get_shader_stage(refl));
+		spirv_cross::ShaderResources res = refl.get_shader_resources();
+		for (auto& si : res.sampled_images) {
+			VkDescriptorSetLayoutBinding binding{};
+			binding.binding = refl.get_decoration(si.id, spv::DecorationBinding);
+			binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			binding.stageFlags = stage;
+			auto type = refl.get_type(si.type_id);
+			// type.array has the dimensions of the array. If this is zero, we don't have an array.
+			// If it's larger than zero, we have an array.
+			if (type.array.size() > 0) {
+				// Now the dimensions of the array are in the first value of the array field.
+				// 0 means unbounded
+				if (type.array[0] == 0) {
+					binding.descriptorCount = ctx.max_unbounded_array_size;
+					// An unbounded array of samplers means descriptor indexing, we have to set the PartiallyBound and VariableDescriptorCount
+					// flags for this binding
+
+					// Reserve enough space to hold all flags and this one
+					dslci.flags.resize(dslci.bindings.size() + 1);
+					dslci.flags.back() = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
+				}
+				else {
+					binding.descriptorCount = type.array[0];
+				}
+			}
+			else {
+				// If it' not an array, there is only one descriptor
+				binding.descriptorCount = 1;
+			}
+
+			info.add_binding(refl.get_name(si.id), { binding.binding, binding.descriptorType });
+			dslci.bindings.push_back(binding);
+		}
+	}
+
+	static void find_storage_images(ShaderMeta& info, spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
+		VkShaderStageFlags const stage = pipeline_to_shader_stage(get_shader_stage(refl));
+		spirv_cross::ShaderResources res = refl.get_shader_resources();
+
+		for (auto& si : res.storage_images) {
+			VkDescriptorSetLayoutBinding binding{};
+			binding.binding = refl.get_decoration(si.id, spv::DecorationBinding);
+			binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+			binding.stageFlags = stage;
+			binding.descriptorCount = 1;
+			info.add_binding(refl.get_name(si.id), { binding.binding, binding.descriptorType });
+			dslci.bindings.push_back(binding);
+		}
+	}
+
+	static void collapse_bindings(DescriptorSetLayoutCreateInfo& info) {
+		std::vector<VkDescriptorSetLayoutBinding> final_bindings;
+		std::vector<VkDescriptorBindingFlags> final_flags;
+
+		for (size_t i = 0; i < info.bindings.size(); ++i) {
+			auto binding = info.bindings[i];
+
+			// Before doing anything, check if we already processed this binding
+			bool process = true;
+			for (auto const& b : final_bindings) {
+				if (binding.binding == b.binding) {
+					process = false;
+					break;
+				}
+			}
+			if (!process) { continue; }
+
+			VkShaderStageFlags stages = binding.stageFlags;
+			for (size_t j = i + 1; j < info.bindings.size(); ++j) {
+				auto const& other_binding = info.bindings[j];
+				if (binding.binding == other_binding.binding) {
+					stages |= other_binding.stageFlags;
+
+				}
+			}
+			binding.stageFlags = stages;
+			final_bindings.push_back(binding);
+			if (!info.flags.empty()) {
+				final_flags.push_back(info.flags[i]);
+			}
+		}
+
+		info.bindings = final_bindings;
+		info.flags = final_flags;
+	}
+
+	static DescriptorSetLayoutCreateInfo get_descriptor_set_layout(Context& ctx, ShaderMeta& info, std::vector<std::unique_ptr<spirv_cross::Compiler>>& reflected_shaders) {
+		DescriptorSetLayoutCreateInfo dslci;
+		for (auto& refl : reflected_shaders) {
+			find_uniform_buffers(info, *refl, dslci);
+			find_shader_storage_buffers(info, *refl, dslci);
+			find_sampled_images(ctx, info, *refl, dslci);
+			find_storage_images(info, *refl, dslci);
+		}
+		collapse_bindings(dslci);
+		return dslci;
+	}
+
+	static PipelineLayoutCreateInfo make_pipeline_layout(Context& ctx, std::vector<std::unique_ptr<spirv_cross::Compiler>>& reflected_shaders, ShaderMeta& shader_info) {
+		PipelineLayoutCreateInfo layout;
+		layout.push_constants = get_push_constants(reflected_shaders);
+		layout.set_layout = get_descriptor_set_layout(ctx, shader_info, reflected_shaders);
+		return layout;
+	}
+}
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT,
@@ -34,7 +256,7 @@ static std::optional<uint32_t> get_queue_family_prefer_dedicated(std::vector<VkQ
 	return best_match;
 }
 
-static PhysicalDevice select_physical_device(VkInstance instance, SurfaceInfo const& surface, GPURequirements const& requirements) {
+static PhysicalDevice select_physical_device(VkInstance instance, std::optional<SurfaceInfo> surface, GPURequirements const& requirements) {
 	uint32_t device_count;
 	VkResult result = vkEnumeratePhysicalDevices(instance, &device_count, nullptr);
 	assert(result == VK_SUCCESS && device_count > 0 && "Could not find any vulkan-capable devices");
@@ -86,19 +308,21 @@ static PhysicalDevice select_physical_device(VkInstance instance, SurfaceInfo co
 		}
 		if (must_skip) continue;
 
-		// Check support for our surface. We'll simply check every queue we are requesting for present support
-		bool found_one = false;
-		for (QueueInfo& queue : found_queues) {
-			VkBool32 supported = false;
-			vkGetPhysicalDeviceSurfaceSupportKHR(device, queue.family_index, surface.handle, &supported);
-			if (supported) {
-				found_one = true;
-				queue.can_present = true;
+		if (surface) {
+			// Check support for our surface. We'll simply check every queue we are requesting for present support
+			bool found_one = false;
+			for (QueueInfo& queue : found_queues) {
+				VkBool32 supported = false;
+				vkGetPhysicalDeviceSurfaceSupportKHR(device, queue.family_index, surface->handle, &supported);
+				if (supported) {
+					found_one = true;
+					queue.can_present = true;
+				}
 			}
+			if (!found_one) continue;
 		}
-		if (!found_one) continue;
 
-		return { .handle = device, .properties = properties, .memory_properties = mem_properties, .found_queues = std::move(found_queues) };
+		return { .handle = device, .properties = properties, .memory_properties = mem_properties, .found_queues = std::move(found_queues), .surface = surface };
 	}
 
 	// No matching device was found.
@@ -168,6 +392,7 @@ Context::Context(AppSettings settings) {
 		in_flight_frames = settings.max_frames_in_flight;
 	}
 	log = settings.log;
+	max_unbounded_array_size = settings.max_unbounded_array_size;
 
 	{
 		VkApplicationInfo app_info{};
@@ -181,7 +406,7 @@ Context::Context(AppSettings settings) {
 		VkInstanceCreateInfo info{};
 		info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		info.pApplicationInfo = &app_info;
-		
+
 		if (validation_enabled()) {
 			const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
 			info.ppEnabledLayerNames = layers;
@@ -218,16 +443,20 @@ Context::Context(AppSettings settings) {
 		assert(result == VK_SUCCESS && "Failed to create debug messenger");
 	}
 
-	phys_device.surface = SurfaceInfo{};
-	phys_device.surface->handle = wsi->create_surface(instance);
+	if (!is_headless()) {
+		phys_device.surface = SurfaceInfo{};
+		phys_device.surface->handle = wsi->create_surface(instance);
+	}
 
-	phys_device = select_physical_device(instance, *phys_device.surface, settings.gpu_requirements);
+	phys_device = select_physical_device(instance, phys_device.surface, settings.gpu_requirements);
 	if (!phys_device.handle) {
 		log->write(LogSeverity::Fatal, "Could not find a suitable physical device");
 		return;
 	}
 
-	fill_surface_details(phys_device);
+	if (!is_headless()) {
+		fill_surface_details(phys_device);
+	}
 
 	// Get the logical device using the queues we found.
 	{
@@ -246,7 +475,7 @@ Context::Context(AppSettings settings) {
 		info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 		info.pQueueCreateInfos = queue_infos.data();
 		info.queueCreateInfoCount = queue_infos.size();
-		
+
 		if (!is_headless()) {
 			settings.gpu_requirements.device_extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 		}
@@ -254,10 +483,10 @@ Context::Context(AppSettings settings) {
 		info.ppEnabledExtensionNames = settings.gpu_requirements.device_extensions.data();
 		info.pNext = settings.gpu_requirements.pNext;
 		info.pEnabledFeatures = &settings.gpu_requirements.features;
-		
+
 		VkResult result = vkCreateDevice(phys_device.handle, &info, nullptr, &device);
 		assert(result == VK_SUCCESS && "Failed to create logical device");
- 	}
+	}
 
 	// Get device queues
 	{
@@ -306,7 +535,7 @@ Context::Context(AppSettings settings) {
 		vkGetSwapchainImagesKHR(device, swapchain->handle, &image_count, nullptr);
 		std::vector<VkImage> images(image_count);
 		vkGetSwapchainImagesKHR(device, swapchain->handle, &image_count, images.data());
-		
+
 		swapchain->per_image = std::vector<Swapchain::PerImage>(image_count);
 		for (size_t i = 0; i < swapchain->per_image.size(); ++i) {
 			Swapchain::PerImage data{};
@@ -342,6 +571,58 @@ Context::Context(AppSettings settings) {
 
 			per_frame.set(i, PerFrame{ .fence = fence, .gpu_finished = semaphore, .image_ready = semaphore2 });
 		}
+	}
+
+	VkDescriptorPoolCreateInfo dpci{};
+	dpci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	dpci.flags = {};
+	dpci.pNext = nullptr;
+	VkDescriptorPoolSize pool_sizes[]{
+		VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, sets_per_type },
+		VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sets_per_type },
+		VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, sets_per_type },
+		VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, sets_per_type }
+	};
+	dpci.maxSets = sets_per_type * sizeof(pool_sizes) / sizeof(VkDescriptorPoolSize);
+	dpci.poolSizeCount = sizeof(pool_sizes) / sizeof(VkDescriptorPoolSize);
+	dpci.pPoolSizes = pool_sizes;
+	vkCreateDescriptorPool(device, &dpci, nullptr, &descr_pool);
+
+	cache.descriptor_set = RingBuffer<Cache<DescriptorSetBinding, VkDescriptorSet>>{ settings.max_frames_in_flight };
+
+	// Create basic sampler
+	{
+		VkSamplerCreateInfo sci{
+			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+			.pNext = nullptr,
+			.flags = {},
+			.magFilter = VK_FILTER_LINEAR,
+			.minFilter = VK_FILTER_LINEAR,
+			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+			.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.mipLodBias = 0.0f,
+			.anisotropyEnable = false,
+			.maxAnisotropy = 0.0f,
+			.compareEnable = false,
+			.compareOp = VK_COMPARE_OP_ALWAYS,
+			.minLod = 0.0f,
+			.maxLod = 64.0f,
+			.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+			.unnormalizedCoordinates = false
+		};
+		vkCreateSampler(device, &sci, nullptr, &basic_sampler);
+	}
+
+	// Create VMA allocator
+	{
+		VmaAllocatorCreateInfo info{};
+		info.device = device;
+		info.instance = instance;
+		info.physicalDevice = phys_device.handle;
+		info.vulkanApiVersion = VK_API_VERSION_1_2;
+		vmaCreateAllocator(&info, &allocator);
 	}
 }
 
@@ -435,7 +716,11 @@ void Context::wait_for_frame() {
 	swapchain->per_image[swapchain->image_index].fence = frame_data.fence;
 
 	// Once we have a frame we need to update where the swapchain attachment in our attachments list is pointing to
-	attachments[std::string(swapchain_attachment_name)] = Attachment{ .view = swapchain->per_image[swapchain->image_index].view };
+	attachments[std::string(swapchain_attachment_name)] = 
+		InternalAttachment{ 
+			Attachment{ .view = swapchain->per_image[swapchain->image_index].view }, 
+			std::nullopt
+	};
 }
 
 void Context::submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf) {
@@ -469,9 +754,17 @@ void Context::present(Queue& queue) {
 Attachment* Context::get_attachment(std::string_view name) {
 	std::string key{ name };
 	if (auto it = attachments.find(key); it != attachments.end()) {
-		return &it->second;
+		return &it->second.attachment;
 	}
 	return nullptr;
+}
+
+void Context::create_attachment(std::string_view name, VkExtent2D size, VkFormat format) {
+	InternalAttachment attachment{};
+	// Create image and image view
+	attachment.image = create_image(*this, is_depth_format(format) ? ImageType::DepthStencilAttachment : ImageType::ColorAttachment, size, format);
+	attachment.attachment.view = create_image_view(*this, *attachment.image, is_depth_format(format) ? ImageAspect::Depth : ImageAspect::Color);
+	attachments[std::string{ name }] = attachment;
 }
 
 bool Context::is_swapchain_attachment(std::string const& name) {
@@ -583,6 +876,7 @@ Pipeline Context::get_or_create_pipeline(std::string_view name, VkRenderPass ren
 	VkGraphicsPipelineCreateInfo gpci{};
 	VkDescriptorSetLayout set_layout = get_or_create_descriptor_set_layout(pci.layout.set_layout);
 	ph::PipelineLayout layout = get_or_create_pipeline_layout(pci.layout, set_layout);
+	gpci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	gpci.layout = layout.handle;
 	gpci.renderPass = render_pass;
 	gpci.subpass = 0;
@@ -629,6 +923,7 @@ Pipeline Context::get_or_create_pipeline(std::string_view name, VkRenderPass ren
 		.scissorCount = (uint32_t)pci.scissors.size(),
 		.pScissors = pci.scissors.data()
 	};
+	gpci.pViewportState = &viewport_state;
 	
 	// Shader modules
 	std::vector<VkPipelineShaderStageCreateInfo> shader_infos;
@@ -660,7 +955,98 @@ Pipeline Context::get_or_create_pipeline(std::string_view name, VkRenderPass ren
 	pipeline.layout = layout;
 	pipeline.type = PipelineType::Graphics;
 
+	cache.pipeline.insert(pci, pipeline);
+
 	return pipeline;
+}
+
+VkDescriptorSet Context::get_or_create_descriptor_set(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext) {
+	set_binding.set_layout = pipeline.layout.set_layout;
+	auto set_opt = cache.descriptor_set.current().get(set_binding);
+	if (set_opt) {
+		return *set_opt;
+	}
+	// Create descriptor set layout and issue writes
+	VkDescriptorSetAllocateInfo alloc_info;
+	alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	alloc_info.pSetLayouts = &set_binding.set_layout;
+	// add default descriptor pool if no custom one was specified
+	if (!set_binding.pool) { set_binding.pool = descr_pool; };
+	alloc_info.descriptorPool = set_binding.pool;
+	alloc_info.descriptorSetCount = 1;
+	alloc_info.pNext = pNext;
+
+	VkDescriptorSet set = nullptr;
+	vkAllocateDescriptorSets(device, &alloc_info, &set);
+
+	// Now we have the set we need to write the requested data to it
+	std::vector<VkWriteDescriptorSet> writes;
+	struct DescriptorWriteInfo {
+		std::vector<VkDescriptorBufferInfo> buffer_infos;
+		std::vector<VkDescriptorImageInfo> image_infos;
+	};
+	std::vector<DescriptorWriteInfo> write_infos;
+	writes.reserve(set_binding.bindings.size());
+	for (auto const& binding : set_binding.bindings) {
+		if (binding.descriptors.empty()) continue;
+		DescriptorWriteInfo write_info;
+		VkWriteDescriptorSet write{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.pNext = nullptr
+		};
+		write.dstSet = set;
+		write.dstBinding = binding.binding;
+		write.descriptorType = binding.type;
+		write.descriptorCount = binding.descriptors.size();
+		switch (binding.type) {
+			case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+			case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+			case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE: {
+				write_info.image_infos.reserve(binding.descriptors.size());
+				for (auto const& descriptor : binding.descriptors) {
+					VkDescriptorImageInfo img{
+						.sampler = descriptor.image.sampler,
+						.imageView = descriptor.image.view.handle,
+						.imageLayout = descriptor.image.layout
+					};
+					write_info.image_infos.push_back(img);
+					// Push dummy buffer info to make sure indices match
+					write_info.buffer_infos.emplace_back();
+				}
+		} break;
+		default: {
+				auto& info = binding.descriptors.front().buffer;
+				VkDescriptorBufferInfo buf{
+					.buffer = info.buffer,
+					.offset = info.offset,
+					.range = info.range
+				};
+
+				write_info.buffer_infos.push_back(buf);
+				// Push dummy image info to make sure indices match
+				write_info.image_infos.emplace_back();
+			} break;
+		}
+		write_infos.push_back(write_info);
+		writes.push_back(write);
+	}
+
+	for (size_t i = 0; i < write_infos.size(); ++i) {
+		switch (writes[i].descriptorType) {
+			case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+			case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+			case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE: {
+				writes[i].pImageInfo = write_infos[i].image_infos.data();
+			} break;
+			default: {
+				writes[i].pBufferInfo = write_infos[i].buffer_infos.data();
+			} break;
+		}
+	}
+
+	vkUpdateDescriptorSets(device, writes.size(), writes.data(), 0, nullptr);
+	cache.descriptor_set.current().insert(set_binding, set);
+	return set;
 }
 
 namespace {
@@ -688,11 +1074,21 @@ ShaderHandle Context::create_shader(std::string_view path, std::string_view entr
 }
 
 void Context::reflect_shaders(ph::PipelineCreateInfo& pci) {
-
+	std::vector<std::unique_ptr<spirv_cross::Compiler>> reflected_shaders;
+	for (auto handle : pci.shaders) {
+		ph::ShaderModuleCreateInfo* shader = cache.shader.get(handle);
+		assert(shader && "Invalid shader");
+		reflected_shaders.push_back(reflect::reflect_shader_stage(*shader));
+	}
+	pci.layout = reflect::make_pipeline_layout(*this, reflected_shaders, pci.meta);
 }
 
 void Context::create_named_pipeline(ph::PipelineCreateInfo pci) {
 	pipelines[pci.name] = std::move(pci);
+}
+
+ShaderMeta const& Context::get_shader_meta(std::string_view pipeline_name) {
+	return pipelines.at(std::string(pipeline_name)).meta;
 }
 
 void Context::next_frame() {
@@ -700,6 +1096,7 @@ void Context::next_frame() {
 	for (Queue& queue : queues) {
 		queue.next_frame();
 	}
+	cache.descriptor_set.next();
 }
 
 }

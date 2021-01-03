@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include "vk_mem_alloc.h"
 
 namespace ph {
 
@@ -29,7 +30,7 @@ struct RawImage {
     VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
     VkImageLayout current_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     VkImage handle = nullptr;
-    VkDeviceMemory memory = nullptr;
+    VmaAllocation memory = nullptr;
 };
 
 struct ImageView {
@@ -47,13 +48,12 @@ struct ImageView {
     }
 };
 
-ImageView create_image_view(Context& ctx, RawImage const& target, ImageAspect aspect = ImageAspect::Color);
+RawImage create_image(Context& ctx, ImageType type, VkExtent2D size, VkFormat format);
 
+ImageView create_image_view(Context& ctx, RawImage const& target, ImageAspect aspect = ImageAspect::Color);
 void destroy_image_view(Context& ctx, ImageView& view);
 
-
 // Common utilities
-
 
 bool is_depth_format(VkFormat format);
 

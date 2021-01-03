@@ -40,8 +40,8 @@ struct DescriptorBinding {
     uint32_t binding = 0;
     VkDescriptorType type;
 
-    union DescriptorContents {
-        DescriptorBufferInfo buffer;
+    struct DescriptorContents {
+        DescriptorBufferInfo buffer = {};
         DescriptorImageInfo image;
     };
 
@@ -54,15 +54,13 @@ struct DescriptorSetLayoutCreateInfo {
     std::vector<VkDescriptorBindingFlags> flags;
 };
 
-
 struct DescriptorSetBinding {
-   
     std::vector<DescriptorBinding> bindings;
     VkDescriptorPool pool = nullptr;
 private:
-    friend class CommandBuffer;
+    friend class Context;
     friend struct std::hash<DescriptorSetBinding>;
-    DescriptorSetLayoutCreateInfo set_layout;
+    VkDescriptorSetLayout set_layout = nullptr;
 };
 
 struct PipelineLayoutCreateInfo {
@@ -158,6 +156,23 @@ struct PipelineCreateInfo {
     std::vector<VkViewport> viewports;
     std::vector<VkRect2D> scissors;
     bool blend_logic_op_enable = false;
+};
+
+class DescriptorBuilder {
+public:
+    static DescriptorBuilder create(Context& ctx, Pipeline const& pipeline);
+
+    DescriptorBuilder& add_sampled_image(uint32_t binding, ImageView view, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    DescriptorBuilder& add_sampled_image(ShaderMeta::Binding const& binding, ImageView view, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    DescriptorBuilder& add_sampled_image(std::string_view binding, ImageView view, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    DescriptorBuilder& add_pNext(void* p);
+
+    VkDescriptorSet get();
+private:
+    Context* ctx = nullptr;
+    Pipeline pipeline{};
+    DescriptorSetBinding info{};
+    std::vector<void*> pNext_chain{};
 };
 
 class PipelineBuilder {
