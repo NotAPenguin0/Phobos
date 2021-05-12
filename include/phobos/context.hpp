@@ -10,6 +10,7 @@
 #include <phobos/cache.hpp>
 #include <phobos/pipeline.hpp>
 #include <phobos/shader.hpp>
+#include <phobos/buffer.hpp>
 
 #include <vulkan/vulkan.h>
 #include "vk_mem_alloc.h"
@@ -18,6 +19,8 @@
 #include <unordered_map>
 #include <vector>
 #include <optional>
+#include <memory>
+#include <cstddef>
 
 namespace ph {
 
@@ -111,6 +114,23 @@ struct PerThreadContext {
 
 };
 
+namespace impl {
+	// Responsible for initialization and destruction and core context management.
+	class ContextImpl;
+	// Responsible for creating and managing renderpasses, framebuffers and attachments
+	class AttachmentImpl;
+	// Responsible for creating and managing pipelines and shaders
+	class PipelineImpl;
+	// Responsible for managing frames and presenting.
+	class FrameImpl;
+	// Responsible for managing caches
+	class CacheImpl;
+	// Responsible for creating and operating on images
+	class ImageImpl;
+	// Responsible for creating and operating on buffers
+	class BufferImpl;
+}
+
 class Context {
 public:
 	Context(AppSettings settings);
@@ -119,6 +139,7 @@ public:
 	bool is_headless() const;
 	bool validation_enabled() const;
 	uint32_t thread_count() const;
+
 	Queue* get_queue(QueueType type);
 	// Gets the pointer to the first present-capable queue.
 	Queue* get_present_queue();
@@ -133,72 +154,62 @@ public:
 	bool is_swapchain_attachment(std::string const& name);
 	std::string get_swapchain_attachment_name() const;
 
+	ShaderHandle create_shader(std::string_view path, std::string_view entry_point, PipelineStage stage);
+	void reflect_shaders(ph::PipelineCreateInfo& pci);
+	void create_named_pipeline(ph::PipelineCreateInfo pci);
+	ShaderMeta const& get_shader_meta(std::string_view pipeline_name);
+	VkSampler basic_sampler();
+
+	RawImage create_image(ImageType type, VkExtent2D size, VkFormat format);
+	void destroy_image(RawImage& image);
+	ImageView create_image_view(RawImage const& target, ImageAspect aspect = ImageAspect::Color);
+	void destroy_image_view(ImageView& view);
+
+	RawBuffer create_buffer(BufferType type, VkDeviceSize size);
+	void destroy_buffer(RawBuffer& buffer);
+	bool is_valid_buffer(RawBuffer const& buffer);
+	bool has_persistent_mapping(RawBuffer const& buffer);
+	// For a persistently mapped buffer, this does not remap memory, and instead returns the pointer immediately.
+	// Persistently mapped buffers are buffers with buffer type MappedUniformBuffer and StorageBufferDynamic
+	std::byte* map_memory(RawBuffer& buffer);
+	// Flushes memory owned by the buffer passed in. For memory that is not host-coherent, this is required to make
+	// changes visible to the gpu after writing to mapped memory. If you want to flush the whole mapped range, size can be VK_WHOLE_SIZE
+	void flush_memory(BufferSlice slice);
+	void unmap_memory(RawBuffer& buffer);
+	// Resizes the raw buffer to be able to hold at least requested_size bytes. Returns whether a reallocation occured. 
+	// Note: If the buffer needs a resize, the old contents will be lost.
+	bool ensure_buffer_size(RawBuffer& buf, VkDeviceSize requested_size);
+private:
+	// Pointers to implementation classes. We declare these in a very specific order so reverse destruction order can take care of the proper destruction order.
+	// The reason image_impl is above context_impl is because we need to destroy image views inside the context destructor. Luckily, the image implementation does not need to do anything upon destruction, 
+	// so we can safely destruct it last.
+
+	// The reasoning for using multiple pimpl's here is to split up the Context class into logical modules, mostly to avoid creating one huge class with a massive implementation file. 
+	// This way it's much easier to navigate the implementation code.
+
+	std::unique_ptr<impl::ImageImpl> image_impl;
+	std::unique_ptr<impl::BufferImpl> buffer_impl;
+	std::unique_ptr<impl::ContextImpl> context_impl;
+	// Will not be created for a headless context.
+	std::unique_ptr<impl::FrameImpl> frame_impl;
+	std::unique_ptr<impl::AttachmentImpl> attachment_impl;
+	std::unique_ptr<impl::PipelineImpl> pipeline_impl;
+	std::unique_ptr<impl::CacheImpl> cache_impl;
+
+	// These classes need access to the following functions part of the private phobos API.
+	friend class Queue;
+	friend class CommandBuffer;
+	friend class RenderGraph;
+	friend class DescriptorBuilder;
+
+	VkDevice device();
+
 	VkFramebuffer get_or_create_framebuffer(VkFramebufferCreateInfo const& info);
 	VkRenderPass get_or_create_renderpass(VkRenderPassCreateInfo const& info);
 	VkDescriptorSetLayout get_or_create_descriptor_set_layout(DescriptorSetLayoutCreateInfo const& dslci);
 	PipelineLayout get_or_create_pipeline_layout(PipelineLayoutCreateInfo const& plci, VkDescriptorSetLayout set_layout);
 	Pipeline get_or_create_pipeline(std::string_view name, VkRenderPass render_pass);
 	VkDescriptorSet get_or_create_descriptor_set(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext = nullptr);
-
-	ShaderHandle create_shader(std::string_view path, std::string_view entry_point, PipelineStage stage);
-	void reflect_shaders(ph::PipelineCreateInfo& pci);
-	void create_named_pipeline(ph::PipelineCreateInfo pci);
-	ShaderMeta const& get_shader_meta(std::string_view pipeline_name);
-
-	VkInstance instance = nullptr;
-	VkDevice device = nullptr;
-	PhysicalDevice phys_device{};
-	VmaAllocator allocator{};
-	// This is std::nullopt for a headless context
-	std::optional<Swapchain> swapchain = std::nullopt;
-	
-	VkSampler basic_sampler = nullptr;
-
-	uint32_t max_unbounded_array_size = 0;
-
-private:
-	VkDebugUtilsMessengerEXT debug_messenger = nullptr;
-	bool has_validation = false;
-	uint32_t num_threads = 0;
-
-	struct PerFrame {
-		VkFence fence = nullptr;
-		VkSemaphore gpu_finished = nullptr;
-		VkSemaphore image_ready = nullptr;
-	};
-
-	uint32_t in_flight_frames = 0;
-	RingBuffer<PerFrame> per_frame{}; // RingBuffer with in_flight_frames elements.
-
-	std::vector<PerThreadContext> ptcs{};
-	std::vector<Queue> queues{};
-	WindowInterface* wsi = nullptr;
-	LogInterface* log = nullptr;
-
-	static inline std::string swapchain_attachment_name = "swapchain";
-
-	struct InternalAttachment {
-		Attachment attachment;
-		std::optional<RawImage> image;
-	};
-	std::unordered_map<std::string, InternalAttachment> attachments{};
-	std::unordered_map<std::string, ph::PipelineCreateInfo> pipelines{};
-
-	struct Caches {
-		Cache<VkFramebufferCreateInfo, VkFramebuffer> framebuffer{};
-		Cache<VkRenderPassCreateInfo, VkRenderPass> renderpass{};
-		Cache<ph::DescriptorSetLayoutCreateInfo, VkDescriptorSetLayout> set_layout{};
-		Cache<ph::PipelineLayoutCreateInfo, ph::PipelineLayout> pipeline_layout{};
-		Cache<ph::PipelineCreateInfo, ph::Pipeline> pipeline{};
-		Cache<ShaderHandle, ph::ShaderModuleCreateInfo> shader{};
-		RingBuffer<Cache<DescriptorSetBinding, VkDescriptorSet>> descriptor_set{};
-	} cache{};
-
-	// TODO: automatically growing descriptor pool
-	static constexpr size_t sets_per_type = 1024;
-	VkDescriptorPool descr_pool = nullptr;
-
-	void next_frame();
 };
 
 }

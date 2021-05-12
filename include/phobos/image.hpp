@@ -48,11 +48,6 @@ struct ImageView {
     }
 };
 
-RawImage create_image(Context& ctx, ImageType type, VkExtent2D size, VkFormat format);
-
-ImageView create_image_view(Context& ctx, RawImage const& target, ImageAspect aspect = ImageAspect::Color);
-void destroy_image_view(Context& ctx, ImageView& view);
-
 // Common utilities
 
 bool is_depth_format(VkFormat format);

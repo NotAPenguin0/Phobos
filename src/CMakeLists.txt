@@ -1,8 +1,17 @@
 
 target_sources(Phobos PRIVATE 
+	"context/context.cpp"
+	"context/pipeline.cpp"
+	"context/attachment.cpp"
+	"context/frame.cpp"
+	"context/cache.cpp"
+	"context/image.cpp"
+	"context/buffer.cpp"
+
 	"command_buffer.cpp"
 	"context.cpp"
 	"image.cpp"
+	"buffer.cpp"
 	"log_interface.cpp"
 	"memory.cpp"
 	"pass.cpp"

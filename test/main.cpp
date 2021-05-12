@@ -90,7 +90,7 @@ int main() {
 	ph::AppSettings config;
 	config.enable_validation = true;
 	config.app_name = "Phobos Test App";
-	config.num_threads = 8;
+	config.num_threads = 16;
 	config.create_headless = false;
 	GLFWWindowInterface* wsi = new GLFWWindowInterface("Phobos Test App", 800, 600);
 	config.wsi = wsi;
@@ -162,7 +162,7 @@ int main() {
 					cmd_buf.bind_pipeline("copy");
 					cmd_buf.auto_viewport_scissor();
 					VkDescriptorSet set = ph::DescriptorBuilder::create(ctx, cmd_buf.get_bound_pipeline())
-						.add_sampled_image("image", ctx.get_attachment("offscreen")->view, ctx.basic_sampler)
+						.add_sampled_image("image", ctx.get_attachment("offscreen")->view, ctx.basic_sampler())
 						.get();
 					cmd_buf.bind_descriptor_set(set);
 					cmd_buf.draw(6, 1, 0, 0);

@@ -13,24 +13,24 @@ Queue::Queue(Context& context, QueueInfo info, VkQueue handle) : ctx(&context), 
 	in_flight_pools.resize(context.thread_count());
 	pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
 	for (uint32_t thread_index = 0; thread_index < in_flight_pools.size(); ++thread_index) {
-		vkCreateCommandPool(context.device, &pool_info, nullptr, &in_flight_pools[thread_index]);
+		vkCreateCommandPool(context.device(), &pool_info, nullptr, &in_flight_pools[thread_index]);
 	}
 	// Create per-frame command pools
 	pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	main_pools = RingBuffer<VkCommandPool>(context.max_frames_in_flight());
 	for (uint32_t frame_index = 0; frame_index < main_pools.size(); ++frame_index) {
 		VkCommandPool pool = nullptr;
-		vkCreateCommandPool(context.device, &pool_info, nullptr, &pool);
+		vkCreateCommandPool(context.device(), &pool_info, nullptr, &pool);
 		main_pools.set(frame_index, std::move(pool));
 	}
 }
 
 Queue::~Queue() {
 	for (VkCommandPool pool : in_flight_pools) {
-		vkDestroyCommandPool(ctx->device, pool, nullptr);
+		vkDestroyCommandPool(ctx->device(), pool, nullptr);
 	}
 	for (VkCommandPool pool : main_pools) {
-		vkDestroyCommandPool(ctx->device, pool, nullptr);
+		vkDestroyCommandPool(ctx->device(), pool, nullptr);
 	}
 }
 
@@ -65,7 +65,7 @@ CommandBuffer Queue::create_command_buffer() {
 	info.commandPool = main_pools.current();
 	info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	VkCommandBuffer cmd_buf = nullptr;
-	vkAllocateCommandBuffers(ctx->device, &info, &cmd_buf);
+	vkAllocateCommandBuffers(ctx->device(), &info, &cmd_buf);
 	return CommandBuffer(*ctx, std::move(cmd_buf));
 }
 
@@ -76,7 +76,7 @@ std::vector<CommandBuffer> Queue::create_command_buffers(uint32_t count) {
 	info.commandPool = main_pools.current();
 	info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	std::vector<VkCommandBuffer> cmd_bufs(count);
-	vkAllocateCommandBuffers(ctx->device, &info, cmd_bufs.data());
+	vkAllocateCommandBuffers(ctx->device(), &info, cmd_bufs.data());
 	std::vector<CommandBuffer> result(count);
 	for (size_t i = 0; i < count; ++i) {
 		result[i] = CommandBuffer(*ctx, std::move(cmd_bufs[i]));
@@ -93,7 +93,7 @@ CommandBuffer Queue::begin_single_time(uint32_t thread) {
 	info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
 	VkCommandBuffer cmd_buf = nullptr;
-	vkAllocateCommandBuffers(ctx->device, &info, &cmd_buf);
+	vkAllocateCommandBuffers(ctx->device(), &info, &cmd_buf);
 
 	CommandBuffer result(*ctx, std::move(cmd_buf));
 	result.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -108,7 +108,7 @@ void Queue::end_single_time(CommandBuffer& cmd_buf, VkFence signal_fence, VkPipe
 void Queue::free_single_time(CommandBuffer& cmd_buf, uint32_t thread) {
 	VkCommandPool pool = in_flight_pools[thread];
 	VkCommandBuffer cbuf = cmd_buf.handle();
-	vkFreeCommandBuffers(ctx->device, pool, 1, &cbuf);
+	vkFreeCommandBuffers(ctx->device(), pool, 1, &cbuf);
 }
 
 void Queue::submit(CommandBuffer& cmd_buf, VkFence signal_fence, VkPipelineStageFlags wait_stage, VkSemaphore wait_semaphore, VkSemaphore signal_semaphore) {

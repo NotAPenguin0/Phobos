@@ -13,8 +13,8 @@ set(PHOBOS_LINK_LIBRARIES ${PHOBOS_LINK_LIBRARIES}
     ""
 ) 
 
-OPTION(PHOBOS_ENABLE_TEST_APP CACHE OFF)
-OPTION(PHOBOS_NO_FIXED_PIPELINE CACHE OFF)
+OPTION(PHOBOS_ENABLE_TEST_APP "Enable building a test application")
+OPTION(PHOBOS_NO_FIXED_PIPELINE  "Disable the fixed pipeline functionality")
 
 add_library(Phobos STATIC ${PHOBOS_SOURCES})
 if (${CMAKE_CXX_COMPILER_ID} MATCHES Clang)
@@ -49,7 +49,7 @@ target_include_directories(Phobos PUBLIC "include/")
 
 # Test Application
 
-if (PHOBOS_ENABLE_TEST_APP)
+if (${PHOBOS_ENABLE_TEST_APP})
     add_subdirectory("test")
 endif()
 

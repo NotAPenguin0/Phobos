@@ -10,6 +10,10 @@
 
 namespace ph {
 
+namespace impl {
+    class CacheImpl;
+}
+
 class Context;
 
 enum class PipelineStage {
@@ -58,7 +62,7 @@ struct DescriptorSetBinding {
     std::vector<DescriptorBinding> bindings;
     VkDescriptorPool pool = nullptr;
 private:
-    friend class Context;
+    friend class impl::CacheImpl;
     friend struct std::hash<DescriptorSetBinding>;
     VkDescriptorSetLayout set_layout = nullptr;
 };
