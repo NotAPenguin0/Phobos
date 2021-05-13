@@ -60,6 +60,28 @@ DescriptorBuilder& DescriptorBuilder::add_uniform_buffer(std::string_view bindin
 	return add_uniform_buffer(ctx->get_shader_meta(pipeline.name)[binding], buffer);
 }
 
+DescriptorBuilder& DescriptorBuilder::add_storage_buffer(uint32_t binding, BufferSlice buffer) {
+	DescriptorBinding descr{};
+	descr.binding = binding;
+	descr.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	auto& descriptor = descr.descriptors.emplace_back();
+	descriptor.buffer = ph::DescriptorBufferInfo{
+		.buffer = buffer.buffer,
+		.offset = buffer.offset,
+		.range = buffer.range
+	};
+	info.bindings.push_back(std::move(descr));
+	return *this;
+}
+
+DescriptorBuilder& DescriptorBuilder::add_storage_buffer(ShaderMeta::Binding const& binding, BufferSlice buffer) {
+	return add_storage_buffer(binding.binding, buffer);
+}
+
+DescriptorBuilder& DescriptorBuilder::add_storage_buffer(std::string_view binding, BufferSlice buffer) {
+	return add_storage_buffer(ctx->get_shader_meta(pipeline.name)[binding], buffer);
+}
+
 VkDescriptorSet DescriptorBuilder::get() {
 	void* pNext = nullptr;
 	if (!pNext_chain.empty()) {

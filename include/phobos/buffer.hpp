@@ -81,6 +81,10 @@ struct TypedBufferSlice {
         slice.data = reinterpret_cast<std::byte*>(data);
         return slice;
     }
+
+    bool operator==(BufferSlice const& rhs) const {
+        return buffer == rhs.buffer && offset == rhs.offset && range == rhs.range && memory == rhs.memory && data == rhs.data;
+    }
 };
 
 }

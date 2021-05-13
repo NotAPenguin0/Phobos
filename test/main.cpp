@@ -102,7 +102,7 @@ vec4 vertices[] = {
 	vec4(1.0, 1.0, 1.0, 1.0)
 };
 
-struct my_ubo {
+struct ShaderSSBO {
 	vec3 color;
 };
 
@@ -144,11 +144,24 @@ int main() {
 		// Create our offscreen attachment
 		ctx.create_attachment("offscreen", VkExtent2D{ 500, 500 }, VK_FORMAT_R8G8B8A8_SRGB);
 
-		// Create copy pipeline
-		ph::PipelineCreateInfo pci =
-			ph::PipelineBuilder::create(ctx, "copy")
-			.add_shader("data/shaders/blit.vert.spv", "main", ph::PipelineStage::VertexShader)
-			.add_shader("data/shaders/blit.frag.spv", "main", ph::PipelineStage::FragmentShader)
+		// Create pipeline for writing to buffer and clearing screen
+		ph::PipelineCreateInfo write_pci =
+			ph::PipelineBuilder::create(ctx, "write")
+			.add_shader("data/shaders/write.vert.spv", "main", ph::PipelineStage::VertexShader)
+			.add_vertex_input(0)
+			.add_dynamic_state(VK_DYNAMIC_STATE_VIEWPORT)
+			.add_dynamic_state(VK_DYNAMIC_STATE_SCISSOR)
+			.add_vertex_attribute(0, 0, VK_FORMAT_R32G32_SFLOAT)
+			.add_vertex_attribute(0, 1, VK_FORMAT_R32G32_SFLOAT)
+			.reflect()
+		.get();
+		ctx.create_named_pipeline(std::move(write_pci));
+
+		// Create pipeline for reading from the buffer and displaying the result
+		ph::PipelineCreateInfo read_pci =
+			ph::PipelineBuilder::create(ctx, "read")
+			.add_shader("data/shaders/read.vert.spv", "main", ph::PipelineStage::VertexShader)
+			.add_shader("data/shaders/read.frag.spv", "main", ph::PipelineStage::FragmentShader)
 			.add_vertex_input(0)
 			.add_vertex_attribute(0, 0, VK_FORMAT_R32G32_SFLOAT)
 			.add_vertex_attribute(0, 1, VK_FORMAT_R32G32_SFLOAT)
@@ -160,49 +173,59 @@ int main() {
 			.set_cull_mode(VK_CULL_MODE_NONE)
 			.reflect()
 			.get();
-		ctx.create_named_pipeline(std::move(pci));
+		ctx.create_named_pipeline(std::move(read_pci));
 
 		while (wsi->is_open()) {
 			wsi->poll_events();
 			ph::InFlightContext ifc = ctx.wait_for_frame();
 
-			// Create render graph. You don't need to do this every frame
 			ph::RenderGraph graph{};
-			ph::Pass clear_pass =
-				ph::PassBuilder::create("simple_clear")
-				.add_attachment("offscreen", ph::LoadOp::Clear, { .color = {1.0f, 0.0f, 0.0f, 1.0f} })
-				.execute([](ph::CommandBuffer& cmd_buf) {
-					
-				})
-				.get();
-			ph::Pass copy_pass =
-				ph::PassBuilder::create("quad")
-				.add_attachment(ctx.get_swapchain_attachment_name(), ph::LoadOp::Clear, { .color = {0.0f, 0.0f, 0.0f, 1.0f} })
-				.sample_attachment("offscreen", ph::PipelineStage::FragmentShader)
-				.execute([&ctx, &ifc](ph::CommandBuffer& cmd_buf) {
-					cmd_buf.bind_pipeline("copy");
+
+			// Buffers for this frame
+
+			ph::TypedBufferSlice<vec4> vbo = ifc.allocate_scratch_vbo<vec4>(sizeof(vertices));
+			std::memcpy(vbo.data, vertices, sizeof(vertices));
+
+			// We'll write to this buffer in the first pass and read from it in the second one.
+			ph::TypedBufferSlice<ShaderSSBO> ssbo = ifc.allocate_scratch_ssbo<ShaderSSBO>(sizeof(ShaderSSBO));
+
+			ph::Pass write_pass =
+				ph::PassBuilder::create("write")
+				.write_buffer(ssbo, ph::PipelineStage::VertexShader)
+				.execute([&vbo, &ssbo, &ctx](ph::CommandBuffer& cmd_buf) {
+					cmd_buf.bind_pipeline("write");
 					cmd_buf.auto_viewport_scissor();
 
-					// Create typed scratch vertex buffer, upload vertex data to it and bind it
-					ph::TypedBufferSlice<vec4> vbo = ifc.allocate_scratch_vbo<vec4>(sizeof(vertices));
-					std::memcpy(vbo.data, vertices, sizeof(vertices));
-					cmd_buf.bind_vertex_buffer(0, vbo);
-
-					ph::TypedBufferSlice<my_ubo> ubo = ifc.allocate_scratch_ubo<my_ubo>(sizeof(my_ubo));
-					ubo.data->color = vec3(0, 0, 1);
-
 					VkDescriptorSet set = ph::DescriptorBuilder::create(ctx, cmd_buf.get_bound_pipeline())
-						.add_sampled_image("image", ctx.get_attachment("offscreen")->view, ctx.basic_sampler())
-						.add_uniform_buffer("ubo", ubo)
+						.add_storage_buffer("out_buffer", ssbo)
 						.get();
 					cmd_buf.bind_descriptor_set(set);
 
+					// We don't support compute yet, so abusing vertex shaders it is
+					cmd_buf.bind_vertex_buffer(0, vbo);
 					cmd_buf.draw(6, 1, 0, 0);
 				})
 				.get();
-			graph.add_pass(clear_pass);
-			graph.add_pass(copy_pass);
-			// Build it. This needs to happen every frame
+			ph::Pass read_pass =
+				ph::PassBuilder::create("read")
+				.add_attachment(ctx.get_swapchain_attachment_name(), ph::LoadOp::Clear, { .color = {0.0f, 0.0f, 0.0f, 1.0f} })
+				.read_buffer(ssbo, ph::PipelineStage::FragmentShader)
+				.execute([&vbo, &ssbo, &ctx](ph::CommandBuffer& cmd_buf) {
+					cmd_buf.bind_pipeline("read");
+					cmd_buf.auto_viewport_scissor();
+					
+					VkDescriptorSet set = ph::DescriptorBuilder::create(ctx, cmd_buf.get_bound_pipeline())
+						.add_storage_buffer("in_buffer", ssbo)
+						.get();
+					cmd_buf.bind_descriptor_set(set);
+
+					cmd_buf.bind_vertex_buffer(0, vbo);
+					cmd_buf.draw(6, 1, 0, 0);
+				})
+				.get();
+			graph.add_pass(write_pass);
+			graph.add_pass(read_pass);
+
 			graph.build(ctx);
 
 			// Get current command buffer

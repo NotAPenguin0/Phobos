@@ -12,10 +12,29 @@ public:
 private:
 	friend class RenderGraphExecutor;
 
+	enum class BarrierType {
+		Image,
+		Buffer,
+		Memory
+	};
+
+	struct Barrier {
+		union {
+			VkImageMemoryBarrier image;
+			VkBufferMemoryBarrier buffer;
+			VkMemoryBarrier memory;
+		};
+		BarrierType type;
+		plib::bit_flag<PipelineStage> src_stage;
+		plib::bit_flag<PipelineStage> dst_stage;
+	};
+
 	struct BuiltPass {
 		VkRenderPass handle = nullptr;
 		VkFramebuffer framebuf = nullptr;
 		VkExtent2D render_area{};
+		// These barriers will be executed AFTER the renderpass.
+		std::vector<Barrier> barriers;
 	};
 
 	std::vector<Pass> passes;
@@ -31,8 +50,16 @@ private:
 		Pass* pass = nullptr;
 	};
 
-	AttachmentUsage find_previous_usage(Context& ctx, Pass* current_pass, Attachment* attachment);
-	AttachmentUsage find_next_usage(Context& ctx, Pass* current_pass, Attachment* attachment);
+
+	std::pair<ResourceUsage, Pass*> find_previous_usage(Context& ctx, Pass* current_pass, Attachment* attachment);
+	std::pair<ResourceUsage, Pass*> find_next_usage(Context& ctx, Pass* current_pass, Attachment* attachment);
+
+	std::pair<ResourceUsage, Pass*> find_previous_usage(Pass* current_pass, BufferSlice const* buffer);
+	std::pair<ResourceUsage, Pass*> find_next_usage(Pass* current_pass, BufferSlice const* buffer);
+
+	AttachmentUsage get_attachment_usage(std::pair<ResourceUsage, Pass*> const& res_usage);
+
+	void create_pass_barriers(Pass& pass, BuiltPass& result);
 };
 
 class RenderGraphExecutor {

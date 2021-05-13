@@ -41,10 +41,6 @@ void RenderGraph::build(Context& ctx) {
         }
 
         BuiltPass& build = built_passes.emplace_back();
-        // If there are no attachments, we don't need to create a VkRenderPass
-        if (color_attachments.empty() && depth_ref == std::nullopt) {
-            continue;
-        }
 
         // Create subpass description
         VkSubpassDescription subpass{};
@@ -60,10 +56,12 @@ void RenderGraph::build(Context& ctx) {
             if (resource.type != ResourceType::Attachment) continue;
             Attachment* attachment = ctx.get_attachment(resource.attachment.name);
 
-            AttachmentUsage previous_usage = find_previous_usage(ctx, pass, attachment);
-            if (previous_usage.pass == nullptr) { // Not used earlier, no dependency needed
+            auto previous_usage_info = find_previous_usage(ctx, pass, attachment);
+            if (previous_usage_info.second == nullptr) { // Not used earlier, no dependency needed
                 continue;
             }
+
+            AttachmentUsage previous_usage = get_attachment_usage(previous_usage_info);
 
             VkSubpassDependency dependency{};
             dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -79,6 +77,9 @@ void RenderGraph::build(Context& ctx) {
             dependency.srcStageMask = previous_usage.stage;
             dependencies.push_back(dependency);
         }
+
+        // Figure out what barriers to create
+        create_pass_barriers(*pass, build);
 
         // Now that we have the dependencies sorted we need to create the VkRenderPass
         VkRenderPassCreateInfo rpci{};
@@ -105,6 +106,8 @@ void RenderGraph::build(Context& ctx) {
         fbci.pAttachments = attachment_views.data();
         fbci.renderPass = build.handle;
         fbci.layers = 1;
+        fbci.width = 1;
+        fbci.height = 1;
         // Figure out width and height of the framebuffer. For this we need to find the largest size of all attachments.
         for (ResourceUsage const& resource : pass->resources) {
             if (!is_output_attachment(resource)) { continue; }
@@ -146,16 +149,22 @@ static VkImageLayout get_output_layout_for_format(VkFormat format) {
     return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 }
 
+static bool was_used(std::pair<ResourceUsage, Pass*> const& usage) {
+    return usage.second != nullptr;
+}
+
 VkImageLayout RenderGraph::get_initial_layout(Context& ctx, Pass* pass, ResourceUsage const& resource) {
     // We need to find the most recent usage of this attachment as an output attachment and set the initial layout accordingly
   
     if (resource.attachment.load_op == LoadOp::DontCare) return VK_IMAGE_LAYOUT_UNDEFINED;
 
-    AttachmentUsage previous_usage = find_previous_usage(ctx, pass, ctx.get_attachment(resource.attachment.name));
+    auto previous_usage_info = find_previous_usage(ctx, pass, ctx.get_attachment(resource.attachment.name));
     // Not used previously
-    if (previous_usage.pass == nullptr) {
+    if (!was_used(previous_usage_info)) {
         return VK_IMAGE_LAYOUT_UNDEFINED;
     }
+
+    AttachmentUsage previous_usage = get_attachment_usage(previous_usage_info);
 
     // Used as color output attachment previously
     if (previous_usage.access == VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT) {
@@ -185,9 +194,9 @@ VkImageLayout RenderGraph::get_final_layout(Context& ctx, Pass* pass, ResourceUs
     // further renderpasses
 
     Attachment* att = ctx.get_attachment(resource.attachment.name);
-    AttachmentUsage next_usage = find_next_usage(ctx, pass, att);
+    auto next_usage_info = find_next_usage(ctx, pass, att);
 
-    if (next_usage.pass == nullptr) {
+    if (!was_used(next_usage_info)) {
         // In this case, the attachments are not used later. We only need to check if this attachment is a swapchain attachment (in which case its used to present)
         if (ctx.is_swapchain_attachment(resource.attachment.name)) {
             // Case 2
@@ -197,6 +206,8 @@ VkImageLayout RenderGraph::get_final_layout(Context& ctx, Pass* pass, ResourceUs
         // Case 3
         return get_output_layout_for_format(att->view.format);
     }
+
+    AttachmentUsage next_usage = get_attachment_usage(next_usage_info);
 
     if (next_usage.access == VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT) {
         return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -211,17 +222,15 @@ VkImageLayout RenderGraph::get_final_layout(Context& ctx, Pass* pass, ResourceUs
     }
 }
 
-RenderGraph::AttachmentUsage RenderGraph::find_previous_usage(Context& ctx, Pass* current_pass, Attachment* attachment) {
+std::pair<ResourceUsage, Pass*> RenderGraph::find_previous_usage(Context& ctx, Pass* current_pass, Attachment* attachment) {
     // First pass isn't used earlier
     if (current_pass == &passes.front()) {
-        return AttachmentUsage{};
+        return {};
     }
 
     // Go over each earlier pass
     for (Pass* pass = current_pass - 1; pass != &passes.front(); --pass) {
-
         // Look in this pass's resources
-
         auto find_resource = [&ctx, attachment](ph::ResourceUsage const& resource) {
             if (resource.type != ResourceType::Attachment) return false;
             return attachment->view.id == ctx.get_attachment(resource.attachment.name)->view.id;
@@ -229,39 +238,20 @@ RenderGraph::AttachmentUsage RenderGraph::find_previous_usage(Context& ctx, Pass
 
         auto usage = std::find_if(pass->resources.begin(), pass->resources.end(), find_resource);
         if (usage != pass->resources.end()) {
-            // Sampled in a previous pass
-            if (usage->access == ResourceAccess::ShaderRead) {
-                return AttachmentUsage{
-                    .stage = static_cast<VkPipelineStageFlags>(usage->stage.value()),
-                    .access = static_cast<VkAccessFlags>(usage->access),
-                    .pass = pass
-                };
-            }
-            // Used as output attachment in previous pass
-            if (usage->access == ResourceAccess::AttachmentOutput) {
-                VkAccessFlags access = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
-                if (is_depth_format(attachment->view.format)) {
-                    access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-                }
-                return AttachmentUsage{
-                    .stage = static_cast<VkPipelineStageFlags>(usage->stage.value()),
-                    .access = access,
-                    .pass = pass
-                };
-            }
+            return { *usage, pass };
         }
     }
     // Not used in an earlier pass. Return empty AttachmentUsage
-    return AttachmentUsage{};
+    return {};
 }
 
-RenderGraph::AttachmentUsage RenderGraph::find_next_usage(Context& ctx, Pass* current_pass, Attachment* attachment) {
+std::pair<ResourceUsage, Pass*> RenderGraph::find_next_usage(Context& ctx, Pass* current_pass, Attachment* attachment) {
     // Last pass isn't used later
     if (current_pass == &passes.back()) {
-        return AttachmentUsage{};
+        return {};
     }
 
-    // Go over each earlier pass
+    // Go over each later pass
     for (Pass* pass = current_pass + 1; pass <= &passes.back(); ++pass) {
 
         auto find_resource = [&ctx, attachment](ph::ResourceUsage const& resource) {
@@ -271,32 +261,131 @@ RenderGraph::AttachmentUsage RenderGraph::find_next_usage(Context& ctx, Pass* cu
 
         auto usage = std::find_if(pass->resources.begin(), pass->resources.end(), find_resource);
         if (usage != pass->resources.end()) {
-            // Sampled in a later pass
-            if (usage->access == ResourceAccess::ShaderRead) {
-                return AttachmentUsage{
-                    .stage = static_cast<VkPipelineStageFlags>(usage->stage.value()),
-                    .access = static_cast<VkAccessFlags>(usage->access),
-                    .pass = pass
-                };
-            }
-            // Used as output attachment in later pass
-            if (usage->access == ResourceAccess::AttachmentOutput) {
-                VkAccessFlags access = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
-                if (is_depth_format(attachment->view.format)) {
-                    access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-                }
-                return AttachmentUsage{
-                    .stage = static_cast<VkPipelineStageFlags>(usage->stage.value()),
-                    .access = access,
-                    .pass = pass
-                };
-            }
+            return { *usage, pass };
         }
     }
     // Not used in a later pass. Return empty AttachmentUsage
-    return AttachmentUsage{};
+    return {};
 }
 
+std::pair<ResourceUsage, Pass*> RenderGraph::find_previous_usage(Pass* current_pass, BufferSlice const* buffer) {
+    // First pass isn't used earlier
+    if (current_pass == &passes.front()) {
+        return {};
+    }
+
+    // Go over each earlier pass
+    for (Pass* pass = current_pass - 1; pass != &passes.front(); --pass) {
+        // Look in this pass's resources
+        auto find_resource = [buffer](ph::ResourceUsage const& resource) {
+            if (resource.type != ResourceType::Buffer) return false;
+            return *buffer == resource.buffer.slice;
+        };
+
+        auto usage = std::find_if(pass->resources.begin(), pass->resources.end(), find_resource);
+        if (usage != pass->resources.end()) {
+            return { *usage, pass };
+        }
+    }
+    // Not used in an earlier pass. Return empty AttachmentUsage
+    return {};
+}
+
+std::pair<ResourceUsage, Pass*> RenderGraph::find_next_usage(Pass* current_pass, BufferSlice const* buffer) {
+    // Last pass isn't used later
+    if (current_pass == &passes.back()) {
+        return {};
+    }
+
+    // Go over each later pass
+    for (Pass* pass = current_pass + 1; pass <= &passes.back(); ++pass) {
+        // Look in this pass's resources
+        auto find_resource = [buffer](ph::ResourceUsage const& resource) {
+            if (resource.type != ResourceType::Buffer) return false;
+            return *buffer == resource.buffer.slice;
+        };
+
+        auto usage = std::find_if(pass->resources.begin(), pass->resources.end(), find_resource);
+        if (usage != pass->resources.end()) {
+            return { *usage, pass };
+        }
+    }
+    // Not used in a later pass. Return empty AttachmentUsage
+    return {};
+}
+
+RenderGraph::AttachmentUsage RenderGraph::get_attachment_usage(std::pair<ResourceUsage, Pass*> const& res_usage) {
+    auto const& usage = res_usage.first;
+    auto const& pass = res_usage.second;
+    if (usage.access == ResourceAccess::ShaderRead) {
+        return AttachmentUsage{
+            .stage = static_cast<VkPipelineStageFlags>(usage.stage.value()),
+            .access = static_cast<VkAccessFlags>(usage.access),
+            .pass = pass
+        };
+    }
+    if (usage.access == ResourceAccess::AttachmentOutput) {
+        VkAccessFlags access = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        if (is_depth_format(usage.image.view.format)) {
+            access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        }
+        return AttachmentUsage{
+            .stage = static_cast<VkPipelineStageFlags>(usage.stage.value()),
+            .access = access,
+            .pass = pass
+        };
+    }
+    return {};
+}
+
+void RenderGraph::create_pass_barriers(Pass& pass, BuiltPass& result) {
+    // We go over this pass's resources and look for buffers (TODO: and storage images), find their next usage and insert barriers where necessary.
+    // Note that we don't have to look at the previous usage, since there will already be a barrier inserted.
+    for (ResourceUsage const& resource : pass.resources) {
+        // We'll only process buffers for now
+        if (resource.type == ResourceType::Buffer) {
+            ph::BufferSlice const* buffer = &resource.buffer.slice;
+            auto next_usage = find_next_usage(&pass, buffer);
+
+            // No barrier needed if this buffer is never used again
+            if (next_usage.second) { // second is the pass, it will be nullptr when it's not used
+                ph::ResourceUsage const& usage = next_usage.first;
+
+                VkBufferMemoryBarrier barrier{};
+                barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+                barrier.buffer = buffer->buffer;
+                barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier.offset = buffer->offset;
+                barrier.size = buffer->range;
+                barrier.pNext = nullptr;
+                if (resource.access == ResourceAccess::ShaderRead) {
+                    // When reading, we only need a barrier if the next usage is a write
+                    if (usage.access == ResourceAccess::ShaderWrite) {
+                        barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                        barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    }
+                }
+                else if (resource.access == ResourceAccess::ShaderWrite) {
+                    // We always need a barrier when writing
+                    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    if (usage.access == ResourceAccess::ShaderRead) { barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT; }
+                    else { barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT; }
+                }
+
+                // Only actually inser the barrier if we set any values (meaning we need it)
+                if (barrier.srcAccessMask != VkAccessFlags{} && barrier.dstAccessMask != VkAccessFlags{}) {
+                    Barrier final_barrier;
+                    final_barrier.buffer = barrier;
+                    final_barrier.type = BarrierType::Buffer;
+                    final_barrier.src_stage = resource.stage;
+                    final_barrier.dst_stage = usage.stage;
+                    result.barriers.push_back(final_barrier);
+                }
+            }
+        }
+    }
+}
 
 void RenderGraphExecutor::execute(ph::CommandBuffer& cmd_buf, RenderGraph& graph) {
     for (size_t i = 0; i < graph.passes.size(); ++i) { 
@@ -327,6 +416,20 @@ void RenderGraphExecutor::execute(ph::CommandBuffer& cmd_buf, RenderGraph& graph
 		pass.execute(cmd_buf);
         if (build.handle) {
             cmd_buf.end_renderpass();
+            // After the render pass executes we add the barriers
+            for (auto const& barrier : build.barriers) {
+                switch (barrier.type) {
+                case RenderGraph::BarrierType::Buffer:
+                    cmd_buf.barrier(barrier.src_stage, barrier.dst_stage, barrier.buffer);
+                    break;
+                case RenderGraph::BarrierType::Image:
+                    cmd_buf.barrier(barrier.src_stage, barrier.dst_stage, barrier.image);
+                    break;
+                case RenderGraph::BarrierType::Memory:
+                    cmd_buf.barrier(barrier.src_stage, barrier.dst_stage, barrier.memory);
+                    break;
+                }
+            }
         }
 	}
 }

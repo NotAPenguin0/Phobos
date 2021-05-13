@@ -79,6 +79,21 @@ CommandBuffer& CommandBuffer::draw(uint32_t vertex_count, uint32_t instance_coun
 	return *this;
 }
 
+CommandBuffer& CommandBuffer::barrier(plib::bit_flag<ph::PipelineStage> src_stage, plib::bit_flag<ph::PipelineStage> dst_stage, VkBufferMemoryBarrier const& barrier, VkDependencyFlags dependency) {
+	vkCmdPipelineBarrier(cmd_buf, static_cast<VkPipelineStageFlags>(src_stage.value()), static_cast<VkPipelineStageFlags>(dst_stage.value()), dependency, 0, nullptr, 1, &barrier, 0, nullptr);
+	return *this;
+}
+
+CommandBuffer& CommandBuffer::barrier(plib::bit_flag<ph::PipelineStage> src_stage, plib::bit_flag<ph::PipelineStage> dst_stage, VkImageMemoryBarrier const& barrier, VkDependencyFlags dependency) {
+	vkCmdPipelineBarrier(cmd_buf, static_cast<VkPipelineStageFlags>(src_stage.value()), static_cast<VkPipelineStageFlags>(dst_stage.value()), dependency, 0, nullptr, 0, nullptr, 1, &barrier);
+	return *this;
+}
+
+CommandBuffer& CommandBuffer::barrier(plib::bit_flag<ph::PipelineStage> src_stage, plib::bit_flag<ph::PipelineStage> dst_stage, VkMemoryBarrier const& barrier, VkDependencyFlags dependency) {
+	vkCmdPipelineBarrier(cmd_buf, static_cast<VkPipelineStageFlags>(src_stage.value()), static_cast<VkPipelineStageFlags>(dst_stage.value()), dependency, 1, &barrier, 0, nullptr, 0, nullptr);
+	return *this;
+}
+
 VkCommandBuffer CommandBuffer::handle() {
 	return cmd_buf;
 }

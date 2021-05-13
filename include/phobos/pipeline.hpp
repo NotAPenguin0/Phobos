@@ -175,6 +175,10 @@ public:
     DescriptorBuilder& add_uniform_buffer(ShaderMeta::Binding const& binding, BufferSlice buffer);
     DescriptorBuilder& add_uniform_buffer(std::string_view binding, BufferSlice buffer);
 
+    DescriptorBuilder& add_storage_buffer(uint32_t binding, BufferSlice buffer);
+    DescriptorBuilder& add_storage_buffer(ShaderMeta::Binding const& binding, BufferSlice buffer);
+    DescriptorBuilder& add_storage_buffer(std::string_view binding, BufferSlice buffer);
+
     DescriptorBuilder& add_pNext(void* p);
 
     VkDescriptorSet get();

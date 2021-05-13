@@ -117,7 +117,7 @@ namespace ph {
 		for (auto& ssbo : res.storage_buffers) {
 			VkDescriptorSetLayoutBinding binding{};
 			binding.binding = refl.get_decoration(ssbo.id, spv::DecorationBinding);
-			binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 			binding.descriptorCount = 1;
 			binding.stageFlags = stage;
 			dslci.bindings.push_back(binding);
