@@ -12,6 +12,28 @@
 #include <cassert>
 
 namespace ph {
+
+InFlightContext::InFlightContext(ph::CommandBuffer& cmd_buf, ph::ScratchAllocator& vbo, ph::ScratchAllocator& ibo, ph::ScratchAllocator& ubo, ph::ScratchAllocator& ssbo)
+	: command_buffer(cmd_buf), vbo_allocator(vbo), ibo_allocator(ibo), ubo_allocator(ubo), ssbo_allocator(ssbo) {
+
+}
+
+BufferSlice InFlightContext::allocate_scratch_vbo(VkDeviceSize size) {
+	return vbo_allocator.allocate(size);
+}
+
+BufferSlice InFlightContext::allocate_scratch_ibo(VkDeviceSize size) {
+	return ibo_allocator.allocate(size);
+}
+
+BufferSlice InFlightContext::allocate_scratch_ubo(VkDeviceSize size) {
+	return ubo_allocator.allocate(size);
+}
+
+BufferSlice InFlightContext::allocate_scratch_ssbo(VkDeviceSize size) {
+	return ssbo_allocator.allocate(size);
+}
+
 namespace impl {
 
 FrameImpl::FrameImpl(ContextImpl& ctx, AttachmentImpl& attachment_impl, CacheImpl& cache, AppSettings settings) :
@@ -19,23 +41,35 @@ FrameImpl::FrameImpl(ContextImpl& ctx, AttachmentImpl& attachment_impl, CacheImp
 	attachment_impl(&attachment_impl),
 	cache(&cache),
 	in_flight_frames(settings.max_frames_in_flight) {
+}
 
+void FrameImpl::post_init(Context& ctx, AppSettings const& settings) {
 	per_frame = RingBuffer<PerFrame>(max_frames_in_flight());
 	for (size_t i = 0; i < max_frames_in_flight(); ++i) {
 		VkFence fence = nullptr;
 		VkFenceCreateInfo info{};
 		info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 		info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-		vkCreateFence(ctx.device, &info, nullptr, &fence);
+		vkCreateFence(this->ctx->device, &info, nullptr, &fence);
 
 		VkSemaphore semaphore = nullptr;
 		VkSemaphore semaphore2 = nullptr;
 		VkSemaphoreCreateInfo sem_info{};
 		sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		vkCreateSemaphore(ctx.device, &sem_info, nullptr, &semaphore);
-		vkCreateSemaphore(ctx.device, &sem_info, nullptr, &semaphore2);
+		vkCreateSemaphore(this->ctx->device, &sem_info, nullptr, &semaphore);
+		vkCreateSemaphore(this->ctx->device, &sem_info, nullptr, &semaphore2);
 
-		per_frame.set(i, PerFrame{ .fence = fence, .gpu_finished = semaphore, .image_ready = semaphore2 });
+		constexpr uint32_t vbo_alignment = 16;
+		constexpr uint32_t ibo_alignment = 16;
+		uint32_t const ubo_alignment = this->ctx->phys_device.properties.limits.minUniformBufferOffsetAlignment;
+		uint32_t const ssbo_alignment = this->ctx->phys_device.properties.limits.minStorageBufferOffsetAlignment;
+		per_frame.set(i, PerFrame{ .fence = fence, .gpu_finished = semaphore, .image_ready = semaphore2, 
+			.cmd_buf = ctx.get_queue(QueueType::Graphics)->create_command_buffer(),
+			.vbo_allocator = ScratchAllocator(&ctx, settings.scratch_vbo_size, vbo_alignment, BufferType::VertexBufferDynamic),
+			.ibo_allocator = ScratchAllocator(&ctx, settings.scratch_ibo_size, ibo_alignment, BufferType::IndexBufferDynamic),
+			.ubo_allocator = ScratchAllocator(&ctx, settings.scratch_ubo_size, ubo_alignment, BufferType::MappedUniformBuffer),
+			.ssbo_allocator = ScratchAllocator(&ctx, settings.scratch_ssbo_size, ssbo_alignment, BufferType::StorageBufferDynamic)
+		});
 	}
 }
 
@@ -51,7 +85,7 @@ uint32_t FrameImpl::max_frames_in_flight() const {
 	return in_flight_frames;
 }
 
-void FrameImpl::wait_for_frame() {
+[[nodiscard]] InFlightContext FrameImpl::wait_for_frame() {
 	// Wait for an available frame context
 	PerFrame& frame_data = per_frame.current();
 	vkWaitForFences(ctx->device, 1, &frame_data.fence, true, std::numeric_limits<uint64_t>::max());
@@ -69,6 +103,13 @@ void FrameImpl::wait_for_frame() {
 
 	// Once we have a frame we need to update where the swapchain attachment in our attachments list is pointing to
 	attachment_impl->update_swapchain_attachment(ctx->swapchain->per_image[ctx->swapchain->image_index].view);
+
+	// Reset scratch allocators and return InFlightContext for this frame
+	frame_data.vbo_allocator.reset();
+	frame_data.ibo_allocator.reset();
+	frame_data.ubo_allocator.reset();
+	frame_data.ssbo_allocator.reset();
+	return InFlightContext(frame_data.cmd_buf, frame_data.vbo_allocator, frame_data.ibo_allocator, frame_data.ubo_allocator, frame_data.ssbo_allocator);
 }
 
 void FrameImpl::submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf) {

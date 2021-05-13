@@ -4,6 +4,7 @@
 #include <string_view>
 
 #include <phobos/pipeline.hpp>
+#include <phobos/buffer.hpp>
 
 namespace ph {
 
@@ -23,6 +24,9 @@ public:
 	Pipeline const& get_bound_pipeline() const;
 	CommandBuffer& bind_pipeline(std::string_view name);
 	CommandBuffer& bind_descriptor_set(VkDescriptorSet set);
+
+	CommandBuffer& bind_vertex_buffer(uint32_t first_binding, VkBuffer buffer, VkDeviceSize offset);
+	CommandBuffer& bind_vertex_buffer(uint32_t first_binding, BufferSlice slice);
 
 	// Sets viewport and scissor regions to the current framebuffer size.
 	// Only valid if viewport and scissor are dynamic states of the current pipeline

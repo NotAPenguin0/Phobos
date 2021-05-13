@@ -91,7 +91,7 @@ void RenderGraph::build(Context& ctx) {
         rpci.pSubpasses = &subpass;
         rpci.pNext = nullptr;
 
-        build.handle = ctx.get_or_create_renderpass(rpci);
+        build.handle = ctx.get_or_create(rpci, "[Renderpass] " + pass->name);
 
         // Step 2: Create VkFramebuffer for this renderpass
         VkFramebufferCreateInfo fbci{};
@@ -113,7 +113,7 @@ void RenderGraph::build(Context& ctx) {
             fbci.height = std::max(attachment->view.size.height, fbci.height);
         }
         build.render_area = VkExtent2D{ .width = fbci.width, .height = fbci.height };
-        build.framebuf = ctx.get_or_create_framebuffer(fbci);
+        build.framebuf = ctx.get_or_create(fbci, "[Framebuffer] " + pass->name);
 	}
 }
 

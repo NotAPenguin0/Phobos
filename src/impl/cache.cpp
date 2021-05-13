@@ -10,7 +10,7 @@
 namespace ph {
 namespace impl {
 
-CacheImpl::CacheImpl(ContextImpl& ctx, AppSettings const& settings) : ctx(&ctx) {
+CacheImpl::CacheImpl(Context& ctx, AppSettings const& settings) : ctx(&ctx) {
 	VkDescriptorPoolCreateInfo dpci{};
 	dpci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	dpci.flags = {};
@@ -24,7 +24,7 @@ CacheImpl::CacheImpl(ContextImpl& ctx, AppSettings const& settings) : ctx(&ctx) 
 	dpci.maxSets = sets_per_type * sizeof(pool_sizes) / sizeof(VkDescriptorPoolSize);
 	dpci.poolSizeCount = sizeof(pool_sizes) / sizeof(VkDescriptorPoolSize);
 	dpci.pPoolSizes = pool_sizes;
-	vkCreateDescriptorPool(ctx.device, &dpci, nullptr, &descr_pool);
+	vkCreateDescriptorPool(ctx.device(), &dpci, nullptr, &descr_pool);
 
 	descriptor_set = RingBuffer<Cache<DescriptorSetBinding, VkDescriptorSet>>{ settings.max_frames_in_flight };
 }
@@ -32,44 +32,46 @@ CacheImpl::CacheImpl(ContextImpl& ctx, AppSettings const& settings) : ctx(&ctx) 
 CacheImpl::~CacheImpl() {
 	// Clear out all caches
 	framebuffer.foreach([this](VkFramebuffer framebuf) {
-		vkDestroyFramebuffer(ctx->device, framebuf, nullptr);
+		vkDestroyFramebuffer(ctx->device(), framebuf, nullptr);
 	});
 	renderpass.foreach([this](VkRenderPass pass) {
-		vkDestroyRenderPass(ctx->device, pass, nullptr);
+		vkDestroyRenderPass(ctx->device(), pass, nullptr);
 	});
 	set_layout.foreach([this](VkDescriptorSetLayout set_layout) {
-		vkDestroyDescriptorSetLayout(ctx->device, set_layout, nullptr);
+		vkDestroyDescriptorSetLayout(ctx->device(), set_layout, nullptr);
 	});
 	pipeline_layout.foreach([this](ph::PipelineLayout ppl_layout) {
-		vkDestroyPipelineLayout(ctx->device, ppl_layout.handle, nullptr);
+		vkDestroyPipelineLayout(ctx->device(), ppl_layout.handle, nullptr);
 	});
 	pipeline.foreach([this](ph::Pipeline pipeline) {
-		vkDestroyPipeline(ctx->device, pipeline.handle, nullptr);
+		vkDestroyPipeline(ctx->device(), pipeline.handle, nullptr);
 	});
-	vkDestroyDescriptorPool(ctx->device, descr_pool, nullptr);
+	vkDestroyDescriptorPool(ctx->device(), descr_pool, nullptr);
 }
 
-VkFramebuffer CacheImpl::get_or_create_framebuffer(VkFramebufferCreateInfo const& info) {
+VkFramebuffer CacheImpl::get_or_create_framebuffer(VkFramebufferCreateInfo const& info, std::string const& name) {
 	{
 		VkFramebuffer* framebuf = framebuffer.get(info);
 		if (framebuf) { return *framebuf; }
 	}
 
 	VkFramebuffer framebuf = nullptr;
-	vkCreateFramebuffer(ctx->device, &info, nullptr, &framebuf);
+	vkCreateFramebuffer(ctx->device(), &info, nullptr, &framebuf);
 	framebuffer.insert(info, framebuf);
+	ctx->name_object(framebuf, name);
 	return framebuf;
 }
 
-VkRenderPass CacheImpl::get_or_create_renderpass(VkRenderPassCreateInfo const& info) {
+VkRenderPass CacheImpl::get_or_create_renderpass(VkRenderPassCreateInfo const& info, std::string const& name) {
 	{
 		VkRenderPass* pass = renderpass.get(info);
 		if (pass) { return *pass; }
 	}
 
 	VkRenderPass pass = nullptr;
-	vkCreateRenderPass(ctx->device, &info, nullptr, &pass);
+	vkCreateRenderPass(ctx->device(), &info, nullptr, &pass);
 	renderpass.insert(info, pass);
+	ctx->name_object(pass, name);
 	return pass;
 }
 
@@ -90,7 +92,7 @@ VkDescriptorSetLayout CacheImpl::get_or_create_descriptor_set_layout(DescriptorS
 			set_layout_info.pNext = &flags_info;
 		}
 		VkDescriptorSetLayout set_layout = nullptr;
-		vkCreateDescriptorSetLayout(ctx->device, &set_layout_info, nullptr, &set_layout);
+		vkCreateDescriptorSetLayout(ctx->device(), &set_layout_info, nullptr, &set_layout);
 		// Store for further use when creating the pipeline layout
 		this->set_layout.insert(dslci, set_layout);
 		return set_layout;
@@ -115,7 +117,7 @@ PipelineLayout CacheImpl::get_or_create_pipeline_layout(PipelineLayoutCreateInfo
 			.pPushConstantRanges = plci.push_constants.data(),
 		};
 		VkPipelineLayout vk_layout = nullptr;
-		vkCreatePipelineLayout(ctx->device, &layout_create_info, nullptr, &vk_layout);
+		vkCreatePipelineLayout(ctx->device(), &layout_create_info, nullptr, &vk_layout);
 		PipelineLayout layout;
 		layout.handle = vk_layout;
 		layout.set_layout = set_layout;
@@ -128,14 +130,14 @@ PipelineLayout CacheImpl::get_or_create_pipeline_layout(PipelineLayoutCreateInfo
 }
 
 
-static VkShaderModule create_shader_module(impl::ContextImpl& ctx, ph::ShaderModuleCreateInfo const& info) {
+static VkShaderModule create_shader_module(VkDevice device, ph::ShaderModuleCreateInfo const& info) {
 	VkShaderModuleCreateInfo vk_info{};
 	vk_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	constexpr size_t bytes_per_spv_element = 4;
 	vk_info.codeSize = info.code.size() * bytes_per_spv_element;
 	vk_info.pCode = info.code.data();
 	VkShaderModule module = nullptr;
-	vkCreateShaderModule(ctx.device, &vk_info, nullptr, &module);
+	vkCreateShaderModule(device, &vk_info, nullptr, &module);
 	return module;
 }
 
@@ -213,7 +215,7 @@ Pipeline CacheImpl::get_or_create_pipeline(ph::PipelineCreateInfo& pci, VkRender
 			.pNext = nullptr,
 			.flags = {},
 			.stage = stage,
-			.module = create_shader_module(*ctx, *shader_info),
+			.module = create_shader_module(ctx->device(), *shader_info),
 			.pName = shader_info->entry_point.c_str(),
 			.pSpecializationInfo = nullptr
 		};
@@ -223,14 +225,16 @@ Pipeline CacheImpl::get_or_create_pipeline(ph::PipelineCreateInfo& pci, VkRender
 	gpci.pStages = shader_infos.data();
 
 	Pipeline pipeline;
-	vkCreateGraphicsPipelines(ctx->device, nullptr, 1, &gpci, nullptr, &pipeline.handle);
+	vkCreateGraphicsPipelines(ctx->device(), nullptr, 1, &gpci, nullptr, &pipeline.handle);
 	pipeline.name = pci.name;
 	pipeline.layout = layout;
 	pipeline.type = PipelineType::Graphics;
 
-	// Delete the creates shader modules. We might want to cache these
+	ctx->name_object(pipeline, "[Gfx Pipeline] " + pci.name);
+
+	// Delete the creates shader modules. We might want to cache these (TODO)
 	for (auto& ssci : shader_infos) {
-		vkDestroyShaderModule(ctx->device, ssci.module, nullptr);
+		vkDestroyShaderModule(ctx->device(), ssci.module, nullptr);
 	}
 
 	this->pipeline.insert(pci, pipeline);
@@ -255,7 +259,7 @@ VkDescriptorSet CacheImpl::get_or_create_descriptor_set(DescriptorSetBinding set
 	alloc_info.pNext = pNext;
 
 	VkDescriptorSet set = nullptr;
-	vkAllocateDescriptorSets(ctx->device, &alloc_info, &set);
+	vkAllocateDescriptorSets(ctx->device(), &alloc_info, &set);
 
 	// Now we have the set we need to write the requested data to it
 	std::vector<VkWriteDescriptorSet> writes;
@@ -322,7 +326,7 @@ VkDescriptorSet CacheImpl::get_or_create_descriptor_set(DescriptorSetBinding set
 		}
 	}
 
-	vkUpdateDescriptorSets(ctx->device, writes.size(), writes.data(), 0, nullptr);
+	vkUpdateDescriptorSets(ctx->device(), writes.size(), writes.data(), 0, nullptr);
 	this->descriptor_set.current().insert(set_binding, set);
 	return set;
 }

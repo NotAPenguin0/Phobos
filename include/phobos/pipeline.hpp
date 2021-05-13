@@ -7,6 +7,7 @@
 
 #include <phobos/shader.hpp>
 #include <phobos/image.hpp>
+#include <phobos/buffer.hpp>
 
 namespace ph {
 
@@ -169,6 +170,11 @@ public:
     DescriptorBuilder& add_sampled_image(uint32_t binding, ImageView view, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     DescriptorBuilder& add_sampled_image(ShaderMeta::Binding const& binding, ImageView view, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     DescriptorBuilder& add_sampled_image(std::string_view binding, ImageView view, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    DescriptorBuilder& add_uniform_buffer(uint32_t binding, BufferSlice buffer);
+    DescriptorBuilder& add_uniform_buffer(ShaderMeta::Binding const& binding, BufferSlice buffer);
+    DescriptorBuilder& add_uniform_buffer(std::string_view binding, BufferSlice buffer);
+
     DescriptorBuilder& add_pNext(void* p);
 
     VkDescriptorSet get();
@@ -183,8 +189,8 @@ class PipelineBuilder {
 public:
     static PipelineBuilder create(Context& ctx, std::string_view name);
 
-    // Note that vertex attributes must be added in order.
-    PipelineBuilder& add_vertex_input(uint32_t binding, VkVertexInputRate input_rate);
+    // Note that vertex attributes must be added in order. add_vertex_input() must be called before adding any attributes
+    PipelineBuilder& add_vertex_input(uint32_t binding, VkVertexInputRate input_rate = VK_VERTEX_INPUT_RATE_VERTEX);
     PipelineBuilder& add_vertex_attribute(uint32_t binding, uint32_t location, VkFormat format);
     PipelineBuilder& add_shader(std::string_view path, std::string_view entry, PipelineStage stage);
     PipelineBuilder& add_shader(ShaderHandle shader);

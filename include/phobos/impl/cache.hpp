@@ -7,11 +7,11 @@ namespace impl {
 
 class CacheImpl {
 public:
-	CacheImpl(ContextImpl& ctx, AppSettings const& settings);
+	CacheImpl(Context& ctx, AppSettings const& settings);
 	~CacheImpl();
 
-	VkFramebuffer get_or_create_framebuffer(VkFramebufferCreateInfo const& info);
-	VkRenderPass get_or_create_renderpass(VkRenderPassCreateInfo const& info);
+	VkFramebuffer get_or_create_framebuffer(VkFramebufferCreateInfo const& info, std::string const& name = "");
+	VkRenderPass get_or_create_renderpass(VkRenderPassCreateInfo const& info, std::string const& name = "");
 	VkDescriptorSetLayout get_or_create_descriptor_set_layout(DescriptorSetLayoutCreateInfo const& dslci);
 	PipelineLayout get_or_create_pipeline_layout(PipelineLayoutCreateInfo const& plci, VkDescriptorSetLayout set_layout);
 	Pipeline get_or_create_pipeline(ph::PipelineCreateInfo& pci, VkRenderPass render_pass);
@@ -32,7 +32,7 @@ public:
 	VkDescriptorPool descr_pool = nullptr;
 private:
 
-	ContextImpl* ctx;
+	Context* ctx;
 };
 
 }

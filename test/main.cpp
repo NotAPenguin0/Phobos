@@ -84,6 +84,28 @@ public:
 	}
 };
 
+// We make this a struct to demonstrate typed buffers
+struct vec4 {
+	float x, y, z, w;
+};
+
+struct vec3 {
+	float x, y, z;
+};
+
+vec4 vertices[] = { 
+	vec4(-1.0, 1.0, 0.0, 1.0),
+	vec4(-1.0, -1.0, 0.0, 0.0),
+	vec4(1.0, -1.0, 1.0, 0.0),
+	vec4(-1.0, 1.0, 0, 1.0),
+	vec4(1.0, -1.0, 1.0, 0.0),
+	vec4(1.0, 1.0, 1.0, 1.0)
+};
+
+struct my_ubo {
+	vec3 color;
+};
+
 int main() {
 	glfwInit();
 
@@ -118,10 +140,6 @@ int main() {
 	{
 		ph::Context ctx(config);
 		ph::Queue& graphics = *ctx.get_queue(ph::QueueType::Graphics);
-		ph::RingBuffer<ph::CommandBuffer> frame_commands = ph::RingBuffer<ph::CommandBuffer>(ctx.max_frames_in_flight());
-		for (size_t i = 0; i < frame_commands.size(); ++i) {
-			frame_commands.set(i, graphics.create_command_buffer());
-		}
 
 		// Create our offscreen attachment
 		ctx.create_attachment("offscreen", VkExtent2D{ 500, 500 }, VK_FORMAT_R8G8B8A8_SRGB);
@@ -131,6 +149,9 @@ int main() {
 			ph::PipelineBuilder::create(ctx, "copy")
 			.add_shader("data/shaders/blit.vert.spv", "main", ph::PipelineStage::VertexShader)
 			.add_shader("data/shaders/blit.frag.spv", "main", ph::PipelineStage::FragmentShader)
+			.add_vertex_input(0)
+			.add_vertex_attribute(0, 0, VK_FORMAT_R32G32_SFLOAT)
+			.add_vertex_attribute(0, 1, VK_FORMAT_R32G32_SFLOAT)
 			.add_dynamic_state(VK_DYNAMIC_STATE_VIEWPORT)
 			.add_dynamic_state(VK_DYNAMIC_STATE_SCISSOR)
 			.add_blend_attachment()
@@ -143,7 +164,7 @@ int main() {
 
 		while (wsi->is_open()) {
 			wsi->poll_events();
-			ctx.wait_for_frame();
+			ph::InFlightContext ifc = ctx.wait_for_frame();
 
 			// Create render graph. You don't need to do this every frame
 			ph::RenderGraph graph{};
@@ -155,16 +176,27 @@ int main() {
 				})
 				.get();
 			ph::Pass copy_pass =
-				ph::PassBuilder::create("simple_copy")
+				ph::PassBuilder::create("quad")
 				.add_attachment(ctx.get_swapchain_attachment_name(), ph::LoadOp::Clear, { .color = {0.0f, 0.0f, 0.0f, 1.0f} })
 				.sample_attachment("offscreen", ph::PipelineStage::FragmentShader)
-				.execute([&ctx](ph::CommandBuffer& cmd_buf) {
+				.execute([&ctx, &ifc](ph::CommandBuffer& cmd_buf) {
 					cmd_buf.bind_pipeline("copy");
 					cmd_buf.auto_viewport_scissor();
+
+					// Create typed scratch vertex buffer, upload vertex data to it and bind it
+					ph::TypedBufferSlice<vec4> vbo = ifc.allocate_scratch_vbo<vec4>(sizeof(vertices));
+					std::memcpy(vbo.data, vertices, sizeof(vertices));
+					cmd_buf.bind_vertex_buffer(0, vbo);
+
+					ph::TypedBufferSlice<my_ubo> ubo = ifc.allocate_scratch_ubo<my_ubo>(sizeof(my_ubo));
+					ubo.data->color = vec3(0, 0, 1);
+
 					VkDescriptorSet set = ph::DescriptorBuilder::create(ctx, cmd_buf.get_bound_pipeline())
 						.add_sampled_image("image", ctx.get_attachment("offscreen")->view, ctx.basic_sampler())
+						.add_uniform_buffer("ubo", ubo)
 						.get();
 					cmd_buf.bind_descriptor_set(set);
+
 					cmd_buf.draw(6, 1, 0, 0);
 				})
 				.get();
@@ -174,7 +206,7 @@ int main() {
 			graph.build(ctx);
 
 			// Get current command buffer
-			ph::CommandBuffer& commands = frame_commands.current();
+			ph::CommandBuffer& commands = ifc.command_buffer;
 			// Start recording
 			commands.begin();
 			// Send commands to executor.
@@ -184,8 +216,6 @@ int main() {
 			commands.end();
 			ctx.submit_frame_commands(graphics, commands);
 			ctx.present(*ctx.get_present_queue());
-
-			frame_commands.next();
 		}
 	}
 	delete wsi;

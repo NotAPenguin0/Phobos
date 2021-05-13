@@ -11,6 +11,7 @@
 #include <phobos/pipeline.hpp>
 #include <phobos/shader.hpp>
 #include <phobos/buffer.hpp>
+#include <phobos/scratch_allocator.hpp>
 
 #include <vulkan/vulkan.h>
 #include "vk_mem_alloc.h"
@@ -74,6 +75,14 @@ struct AppSettings {
 	uint32_t max_frames_in_flight = 2;
 	// Maximum size of an unbounded sampler array
 	uint32_t max_unbounded_array_size = 4096;
+	// Size of VBO scratch allocators. Defaults to 64 KiB.
+	VkDeviceSize scratch_vbo_size = 64 * 1024;
+	// Size of IBO scratch allocator. Defaults to 64 KiB.
+	VkDeviceSize scratch_ibo_size = 64 * 1024;
+	// Size of UBO scratch allocator. Defaults to 128 KiB.
+	VkDeviceSize scratch_ubo_size = 128 * 1024;
+	// Size of SSBO scratch allocator. Defaults to 1 MiB.
+	VkDeviceSize scratch_ssbo_size = 1024 * 1024;
 };
 
 struct SurfaceInfo {
@@ -114,6 +123,47 @@ struct PerThreadContext {
 
 };
 
+// This struct represents one in-flight frame. It holds a command buffer you may use to record commands for this frame. It will also provide an interface for allocating scratch buffers.
+struct InFlightContext {
+	InFlightContext(ph::CommandBuffer& cmd_buf, ph::ScratchAllocator& vbo, ph::ScratchAllocator& ibo, ph::ScratchAllocator& ubo, ph::ScratchAllocator& ssbo);
+
+	// Size in bytes
+	BufferSlice allocate_scratch_vbo(VkDeviceSize size);
+	// Size in bytes
+	template<typename T>
+	TypedBufferSlice<T> allocate_scratch_vbo(VkDeviceSize size) {
+		return TypedBufferSlice<T>(vbo_allocator.allocate(size));
+	}
+
+	BufferSlice allocate_scratch_ibo(VkDeviceSize size);
+
+	template<typename T>
+	TypedBufferSlice<T> allocate_scratch_ibo(VkDeviceSize size) {
+		return TypedBufferSlice<T>(ibo_allocator.allocate(size));
+	}
+
+	BufferSlice allocate_scratch_ubo(VkDeviceSize size);
+
+	template<typename T>
+	TypedBufferSlice<T> allocate_scratch_ubo(VkDeviceSize size) {
+		return TypedBufferSlice<T>(ubo_allocator.allocate(size));
+	}
+
+	BufferSlice allocate_scratch_ssbo(VkDeviceSize size);
+
+	template<typename T>
+	TypedBufferSlice<T> allocate_scratch_ssbo(VkDeviceSize size) {
+		return TypedBufferSlice<T>(ssbo_allocator.allocate(size));
+	}
+
+	ph::CommandBuffer& command_buffer;
+private:
+	ph::ScratchAllocator& vbo_allocator;
+	ph::ScratchAllocator& ibo_allocator;
+	ph::ScratchAllocator& ubo_allocator;
+	ph::ScratchAllocator& ssbo_allocator;
+};
+
 namespace impl {
 	// Responsible for initialization and destruction and core context management.
 	class ContextImpl;
@@ -144,8 +194,13 @@ public:
 	// Gets the pointer to the first present-capable queue.
 	Queue* get_present_queue();
 
+	// Sets object name. This will only be executed when validation is enabled.
+	void name_object(ph::Pipeline const& pipeline, std::string const& name);
+	void name_object(VkRenderPass pass, std::string const& name);
+	void name_object(VkFramebuffer framebuf, std::string const& name);
+
 	size_t max_frames_in_flight() const;
-	void wait_for_frame();
+	[[nodiscard]] InFlightContext wait_for_frame();
 	void submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf);
 	void present(Queue& queue);
 
@@ -201,15 +256,16 @@ private:
 	friend class CommandBuffer;
 	friend class RenderGraph;
 	friend class DescriptorBuilder;
+	friend class impl::CacheImpl;
 
 	VkDevice device();
 
-	VkFramebuffer get_or_create_framebuffer(VkFramebufferCreateInfo const& info);
-	VkRenderPass get_or_create_renderpass(VkRenderPassCreateInfo const& info);
-	VkDescriptorSetLayout get_or_create_descriptor_set_layout(DescriptorSetLayoutCreateInfo const& dslci);
-	PipelineLayout get_or_create_pipeline_layout(PipelineLayoutCreateInfo const& plci, VkDescriptorSetLayout set_layout);
-	Pipeline get_or_create_pipeline(std::string_view name, VkRenderPass render_pass);
-	VkDescriptorSet get_or_create_descriptor_set(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext = nullptr);
+	VkFramebuffer get_or_create(VkFramebufferCreateInfo const& info, std::string const& name = "");
+	VkRenderPass get_or_create(VkRenderPassCreateInfo const& info, std::string const& name = "");
+	VkDescriptorSetLayout get_or_create(DescriptorSetLayoutCreateInfo const& dslci);
+	PipelineLayout get_or_create(PipelineLayoutCreateInfo const& plci, VkDescriptorSetLayout set_layout);
+	Pipeline get_or_create(std::string_view name, VkRenderPass render_pass);
+	VkDescriptorSet get_or_create(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext = nullptr);
 };
 
 }

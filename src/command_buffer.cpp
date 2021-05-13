@@ -1,6 +1,8 @@
 #include <phobos/command_buffer.hpp>
 #include <phobos/context.hpp>
 
+#include <cassert>
+
 namespace ph {
 
 CommandBuffer::CommandBuffer(Context& context, VkCommandBuffer&& cmd_buf) : ctx(&context), cmd_buf(cmd_buf) {
@@ -38,7 +40,7 @@ Pipeline const& CommandBuffer::get_bound_pipeline() const {
 }
 
 CommandBuffer& CommandBuffer::bind_pipeline(std::string_view name) {
-	Pipeline pipeline = ctx->get_or_create_pipeline(name, cur_renderpass);
+	Pipeline pipeline = ctx->get_or_create(name, cur_renderpass);
 	vkCmdBindPipeline(cmd_buf, static_cast<VkPipelineBindPoint>(pipeline.type), pipeline.handle);
 	cur_pipeline = pipeline;
 	return *this;
@@ -47,6 +49,16 @@ CommandBuffer& CommandBuffer::bind_pipeline(std::string_view name) {
 CommandBuffer& CommandBuffer::bind_descriptor_set(VkDescriptorSet set) {
 	vkCmdBindDescriptorSets(cmd_buf, static_cast<VkPipelineBindPoint>(cur_pipeline.type), cur_pipeline.layout.handle, 0, 1, &set, 0, nullptr);
 	return *this;
+}
+
+CommandBuffer& CommandBuffer::bind_vertex_buffer(uint32_t first_binding, VkBuffer buffer, VkDeviceSize offset) {
+	assert(cur_renderpass && "bind_vertex_buffer called without an active renderpass");
+	vkCmdBindVertexBuffers(cmd_buf, first_binding, 1, &buffer, &offset);
+	return *this;
+}
+
+CommandBuffer& CommandBuffer::bind_vertex_buffer(uint32_t first_binding, BufferSlice slice) {
+	return bind_vertex_buffer(first_binding, slice.buffer, slice.offset);
 }
 
 CommandBuffer& CommandBuffer::auto_viewport_scissor() {

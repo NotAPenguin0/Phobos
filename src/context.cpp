@@ -17,12 +17,13 @@ Context::Context(AppSettings settings) {
 	context_impl = std::make_unique<impl::ContextImpl>(settings);
 	image_impl = std::make_unique<impl::ImageImpl>(*context_impl);
 	buffer_impl = std::make_unique<impl::BufferImpl>(*context_impl);
-	cache_impl = std::make_unique<impl::CacheImpl>(*context_impl, settings);
+	cache_impl = std::make_unique<impl::CacheImpl>(*this, settings);
 	attachment_impl = std::make_unique<impl::AttachmentImpl>(*context_impl, *image_impl);
 	if (!is_headless()) {
 		frame_impl = std::make_unique<impl::FrameImpl>(*context_impl, *attachment_impl, *cache_impl, settings);
 	}
 	context_impl->post_init(*this, *image_impl, settings);
+	frame_impl->post_init(*this, settings);
 	pipeline_impl = std::make_unique<impl::PipelineImpl>(*context_impl, *cache_impl);
 }
 
@@ -54,14 +55,26 @@ Queue* Context::get_present_queue() {
 	return context_impl->get_present_queue();
 }
 
+void Context::name_object(ph::Pipeline const& pipeline, std::string const& name) {
+	context_impl->name_object(pipeline, name);
+}
+
+void Context::name_object(VkRenderPass pass, std::string const& name) {
+	context_impl->name_object(pass, name);
+}
+
+void Context::name_object(VkFramebuffer framebuf, std::string const& name) {
+	context_impl->name_object(framebuf, name);
+}
+
 // FRAME
 
 size_t Context::max_frames_in_flight() const {
 	return frame_impl->max_frames_in_flight();
 }
 
-void Context::wait_for_frame() {
-	frame_impl->wait_for_frame();
+[[nodiscard]] InFlightContext Context::wait_for_frame() {
+	return frame_impl->wait_for_frame();
 }
 
 void Context::submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf) {
@@ -167,27 +180,27 @@ bool Context::ensure_buffer_size(RawBuffer& buf, VkDeviceSize requested_size) {
 
 // CACHING
 
-VkFramebuffer Context::get_or_create_framebuffer(VkFramebufferCreateInfo const& info) {
-	return cache_impl->get_or_create_framebuffer(info);
+VkFramebuffer Context::get_or_create(VkFramebufferCreateInfo const& info, std::string const& name) {
+	return cache_impl->get_or_create_framebuffer(info, name);
 }
 
-VkRenderPass Context::get_or_create_renderpass(VkRenderPassCreateInfo const& info) {
-	return cache_impl->get_or_create_renderpass(info);
+VkRenderPass Context::get_or_create(VkRenderPassCreateInfo const& info, std::string const& name) {
+	return cache_impl->get_or_create_renderpass(info, name);
 }
 
-VkDescriptorSetLayout Context::get_or_create_descriptor_set_layout(DescriptorSetLayoutCreateInfo const& dslci) {
+VkDescriptorSetLayout Context::get_or_create(DescriptorSetLayoutCreateInfo const& dslci) {
 	return cache_impl->get_or_create_descriptor_set_layout(dslci);
 }
 
-PipelineLayout Context::get_or_create_pipeline_layout(PipelineLayoutCreateInfo const& plci, VkDescriptorSetLayout set_layout) {
+PipelineLayout Context::get_or_create(PipelineLayoutCreateInfo const& plci, VkDescriptorSetLayout set_layout) {
 	return cache_impl->get_or_create_pipeline_layout(plci, set_layout);
 }
 
-Pipeline Context::get_or_create_pipeline(std::string_view name, VkRenderPass render_pass) {
+Pipeline Context::get_or_create(std::string_view name, VkRenderPass render_pass) {
 	return cache_impl->get_or_create_pipeline(pipeline_impl->get_pipeline(name), render_pass);
 }
 
-VkDescriptorSet Context::get_or_create_descriptor_set(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext) {
+VkDescriptorSet Context::get_or_create(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext) {
 	return cache_impl->get_or_create_descriptor_set(set_binding, pipeline, pNext);
 }
 

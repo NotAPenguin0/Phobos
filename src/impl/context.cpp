@@ -283,6 +283,9 @@ ContextImpl::ContextImpl(AppSettings settings)
 		info.vulkanApiVersion = VK_API_VERSION_1_2;
 		vmaCreateAllocator(&info, &allocator);
 	}
+
+	// Grab debug utils naming function
+	set_debug_utils_name_fun = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetDeviceProcAddr(device, "vkSetDebugUtilsObjectNameEXT"));
 }
 
 void ContextImpl::post_init(Context& ctx, ImageImpl& image_impl, AppSettings const& settings) {
@@ -414,6 +417,34 @@ Queue* ContextImpl::get_present_queue() {
 void ContextImpl::next_frame() {
 	for (Queue& queue : queues) {
 		queue.next_frame();
+	}
+}
+
+template<typename VkT>
+static void name_object_impl(VkT const handle, VkObjectType type, std::string const& name, VkDevice device, PFN_vkSetDebugUtilsObjectNameEXT fun) {
+	VkDebugUtilsObjectNameInfoEXT info{};
+	info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+	info.objectType = type;
+	info.objectHandle = reinterpret_cast<uint64_t>(handle);
+	info.pObjectName = name.c_str();
+	fun(device, &info);
+}
+
+void ContextImpl::name_object(ph::Pipeline const& pipeline, std::string const& name) {
+	if (validation_enabled() && !name.empty()) {
+		name_object_impl(pipeline.handle, VK_OBJECT_TYPE_PIPELINE, name, device, set_debug_utils_name_fun);
+	}
+}
+
+void ContextImpl::name_object(VkRenderPass pass, std::string const& name) {
+	if (validation_enabled() && !name.empty()) {
+		name_object_impl(pass, VK_OBJECT_TYPE_RENDER_PASS, name, device, set_debug_utils_name_fun);
+	}
+}
+
+void ContextImpl::name_object(VkFramebuffer framebuf, std::string const& name) {
+	if (validation_enabled() && !name.empty()) {
+		name_object_impl(framebuf, VK_OBJECT_TYPE_FRAMEBUFFER, name, device, set_debug_utils_name_fun);
 	}
 }
 
