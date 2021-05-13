@@ -30,7 +30,7 @@ PassBuilder& PassBuilder::sample_attachment(std::string_view name, plib::bit_fla
 	return *this;
 }
 
-PassBuilder& PassBuilder::read_buffer(BufferSlice slice, plib::bit_flag<PipelineStage> stage) {
+PassBuilder& PassBuilder::shader_read_buffer(BufferSlice slice, plib::bit_flag<PipelineStage> stage) {
 	ResourceUsage usage{};
 	usage.type = ResourceType::Buffer;
 	usage.access = ResourceAccess::ShaderRead;
@@ -40,7 +40,7 @@ PassBuilder& PassBuilder::read_buffer(BufferSlice slice, plib::bit_flag<Pipeline
 	return *this;
 }
 
-PassBuilder& PassBuilder::write_buffer(BufferSlice slice, plib::bit_flag<PipelineStage> stage) {
+PassBuilder& PassBuilder::shader_write_buffer(BufferSlice slice, plib::bit_flag<PipelineStage> stage) {
 	ResourceUsage usage{};
 	usage.type = ResourceType::Buffer;
 	usage.access = ResourceAccess::ShaderWrite;

@@ -94,9 +94,9 @@ public:
 	// If you sample from an attachment that was rendered to in a previous pass, you must call this function to properly synchronize access and transition the image layout.
 	PassBuilder& sample_attachment(std::string_view name, plib::bit_flag<PipelineStage> stage);
 	// If you read from a buffer that was written to in an earlier pass, you must call this function to synchronize access automatically.
-	PassBuilder& read_buffer(BufferSlice slice, plib::bit_flag<PipelineStage> stage);
+	PassBuilder& shader_read_buffer(BufferSlice slice, plib::bit_flag<PipelineStage> stage);
 	// If you write to a buffer that will be read from in a later pass, you must call this function to synchronize access automatically.
-	PassBuilder& write_buffer(BufferSlice slice, plib::bit_flag<PipelineStage> stage);
+	PassBuilder& shader_write_buffer(BufferSlice slice, plib::bit_flag<PipelineStage> stage);
 	// Sets the execution callback for this render pass. Here you can record commands.
 	PassBuilder& execute(std::function<void(ph::CommandBuffer&)> callback);
 

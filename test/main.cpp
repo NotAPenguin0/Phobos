@@ -191,7 +191,7 @@ int main() {
 
 			ph::Pass write_pass =
 				ph::PassBuilder::create("write")
-				.write_buffer(ssbo, ph::PipelineStage::VertexShader)
+				.shader_write_buffer(ssbo, ph::PipelineStage::VertexShader)
 				.execute([&vbo, &ssbo, &ctx](ph::CommandBuffer& cmd_buf) {
 					cmd_buf.bind_pipeline("write");
 					cmd_buf.auto_viewport_scissor();
@@ -209,7 +209,7 @@ int main() {
 			ph::Pass read_pass =
 				ph::PassBuilder::create("read")
 				.add_attachment(ctx.get_swapchain_attachment_name(), ph::LoadOp::Clear, { .color = {0.0f, 0.0f, 0.0f, 1.0f} })
-				.read_buffer(ssbo, ph::PipelineStage::FragmentShader)
+				.shader_read_buffer(ssbo, ph::PipelineStage::FragmentShader)
 				.execute([&vbo, &ssbo, &ctx](ph::CommandBuffer& cmd_buf) {
 					cmd_buf.bind_pipeline("read");
 					cmd_buf.auto_viewport_scissor();
