@@ -19,6 +19,7 @@ static VkImageViewType get_view_type(ImageType type) {
     case ImageType::ColorAttachment:
     case ImageType::DepthStencilAttachment:
     case ImageType::HdrImage:
+    case ImageType::StorageImage:
         return VK_IMAGE_VIEW_TYPE_2D;
     }
 }
@@ -38,6 +39,8 @@ static VkImageUsageFlags get_image_usage(ImageType type) {
     case ImageType::EnvMap:
         return VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
     case ImageType::HdrImage:
+        return VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+    case ImageType::StorageImage:
         return VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
     }
 }
@@ -128,14 +131,19 @@ ImageView ImageImpl::create_image_view(RawImage const& target, ImageAspect aspec
     view.format = info.format;
     view.samples = target.samples;
     view.size = target.size;
+    view.image = target.handle;
+    view.aspect = aspect;
+    view.base_layer = 0;
+    view.layer_count = target.layers;
+    view.base_level = 0;
+    view.level_count = target.mip_levels;
 
     return view;
 }
 
 void ImageImpl::destroy_image_view(ImageView& view) {
     vkDestroyImageView(ctx->device, view.handle, nullptr);
-    view.handle = nullptr;
-    view.id = static_cast<uint64_t>(-1);
+    view = ImageView{};
 }
 
 }

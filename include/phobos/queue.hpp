@@ -5,6 +5,7 @@
 
 #include <vulkan/vulkan.h>
 #include <vector>
+#include <mutex>
 
 namespace ph {
 
@@ -15,6 +16,8 @@ enum class QueueType {
 	Compute = VK_QUEUE_COMPUTE_BIT,
 	Transfer = VK_QUEUE_TRANSFER_BIT
 };
+
+std::string_view to_string(QueueType type);
 
 struct QueueRequest {
 	// This flag is a preference. If no dedicated queue was found, a shared one will be selected.
@@ -81,6 +84,8 @@ private:
 	RingBuffer<VkCommandPool> main_pools;
 	// Per thread
 	std::vector<VkCommandPool> in_flight_pools;
+
+	std::unique_ptr<std::mutex> mutex;
 };
 
 }

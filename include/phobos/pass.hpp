@@ -44,6 +44,7 @@ enum class ResourceAccess {
 
 enum class ResourceType {
 	Image,
+	StorageImage,
 	Buffer,
 	Attachment
 };
@@ -79,6 +80,7 @@ struct Pass {
 	std::string name = "";
 	// Execution callback
 	std::function<void(ph::CommandBuffer&)> execute{};
+	bool compute_only = false;
 };
 
 // Utility class that helps creating render passes (ph::Pass).
@@ -88,6 +90,8 @@ struct Pass {
 class PassBuilder {
 public:
 	static PassBuilder create(std::string_view name);
+	// Create a compute-only pass.
+	static PassBuilder create_compute(std::string_view name);
 
 	// Adds an attachment to render to in this render pass.
 	PassBuilder& add_attachment(std::string_view name, LoadOp load_op, ClearValue clear = { .color {} });
@@ -97,6 +101,12 @@ public:
 	PassBuilder& shader_read_buffer(BufferSlice slice, plib::bit_flag<PipelineStage> stage);
 	// If you write to a buffer that will be read from in a later pass, you must call this function to synchronize access automatically.
 	PassBuilder& shader_write_buffer(BufferSlice slice, plib::bit_flag<PipelineStage> stage);
+	// If you write to a storage image, you must call this function to synchronize access automatically.
+	PassBuilder& write_storage_image(ImageView view, plib::bit_flag<PipelineStage> stage);
+	// If you read from a storage image, you must call this function to synchronize access automatically.
+	PassBuilder& read_storage_image(ImageView view, plib::bit_flag<PipelineStage> stage);
+	// If you sample an image that used to be a storage image, you must call this function to synchronize access automatically.
+	PassBuilder& sample_image(ImageView view, plib::bit_flag<PipelineStage> stage);
 	// Sets the execution callback for this render pass. Here you can record commands.
 	PassBuilder& execute(std::function<void(ph::CommandBuffer&)> callback);
 

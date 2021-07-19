@@ -13,7 +13,8 @@ enum class ImageType {
     Texture,
     Cubemap,
     EnvMap,
-    HdrImage
+    HdrImage,
+    StorageImage
 };
 
 enum class ImageAspect {
@@ -34,10 +35,17 @@ struct RawImage {
 };
 
 struct ImageView {
+    VkImage image = nullptr;
     VkImageView handle = nullptr;
     VkFormat format = VK_FORMAT_UNDEFINED;
     VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
+    VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    ImageAspect aspect = {};
     VkExtent2D size{};
+    uint32_t base_level = 0;
+    uint32_t level_count = 0;
+    uint32_t base_layer = 0;
+    uint32_t layer_count = 0;
 
     // Id that is guaranteed to be unique for each VkImageView.
     // We need this because Vulkan doesn't guarantee unique id's for vk handles.

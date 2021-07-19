@@ -11,6 +11,8 @@
 #include <phobos/impl/image.hpp>
 #include <phobos/impl/buffer.hpp>
 
+#include <cassert>
+
 namespace ph {
 
 Context::Context(AppSettings settings) {
@@ -55,6 +57,10 @@ Queue* Context::get_present_queue() {
 	return context_impl->get_present_queue();
 }
 
+void Context::wait_idle() {
+	vkDeviceWaitIdle(device());
+}
+
 void Context::name_object(ph::Pipeline const& pipeline, std::string const& name) {
 	context_impl->name_object(pipeline, name);
 }
@@ -65,6 +71,67 @@ void Context::name_object(VkRenderPass pass, std::string const& name) {
 
 void Context::name_object(VkFramebuffer framebuf, std::string const& name) {
 	context_impl->name_object(framebuf, name);
+}
+
+void Context::name_object(VkBuffer buffer, std::string const& name) {
+	context_impl->name_object(buffer, name);
+}
+
+void Context::name_object(VkImage image, std::string const& name) {
+	context_impl->name_object(image, name);
+}
+
+void Context::name_object(ph::RawImage const& image, std::string const& name) {
+	context_impl->name_object(image, name);
+}
+
+void Context::name_object(ph::ImageView const& view, std::string const& name) {
+	context_impl->name_object(view, name);
+}
+
+void Context::name_object(VkFence fence, std::string const& name) {
+	context_impl->name_object(fence, name);
+}
+
+void Context::name_object(VkSemaphore semaphore, std::string const& name) {
+	context_impl->name_object(semaphore, name);
+}
+
+void Context::name_object(VkCommandPool pool, std::string const& name) {
+	context_impl->name_object(pool, name);
+}
+
+void Context::name_object(ph::CommandBuffer const& cmd_buf, std::string const& name) {
+	context_impl->name_object(cmd_buf, name);
+}
+
+void Context::name_object(VkQueue queue, std::string const& name) {
+	context_impl->name_object(queue, name);
+}
+
+[[nodiscard]] InThreadContext Context::begin_thread(uint32_t thread_index) {
+	return context_impl->begin_thread(thread_index);
+}
+void Context::end_thread(uint32_t thread_index) {
+	context_impl->end_thread(thread_index);
+}
+
+VkFence Context::create_fence() {
+	return context_impl->create_fence();
+}
+
+void Context::wait_for_fence(VkFence fence, uint64_t timeout) {
+	context_impl->wait_for_fence(fence, timeout);
+}
+
+bool Context::poll_fence(VkFence fence) {
+	// Timeout value of zero will poll the fence. In this case vkWaitForFences will return VK_SUCCESS if the fence has been
+	// signalled, and VK_TIMEOUT if not.
+	return context_impl->wait_for_fence(fence, 0) == VK_SUCCESS;
+}
+
+void Context::destroy_fence(VkFence fence) {
+	context_impl->destroy_fence(fence);
 }
 
 // FRAME
@@ -113,12 +180,31 @@ void Context::reflect_shaders(ph::PipelineCreateInfo& pci) {
 	pipeline_impl->reflect_shaders(pci);
 }
 
+void Context::reflect_shaders(ph::ComputePipelineCreateInfo& pci) {
+	pipeline_impl->reflect_shaders(pci);
+}
+
+
 void Context::create_named_pipeline(ph::PipelineCreateInfo pci) {
 	pipeline_impl->create_named_pipeline(std::move(pci));
 }
 
+void Context::create_named_pipeline(ph::ComputePipelineCreateInfo pci) {
+	pipeline_impl->create_named_pipeline(std::move(pci));
+}
+
+ShaderMeta const& Context::get_shader_meta(ph::Pipeline const& pipeline) {
+	if (pipeline.type == ph::PipelineType::Graphics) return get_shader_meta(pipeline.name);
+	else if (pipeline.type == ph::PipelineType::Compute) return get_compute_shader_meta(pipeline.name);
+	assert(false && "Invalid pipeline type");
+}
+
 ShaderMeta const& Context::get_shader_meta(std::string_view pipeline_name) {
 	return pipeline_impl->get_shader_meta(pipeline_name);
+}
+
+ShaderMeta const& Context::get_compute_shader_meta(std::string_view pipeline_name) {
+	return pipeline_impl->get_compute_shader_meta(pipeline_name);
 }
 
 VkSampler Context::basic_sampler() {
@@ -196,8 +282,12 @@ PipelineLayout Context::get_or_create(PipelineLayoutCreateInfo const& plci, VkDe
 	return cache_impl->get_or_create_pipeline_layout(plci, set_layout);
 }
 
-Pipeline Context::get_or_create(std::string_view name, VkRenderPass render_pass) {
+Pipeline Context::get_or_create_pipeline(std::string_view name, VkRenderPass render_pass) {
 	return cache_impl->get_or_create_pipeline(pipeline_impl->get_pipeline(name), render_pass);
+}
+
+Pipeline Context::get_or_create_compute_pipeline(std::string_view name) {
+	return cache_impl->get_or_create_compute_pipeline(pipeline_impl->get_compute_pipeline(name));
 }
 
 VkDescriptorSet Context::get_or_create(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext) {

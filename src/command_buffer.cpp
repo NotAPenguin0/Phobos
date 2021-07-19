@@ -40,7 +40,15 @@ Pipeline const& CommandBuffer::get_bound_pipeline() const {
 }
 
 CommandBuffer& CommandBuffer::bind_pipeline(std::string_view name) {
-	Pipeline pipeline = ctx->get_or_create(name, cur_renderpass);
+	assert(cur_renderpass && "bind_pipeline called without an active renderpass");
+	Pipeline pipeline = ctx->get_or_create_pipeline(name, cur_renderpass);
+	vkCmdBindPipeline(cmd_buf, static_cast<VkPipelineBindPoint>(pipeline.type), pipeline.handle);
+	cur_pipeline = pipeline;
+	return *this;
+}
+
+CommandBuffer& CommandBuffer::bind_compute_pipeline(std::string_view name) {
+	Pipeline pipeline = ctx->get_or_create_compute_pipeline(name);
 	vkCmdBindPipeline(cmd_buf, static_cast<VkPipelineBindPoint>(pipeline.type), pipeline.handle);
 	cur_pipeline = pipeline;
 	return *this;
@@ -94,7 +102,13 @@ CommandBuffer& CommandBuffer::barrier(plib::bit_flag<ph::PipelineStage> src_stag
 	return *this;
 }
 
-VkCommandBuffer CommandBuffer::handle() {
+CommandBuffer& CommandBuffer::dispatch(uint32_t x, uint32_t y, uint32_t z) {
+	assert(cur_pipeline.type == PipelineType::Compute && "Cannot dispatch compute shader in non-compute pipeline.");
+	vkCmdDispatch(cmd_buf, x, y, z);
+	return *this;
+}
+
+VkCommandBuffer CommandBuffer::handle() const {
 	return cmd_buf;
 }
 

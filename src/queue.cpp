@@ -5,15 +5,37 @@
 
 namespace ph {
 
+std::string_view to_string(QueueType type) {
+	switch (type) {
+		case QueueType::Compute: return "Compute";
+		case QueueType::Transfer: return "Transfer";
+		case QueueType::Graphics: return "Graphics";
+		default: return "Unknown";
+	}
+}
+
 Queue::Queue(Context& context, QueueInfo info, VkQueue handle) : ctx(&context), info(info), handle(handle){
+	mutex = std::make_unique<std::mutex>();
+
+	static auto queue_type_to_string = [](ph::QueueType type) -> std::string_view {
+		switch (type) {
+		case QueueType::Compute: return "Compute";
+		case QueueType::Transfer: return "Transfer";
+		case QueueType::Graphics: return "Graphics";
+		}
+	};
+
 	VkCommandPoolCreateInfo pool_info{};
 	pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	pool_info.queueFamilyIndex = info.family_index;
-	// Create per-thread command pools for in-flight contexts
-	in_flight_pools.resize(context.thread_count());
-	pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-	for (uint32_t thread_index = 0; thread_index < in_flight_pools.size(); ++thread_index) {
-		vkCreateCommandPool(context.device(), &pool_info, nullptr, &in_flight_pools[thread_index]);
+	if (context.thread_count() > 0) {
+		// Create per-thread command pools for in-flight contexts
+		in_flight_pools.resize(context.thread_count());
+		pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+		for (uint32_t thread_index = 0; thread_index < in_flight_pools.size(); ++thread_index) {
+			vkCreateCommandPool(context.device(), &pool_info, nullptr, &in_flight_pools[thread_index]);
+			ctx->name_object(in_flight_pools[thread_index], fmt::format("[Command Pool] Thread - {} ({})", to_string(info.type), thread_index));
+		}
 	}
 	// Create per-frame command pools
 	pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -21,6 +43,7 @@ Queue::Queue(Context& context, QueueInfo info, VkQueue handle) : ctx(&context), 
 	for (uint32_t frame_index = 0; frame_index < main_pools.size(); ++frame_index) {
 		VkCommandPool pool = nullptr;
 		vkCreateCommandPool(context.device(), &pool_info, nullptr, &pool);
+		ctx->name_object(pool, fmt::format("[Command Pool] Frame - {} ({})", to_string(info.type), frame_index));
 		main_pools.set(frame_index, std::move(pool));
 	}
 }
@@ -130,11 +153,14 @@ void Queue::submit(CommandBuffer& cmd_buf, VkFence signal_fence, VkPipelineStage
 }
 
 void Queue::submit(VkSubmitInfo const& submit_info, VkFence signal_fence) {
+	// Be sure to lock queue when submitting.
+	std::lock_guard lock{ *mutex };
 	vkQueueSubmit(handle, 1, &submit_info, signal_fence);
 }
 
 void Queue::present(VkPresentInfoKHR const& present_info) {
 	assert(can_present() && "Tried presenting from queue that has no present capabilities");
+	std::lock_guard lock{ *mutex };
 	vkQueuePresentKHR(handle, &present_info);
 }
 

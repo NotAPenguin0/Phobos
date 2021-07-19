@@ -139,7 +139,7 @@ template<>
 struct hash<ph::PipelineCreateInfo> {
     size_t operator()(ph::PipelineCreateInfo const& info) const noexcept {
         size_t h = 0;
-        ph::hash_combine(h, info.name);
+        ph::hash_combine(h, info.name); // ?? TODO
         return h;
     }
 };
@@ -251,6 +251,15 @@ struct hash<ph::PipelineLayoutCreateInfo> {
     size_t operator()(ph::PipelineLayoutCreateInfo const& info) const noexcept {
         size_t h = 0;
         ph::hash_combine(h, info.push_constants, info.set_layout);
+        return h;
+    }
+};
+
+template<>
+struct hash<ph::ComputePipelineCreateInfo> {
+    size_t operator()(ph::ComputePipelineCreateInfo const& info) const noexcept {
+        size_t h = 0;
+        ph::hash_combine(h, info.name);
         return h;
     }
 };

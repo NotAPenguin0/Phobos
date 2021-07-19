@@ -35,7 +35,28 @@ DescriptorBuilder& DescriptorBuilder::add_sampled_image(ShaderMeta::Binding cons
 }
 
 DescriptorBuilder& DescriptorBuilder::add_sampled_image(std::string_view binding, ImageView view, VkSampler sampler, VkImageLayout layout) {
-	return add_sampled_image(ctx->get_shader_meta(pipeline.name)[binding], view, sampler, layout);
+	return add_sampled_image(ctx->get_shader_meta(pipeline)[binding], view, sampler, layout);
+}
+
+DescriptorBuilder& DescriptorBuilder::add_storage_image(uint32_t binding, ImageView view, VkImageLayout layout) {
+	DescriptorBinding descr{};
+	descr.binding = binding;
+	descr.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	auto& descriptor = descr.descriptors.emplace_back();
+	descriptor.image = ph::DescriptorImageInfo{
+		.view = view,
+		.layout = layout
+	};
+	info.bindings.push_back(std::move(descr));
+	return *this;
+}
+
+DescriptorBuilder& DescriptorBuilder::add_storage_image(ShaderMeta::Binding const& binding, ImageView view, VkImageLayout layout) {
+	return add_storage_image(binding.binding, view, layout);
+}
+
+DescriptorBuilder& DescriptorBuilder::add_storage_image(std::string_view binding, ImageView view, VkImageLayout layout) {
+	return add_storage_image(ctx->get_shader_meta(pipeline)[binding], view, layout);
 }
 
 DescriptorBuilder& DescriptorBuilder::add_uniform_buffer(uint32_t binding, BufferSlice buffer) {
@@ -57,7 +78,7 @@ DescriptorBuilder& DescriptorBuilder::add_uniform_buffer(ShaderMeta::Binding con
 }
 
 DescriptorBuilder& DescriptorBuilder::add_uniform_buffer(std::string_view binding, BufferSlice buffer) {
-	return add_uniform_buffer(ctx->get_shader_meta(pipeline.name)[binding], buffer);
+	return add_uniform_buffer(ctx->get_shader_meta(pipeline)[binding], buffer);
 }
 
 DescriptorBuilder& DescriptorBuilder::add_storage_buffer(uint32_t binding, BufferSlice buffer) {
@@ -79,7 +100,7 @@ DescriptorBuilder& DescriptorBuilder::add_storage_buffer(ShaderMeta::Binding con
 }
 
 DescriptorBuilder& DescriptorBuilder::add_storage_buffer(std::string_view binding, BufferSlice buffer) {
-	return add_storage_buffer(ctx->get_shader_meta(pipeline.name)[binding], buffer);
+	return add_storage_buffer(ctx->get_shader_meta(pipeline)[binding], buffer);
 }
 
 VkDescriptorSet DescriptorBuilder::get() {
@@ -218,6 +239,32 @@ PipelineBuilder& PipelineBuilder::reflect() {
 }
 
 PipelineCreateInfo PipelineBuilder::get() {
+	return std::move(pci);
+}
+
+ComputePipelineBuilder ComputePipelineBuilder::create(Context& ctx, std::string_view name) {
+	ComputePipelineBuilder builder{};
+	builder.ctx = &ctx;
+	builder.pci.name = name;
+	return builder;
+}
+
+ComputePipelineBuilder& ComputePipelineBuilder::set_shader(ShaderHandle shader) {
+	pci.shader = shader;
+	return *this;
+}
+
+ComputePipelineBuilder& ComputePipelineBuilder::set_shader(std::string_view path, std::string_view entry) {
+	return set_shader(ctx->create_shader(path, entry, ph::PipelineStage::ComputeShader));
+}
+
+ComputePipelineBuilder& ComputePipelineBuilder::reflect() {
+	ctx->reflect_shaders(pci);
+	return *this;
+}
+
+
+ph::ComputePipelineCreateInfo ComputePipelineBuilder::get() {
 	return std::move(pci);
 }
 

@@ -11,6 +11,28 @@
 #include <algorithm>
 
 namespace ph {
+
+InThreadContext::InThreadContext(ph::ScratchAllocator& vbo, ph::ScratchAllocator& ibo, ph::ScratchAllocator& ubo, ph::ScratchAllocator& ssbo)
+	: vbo_allocator(vbo), ibo_allocator(ibo), ubo_allocator(ubo), ssbo_allocator(ssbo) {
+
+}
+
+BufferSlice InThreadContext::allocate_scratch_vbo(VkDeviceSize size) {
+	return vbo_allocator.allocate(size);
+}
+
+BufferSlice InThreadContext::allocate_scratch_ibo(VkDeviceSize size) {
+	return ibo_allocator.allocate(size);
+}
+
+BufferSlice InThreadContext::allocate_scratch_ubo(VkDeviceSize size) {
+	return ubo_allocator.allocate(size);
+}
+
+BufferSlice InThreadContext::allocate_scratch_ssbo(VkDeviceSize size) {
+	return ssbo_allocator.allocate(size);
+}
+
 namespace impl {
 
 static std::optional<uint32_t> get_queue_family_prefer_dedicated(std::vector<VkQueueFamilyProperties> const& properties, VkQueueFlagBits required, VkQueueFlags avoid) {
@@ -160,9 +182,9 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
 
 	// Only log messages with severity 'warning' or above
 	if (severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-		ph::LogInterface* log = reinterpret_cast<ph::LogInterface*>(arg);
-		if (log) {
-			log->write_fmt(ph::LogSeverity::Warning, "{}", callback_data->pMessage);
+		ph::LogInterface* logger = reinterpret_cast<ph::LogInterface*>(arg);
+		if (logger) {
+			logger->write_fmt(ph::LogSeverity::Warning, "{}", callback_data->pMessage);
 		}
 	}
 
@@ -177,7 +199,7 @@ ContextImpl::ContextImpl(AppSettings settings)
 	if (!settings.create_headless) {
 		wsi = settings.wsi;
 	}
-	log = settings.log;
+	logger = settings.logger;
 
 	{
 		VkApplicationInfo app_info{};
@@ -222,7 +244,7 @@ ContextImpl::ContextImpl(AppSettings settings)
 		messenger_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 		messenger_info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
 		messenger_info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT;
-		messenger_info.pUserData = log;
+		messenger_info.pUserData = logger;
 		messenger_info.pfnUserCallback = vk_debug_callback;
 		VkResult result = create_func(instance, &messenger_info, nullptr, &debug_messenger);
 		assert(result == VK_SUCCESS && "Failed to create debug messenger");
@@ -235,7 +257,7 @@ ContextImpl::ContextImpl(AppSettings settings)
 
 	phys_device = select_physical_device(instance, phys_device.surface, settings.gpu_requirements);
 	if (!phys_device.handle) {
-		log->write(LogSeverity::Fatal, "Could not find a suitable physical device");
+		logger->write(LogSeverity::Fatal, "Could not find a suitable physical device");
 		return;
 	}
 
@@ -300,6 +322,7 @@ void ContextImpl::post_init(Context& ctx, ImageImpl& image_impl, AppSettings con
 			vkGetDeviceQueue(device, queue.family_index, index, &handle);
 			queues.emplace_back(ctx, queue, handle);
 			queue_counts[queue.family_index] += 1;
+			name_object(handle, fmt::format("[Queue] {} ({})", to_string(queue.type), index));
 		}
 	}
 
@@ -358,6 +381,27 @@ void ContextImpl::post_init(Context& ctx, ImageImpl& image_impl, AppSettings con
 			swapchain->per_image[i] = std::move(data);
 		}
 	}
+
+	// Create thread contexts.
+	if (num_threads > 0) {
+		ptcs.reserve(num_threads);
+		for (uint32_t i = 0; i < num_threads; ++i) {
+			constexpr uint32_t vbo_alignment = 16;
+			constexpr uint32_t ibo_alignment = 16;
+			uint32_t const ubo_alignment = phys_device.properties.limits.minUniformBufferOffsetAlignment;
+			uint32_t const ssbo_alignment = phys_device.properties.limits.minStorageBufferOffsetAlignment;
+			ptcs.emplace_back(PerThreadContext{
+				.vbo_allocator = ScratchAllocator(&ctx, settings.scratch_vbo_size, vbo_alignment, BufferType::VertexBufferDynamic),
+				.ibo_allocator = ScratchAllocator(&ctx, settings.scratch_ibo_size, ibo_alignment, BufferType::IndexBufferDynamic),
+				.ubo_allocator = ScratchAllocator(&ctx, settings.scratch_ubo_size, ubo_alignment, BufferType::MappedUniformBuffer),
+				.ssbo_allocator = ScratchAllocator(&ctx, settings.scratch_ssbo_size, ssbo_alignment, BufferType::StorageBufferDynamic)
+			});
+			name_object(ptcs[i].vbo_allocator.get_buffer().handle, fmt::format("[Buffer] Thread - Scratch VBO ({})", i));
+			name_object(ptcs[i].ibo_allocator.get_buffer().handle, fmt::format("[Buffer] Thread - Scratch IBO ({})", i));
+			name_object(ptcs[i].ubo_allocator.get_buffer().handle, fmt::format("[Buffer] Thread - Scratch UBO ({})", i));
+			name_object(ptcs[i].ssbo_allocator.get_buffer().handle, fmt::format("[Buffer] Thread - Scratch SSBO ({})", i));
+		}
+	}
 }
 
 ContextImpl::~ContextImpl() {
@@ -378,6 +422,8 @@ ContextImpl::~ContextImpl() {
 		vkDestroySwapchainKHR(device, swapchain->handle, nullptr);
 		vkDestroySurfaceKHR(instance, phys_device.surface->handle, nullptr);
 	}
+
+	ptcs.clear();
 
 	vmaDestroyAllocator(allocator);
 	vkDestroyDevice(device, nullptr);
@@ -420,6 +466,21 @@ void ContextImpl::next_frame() {
 	}
 }
 
+[[nodiscard]] InThreadContext ContextImpl::begin_thread(uint32_t thread_index) {
+	log(LogSeverity::Debug, "Starting thread context #{}.", thread_index);
+
+	PerThreadContext& ptc = ptcs[thread_index];
+	return InThreadContext(ptc.vbo_allocator, ptc.ibo_allocator, ptc.ubo_allocator, ptc.ssbo_allocator);
+}
+
+void ContextImpl::end_thread(uint32_t thread_index) {
+	log(LogSeverity::Debug, "Ending thread context #{}.", thread_index);
+	ptcs[thread_index].vbo_allocator.reset();
+	ptcs[thread_index].ibo_allocator.reset();
+	ptcs[thread_index].ubo_allocator.reset();
+	ptcs[thread_index].ssbo_allocator.reset();
+}
+
 template<typename VkT>
 static void name_object_impl(VkT const handle, VkObjectType type, std::string const& name, VkDevice device, PFN_vkSetDebugUtilsObjectNameEXT fun) {
 	VkDebugUtilsObjectNameInfoEXT info{};
@@ -446,6 +507,76 @@ void ContextImpl::name_object(VkFramebuffer framebuf, std::string const& name) {
 	if (validation_enabled() && !name.empty()) {
 		name_object_impl(framebuf, VK_OBJECT_TYPE_FRAMEBUFFER, name, device, set_debug_utils_name_fun);
 	}
+}
+
+void ContextImpl::name_object(VkBuffer buffer, std::string const& name) {
+	if (validation_enabled() && !name.empty()) {
+		name_object_impl(buffer, VK_OBJECT_TYPE_BUFFER, name, device, set_debug_utils_name_fun);
+	}
+}
+
+void ContextImpl::name_object(VkImage image, std::string const& name) {
+	if (validation_enabled() && !name.empty()) {
+		name_object_impl(image, VK_OBJECT_TYPE_IMAGE, name, device, set_debug_utils_name_fun);
+	}
+}
+
+void ContextImpl::name_object(ph::RawImage const& image, std::string const& name) {
+	if (validation_enabled() && !name.empty()) {
+		name_object_impl(image.handle, VK_OBJECT_TYPE_IMAGE, name, device, set_debug_utils_name_fun);
+	}
+}
+
+void ContextImpl::name_object(ph::ImageView const& view, std::string const& name) {
+	if (validation_enabled() && !name.empty()) {
+		name_object_impl(view.handle, VK_OBJECT_TYPE_IMAGE_VIEW, name, device, set_debug_utils_name_fun);
+	}
+}
+
+void ContextImpl::name_object(VkFence fence, std::string const& name) {
+	if (validation_enabled() && !name.empty()) {
+		name_object_impl(fence, VK_OBJECT_TYPE_FENCE, name, device, set_debug_utils_name_fun);
+	}
+}
+
+void ContextImpl::name_object(VkSemaphore semaphore, std::string const& name) {
+	if (validation_enabled() && !name.empty()) {
+		name_object_impl(semaphore, VK_OBJECT_TYPE_SEMAPHORE, name, device, set_debug_utils_name_fun);
+	}
+}
+
+void ContextImpl::name_object(VkQueue queue, std::string const& name) {
+	if (validation_enabled() && !name.empty()) {
+		name_object_impl(queue, VK_OBJECT_TYPE_QUEUE, name, device, set_debug_utils_name_fun);
+	}
+}
+
+void ContextImpl::name_object(VkCommandPool pool, std::string const& name) {
+	if (validation_enabled() && !name.empty()) {
+		name_object_impl(pool, VK_OBJECT_TYPE_COMMAND_POOL, name, device, set_debug_utils_name_fun);
+	}
+}
+
+void ContextImpl::name_object(ph::CommandBuffer const& cmd_buf, std::string const& name) {
+	if (validation_enabled() && !name.empty()) {
+		name_object_impl(cmd_buf.handle(), VK_OBJECT_TYPE_COMMAND_BUFFER, name, device, set_debug_utils_name_fun);
+	}
+}
+
+VkFence ContextImpl::create_fence() {
+	VkFenceCreateInfo info{};
+	info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	VkFence fence;
+	vkCreateFence(device, &info, nullptr, &fence);
+	return fence;
+}
+
+VkResult ContextImpl::wait_for_fence(VkFence fence, uint64_t timeout) {
+	return vkWaitForFences(device, 1, &fence, VK_TRUE, timeout);
+}
+
+void ContextImpl::destroy_fence(VkFence fence) {
+	vkDestroyFence(device, fence, nullptr);
 }
 
 } // namespace impl

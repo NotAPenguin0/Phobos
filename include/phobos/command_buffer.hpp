@@ -25,6 +25,7 @@ public:
 
 	Pipeline const& get_bound_pipeline() const;
 	CommandBuffer& bind_pipeline(std::string_view name);
+	CommandBuffer& bind_compute_pipeline(std::string_view name);
 	CommandBuffer& bind_descriptor_set(VkDescriptorSet set);
 
 	CommandBuffer& bind_vertex_buffer(uint32_t first_binding, VkBuffer buffer, VkDeviceSize offset);
@@ -40,7 +41,9 @@ public:
 	CommandBuffer& barrier(plib::bit_flag<ph::PipelineStage> src_stage, plib::bit_flag<ph::PipelineStage> dst_stage, VkImageMemoryBarrier const& barrier, VkDependencyFlags dependency = VK_DEPENDENCY_BY_REGION_BIT);
 	CommandBuffer& barrier(plib::bit_flag<ph::PipelineStage> src_stage, plib::bit_flag<ph::PipelineStage> dst_stage, VkMemoryBarrier const& barrier, VkDependencyFlags dependency = VK_DEPENDENCY_BY_REGION_BIT);
 
-	VkCommandBuffer handle();
+	CommandBuffer& dispatch(uint32_t x, uint32_t y, uint32_t z);
+
+	VkCommandBuffer handle() const;
 
 private:
 	Context* ctx = nullptr;

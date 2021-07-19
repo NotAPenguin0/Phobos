@@ -63,13 +63,22 @@ void FrameImpl::post_init(Context& ctx, AppSettings const& settings) {
 		constexpr uint32_t ibo_alignment = 16;
 		uint32_t const ubo_alignment = this->ctx->phys_device.properties.limits.minUniformBufferOffsetAlignment;
 		uint32_t const ssbo_alignment = this->ctx->phys_device.properties.limits.minStorageBufferOffsetAlignment;
-		per_frame.set(i, PerFrame{ .fence = fence, .gpu_finished = semaphore, .image_ready = semaphore2, 
+		PerFrame frame{ .fence = fence, .gpu_finished = semaphore, .image_ready = semaphore2,
 			.cmd_buf = ctx.get_queue(QueueType::Graphics)->create_command_buffer(),
 			.vbo_allocator = ScratchAllocator(&ctx, settings.scratch_vbo_size, vbo_alignment, BufferType::VertexBufferDynamic),
 			.ibo_allocator = ScratchAllocator(&ctx, settings.scratch_ibo_size, ibo_alignment, BufferType::IndexBufferDynamic),
 			.ubo_allocator = ScratchAllocator(&ctx, settings.scratch_ubo_size, ubo_alignment, BufferType::MappedUniformBuffer),
 			.ssbo_allocator = ScratchAllocator(&ctx, settings.scratch_ssbo_size, ssbo_alignment, BufferType::StorageBufferDynamic)
-		});
+		};
+		ctx.name_object(frame.fence, fmt::format("[Fence] Frame ({})", i));
+		ctx.name_object(frame.gpu_finished, fmt::format("[Semaphore] Frame - GPU finish ({})", i));
+		ctx.name_object(frame.image_ready, fmt::format("[Semaphore] Frame - Image ready ({})", i));
+		ctx.name_object(frame.cmd_buf, fmt::format("[Command Buffer] Frame - Graphics ({})", i));
+		ctx.name_object(frame.vbo_allocator.get_buffer().handle, fmt::format("[Buffer] Frame - Scratch VBO ({})", i));
+		ctx.name_object(frame.ibo_allocator.get_buffer().handle, fmt::format("[Buffer] Frame - Scratch IBO ({})", i));
+		ctx.name_object(frame.ubo_allocator.get_buffer().handle, fmt::format("[Buffer] Frame - Scratch UBO ({})", i));
+		ctx.name_object(frame.ssbo_allocator.get_buffer().handle, fmt::format("[Buffer] Frame - Scratch SSBO ({})", i));
+		per_frame.set(i, std::move(frame));
 	}
 }
 

@@ -46,8 +46,10 @@ struct AppSettings {
 	// Whether to use the default vulkan validation layers.
 	// Defaults to false.
 	bool enable_validation = false;
-	// Amount of threads phobos can be used from. Using any more threads than this amount is 
+	// Amount of additional threads phobos can be used from. Using any more threads than this amount is 
 	// undefined behaviour and can lead to race conditions.
+	// Note that this does NOT include the main thread. So if you have N threads available including the main thread,
+	// the maximum value you can supply is N - 1.
 	uint32_t num_threads = 1;
 	// Whether to use phobos without a window. This disables all swapchain functionality.
 	// Useful for compute-only applications.
@@ -58,7 +60,7 @@ struct AppSettings {
 	WindowInterface* wsi = nullptr;
 	// Pointer to the logging interface.
 	// Like the wsi pointer, this must be valid for the entire lifetime of the ph::Context
-	LogInterface* log = nullptr;
+	LogInterface* logger = nullptr;
 	// Minimum GPU capabilities requested by the user. This will decide which GPU will be used.
 	GPURequirements gpu_requirements{};
 	// Surface format. If this is not available the best available fallback will be picked.
@@ -120,7 +122,10 @@ struct Swapchain {
 };
 
 struct PerThreadContext {
-
+	ph::ScratchAllocator vbo_allocator;
+	ph::ScratchAllocator ibo_allocator;
+	ph::ScratchAllocator ubo_allocator;
+	ph::ScratchAllocator ssbo_allocator;
 };
 
 // This struct represents one in-flight frame. It holds a command buffer you may use to record commands for this frame. It will also provide an interface for allocating scratch buffers.
@@ -164,6 +169,45 @@ private:
 	ph::ScratchAllocator& ssbo_allocator;
 };
 
+// Allows access to thread-local resources of the context.
+struct InThreadContext {
+	InThreadContext(ph::ScratchAllocator& vbo, ph::ScratchAllocator& ibo, ph::ScratchAllocator& ubo, ph::ScratchAllocator& ssbo);
+
+	// Size in bytes
+	BufferSlice allocate_scratch_vbo(VkDeviceSize size);
+	// Size in bytes
+	template<typename T>
+	TypedBufferSlice<T> allocate_scratch_vbo(VkDeviceSize size) {
+		return TypedBufferSlice<T>(vbo_allocator.allocate(size));
+	}
+
+	BufferSlice allocate_scratch_ibo(VkDeviceSize size);
+
+	template<typename T>
+	TypedBufferSlice<T> allocate_scratch_ibo(VkDeviceSize size) {
+		return TypedBufferSlice<T>(ibo_allocator.allocate(size));
+	}
+
+	BufferSlice allocate_scratch_ubo(VkDeviceSize size);
+
+	template<typename T>
+	TypedBufferSlice<T> allocate_scratch_ubo(VkDeviceSize size) {
+		return TypedBufferSlice<T>(ubo_allocator.allocate(size));
+	}
+
+	BufferSlice allocate_scratch_ssbo(VkDeviceSize size);
+
+	template<typename T>
+	TypedBufferSlice<T> allocate_scratch_ssbo(VkDeviceSize size) {
+		return TypedBufferSlice<T>(ssbo_allocator.allocate(size));
+	}
+private:
+	ph::ScratchAllocator& vbo_allocator;
+	ph::ScratchAllocator& ibo_allocator;
+	ph::ScratchAllocator& ubo_allocator;
+	ph::ScratchAllocator& ssbo_allocator;
+};
+
 namespace impl {
 	// Responsible for initialization and destruction and core context management.
 	class ContextImpl;
@@ -194,15 +238,37 @@ public:
 	// Gets the pointer to the first present-capable queue.
 	Queue* get_present_queue();
 
+	void wait_idle();
+
 	// Sets object name. This will only be executed when validation is enabled.
 	void name_object(ph::Pipeline const& pipeline, std::string const& name);
 	void name_object(VkRenderPass pass, std::string const& name);
 	void name_object(VkFramebuffer framebuf, std::string const& name);
+	void name_object(VkBuffer buffer, std::string const& name);
+	void name_object(VkImage image, std::string const& name);
+	void name_object(ph::RawImage const& image, std::string const& name);
+	void name_object(ph::ImageView const& view, std::string const& name);
+	void name_object(VkFence fence, std::string const& name);
+	void name_object(VkSemaphore semaphore, std::string const& name);
+	void name_object(VkQueue queue, std::string const& name);
+	void name_object(VkCommandPool pool, std::string const& name);
+	void name_object(ph::CommandBuffer const& cmd_buf, std::string const& name);
 
 	size_t max_frames_in_flight() const;
 	[[nodiscard]] InFlightContext wait_for_frame();
 	void submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf);
 	void present(Queue& queue);
+
+	// These must be called at the start and end of a thread context. Note that end_thread must be called when all work on the thread is complete, so be sure to add
+	// proper synchronization. Note that (right now) phobos does not verify thread synchronization, so if you supply the same thread index 
+	// on two concurrent jobs anything might happen.
+	[[nodiscard]] InThreadContext begin_thread(uint32_t thread_index);
+	void end_thread(uint32_t thread_index);
+
+	VkFence create_fence();
+	void wait_for_fence(VkFence fence, uint64_t timeout = std::numeric_limits<uint64_t>::max());
+	bool poll_fence(VkFence fence);
+	void destroy_fence(VkFence fence);
 
 	Attachment* get_attachment(std::string_view name);
 	void create_attachment(std::string_view name, VkExtent2D size, VkFormat format);
@@ -210,9 +276,11 @@ public:
 	std::string get_swapchain_attachment_name() const;
 
 	ShaderHandle create_shader(std::string_view path, std::string_view entry_point, PipelineStage stage);
-	void reflect_shaders(ph::PipelineCreateInfo& pci);
 	void create_named_pipeline(ph::PipelineCreateInfo pci);
-	ShaderMeta const& get_shader_meta(std::string_view pipeline_name);
+	void create_named_pipeline(ph::ComputePipelineCreateInfo pci);
+	void reflect_shaders(ph::PipelineCreateInfo& pci);
+	void reflect_shaders(ph::ComputePipelineCreateInfo& pci);
+	ShaderMeta const& get_shader_meta(ph::Pipeline const& pipeline);
 	VkSampler basic_sampler();
 
 	RawImage create_image(ImageType type, VkExtent2D size, VkFormat format);
@@ -264,8 +332,12 @@ private:
 	VkRenderPass get_or_create(VkRenderPassCreateInfo const& info, std::string const& name = "");
 	VkDescriptorSetLayout get_or_create(DescriptorSetLayoutCreateInfo const& dslci);
 	PipelineLayout get_or_create(PipelineLayoutCreateInfo const& plci, VkDescriptorSetLayout set_layout);
-	Pipeline get_or_create(std::string_view name, VkRenderPass render_pass);
+	Pipeline get_or_create_pipeline(std::string_view name, VkRenderPass render_pass);
+	Pipeline get_or_create_compute_pipeline(std::string_view name);
 	VkDescriptorSet get_or_create(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext = nullptr);
+
+	ShaderMeta const& get_shader_meta(std::string_view pipeline_name);
+	ShaderMeta const& get_compute_shader_meta(std::string_view pipeline_name);
 };
 
 }

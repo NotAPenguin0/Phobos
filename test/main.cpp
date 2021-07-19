@@ -106,18 +106,125 @@ struct ShaderSSBO {
 	vec3 color;
 };
 
+// TEST APP CHECLIST FOR MT SUPPORT
+// 1. Create simple task system
+// 2. Create async task that writes to an image on the gpu
+// 3. Create renderpass on main thread that does not do anything if image is not ready, if it is ready make it display the image
+// 4. Log frames where the image isn't drawn to ensure async-ness.
+
+struct Task {
+	virtual void execute(uint32_t thread_index) = 0;
+	virtual bool poll() = 0;
+	virtual void cleanup(uint32_t thread_index) = 0;
+};
+
+class TaskScheduler {
+public:
+	TaskScheduler(int num_threads) {
+		threads.resize(num_threads);
+	}
+
+	void try_run(Task* task) {
+		for (uint32_t i = 0; i < threads.size(); ++i) {
+			auto& thread = threads[i];
+			if (!thread.busy) {
+				thread.thread = std::thread(&Task::execute, task, i);
+				thread.task = task;
+				thread.busy = true;
+				break;
+			}
+		}
+	}
+
+	void poll() {
+		for (uint32_t i = 0; i < threads.size(); ++i) {
+			auto& thread = threads[i];
+			if (thread.task == nullptr) continue;
+			if (thread.task->poll()) {
+				thread.task->cleanup(i);
+				thread.busy = false;
+				thread.task = nullptr;
+				thread.thread.join();
+			}
+		}
+	}
+	
+	bool task_done(Task* task) {
+		for (auto& thread : threads) {
+			if (thread.task == task) return false;
+		}
+		return true;
+	}
+
+private:
+	struct TaskThread {
+		std::thread thread;
+		Task* task = nullptr;
+		bool busy = false;
+	};
+
+	std::vector<TaskThread> threads;
+};
+
+struct ImageWriteTask : public Task {
+	ph::Context& ctx;
+	ph::ImageView target_image;
+	VkFence fence = nullptr;
+	ph::CommandBuffer cmd_buffer;
+
+	ImageWriteTask(ph::Context& ctx, ph::ImageView image) : ctx(ctx), target_image(image) {
+		fence = ctx.create_fence();
+	}
+
+	void execute(uint32_t thread_index) override {
+		ph::InThreadContext itc = ctx.begin_thread(thread_index);
+		ph::Pass image_write = ph::PassBuilder::create_compute("image_write_async")
+			.write_storage_image(target_image, ph::PipelineStage::ComputeShader)
+			.execute([this, &itc](ph::CommandBuffer& cmd_buf) {
+				cmd_buf.bind_compute_pipeline("compute_write");
+				VkDescriptorSet set = ph::DescriptorBuilder::create(ctx, cmd_buf.get_bound_pipeline())
+					.add_storage_image("out_img", target_image)
+					.get();
+				cmd_buf.bind_descriptor_set(set);
+
+				cmd_buf.dispatch(2048 / 32, 2048 / 32, 1);
+			})
+		.get();
+		ph::RenderGraph graph;
+		graph.add_pass(std::move(image_write));
+		graph.build(ctx);
+		ph::RenderGraphExecutor executor{};
+		
+		ph::Queue* compute = ctx.get_queue(ph::QueueType::Compute);
+		cmd_buffer = compute->begin_single_time(thread_index);
+		executor.execute(cmd_buffer, graph);
+		compute->end_single_time(cmd_buffer, fence);
+	}
+
+	bool poll() override {
+		return ctx.poll_fence(fence);
+	}
+
+	void cleanup(uint32_t thread_index) override {
+		ph::Queue* compute = ctx.get_queue(ph::QueueType::Compute);
+		compute->free_single_time(cmd_buffer, thread_index);
+		ctx.end_thread(thread_index);
+		ctx.destroy_fence(fence);
+	}
+};
+
 int main() {
 	glfwInit();
 
 	ph::AppSettings config;
 	config.enable_validation = true;
 	config.app_name = "Phobos Test App";
-	config.num_threads = 16;
+	config.num_threads = 4;
 	config.create_headless = false;
 	GLFWWindowInterface* wsi = new GLFWWindowInterface("Phobos Test App", 800, 600);
 	config.wsi = wsi;
 	StdoutLogger* logger = new StdoutLogger;
-	config.log = logger;
+	config.logger = logger;
 	config.gpu_requirements.dedicated = true;
 	config.gpu_requirements.min_video_memory = 2u * 1024u * 1024u * 1024u; // 2 GB of video memory
 	config.gpu_requirements.requested_queues = { 
@@ -141,21 +248,19 @@ int main() {
 		ph::Context ctx(config);
 		ph::Queue& graphics = *ctx.get_queue(ph::QueueType::Graphics);
 
-		// Create our offscreen attachment
-		ctx.create_attachment("offscreen", VkExtent2D{ 500, 500 }, VK_FORMAT_R8G8B8A8_SRGB);
+		ph::RawImage storage_image = ctx.create_image(ph::ImageType::StorageImage, { 2048, 2048 }, VK_FORMAT_R8G8B8A8_UNORM);
+		ph::ImageView storage_image_view = ctx.create_image_view(storage_image);
+
+		ctx.name_object(storage_image, "storage image");
+		ctx.name_object(storage_image_view, "[view] storage image");
 
 		// Create pipeline for writing to buffer and clearing screen
-		ph::PipelineCreateInfo write_pci =
-			ph::PipelineBuilder::create(ctx, "write")
-			.add_shader("data/shaders/write.vert.spv", "main", ph::PipelineStage::VertexShader)
-			.add_vertex_input(0)
-			.add_dynamic_state(VK_DYNAMIC_STATE_VIEWPORT)
-			.add_dynamic_state(VK_DYNAMIC_STATE_SCISSOR)
-			.add_vertex_attribute(0, 0, VK_FORMAT_R32G32_SFLOAT)
-			.add_vertex_attribute(0, 1, VK_FORMAT_R32G32_SFLOAT)
+		ph::ComputePipelineCreateInfo compute_pci =
+			ph::ComputePipelineBuilder::create(ctx, "compute_write")
+			.set_shader("data/shaders/compute.comp.spv", "main")
 			.reflect()
 		.get();
-		ctx.create_named_pipeline(std::move(write_pci));
+		ctx.create_named_pipeline(std::move(compute_pci));
 
 		// Create pipeline for reading from the buffer and displaying the result
 		ph::PipelineCreateInfo read_pci =
@@ -175,10 +280,15 @@ int main() {
 			.get();
 		ctx.create_named_pipeline(std::move(read_pci));
 
+		TaskScheduler scheduler(ctx.thread_count());
+		Task* async_task = new ImageWriteTask(ctx, storage_image_view);
+		scheduler.try_run(async_task);
+
 		while (wsi->is_open()) {
 			wsi->poll_events();
 			ph::InFlightContext ifc = ctx.wait_for_frame();
 
+			scheduler.poll();
 			ph::RenderGraph graph{};
 
 			// Buffers for this frame
@@ -186,44 +296,29 @@ int main() {
 			ph::TypedBufferSlice<vec4> vbo = ifc.allocate_scratch_vbo<vec4>(sizeof(vertices));
 			std::memcpy(vbo.data, vertices, sizeof(vertices));
 
-			// We'll write to this buffer in the first pass and read from it in the second one.
-			ph::TypedBufferSlice<ShaderSSBO> ssbo = ifc.allocate_scratch_ssbo<ShaderSSBO>(sizeof(ShaderSSBO));
-
-			ph::Pass write_pass =
-				ph::PassBuilder::create("write")
-				.shader_write_buffer(ssbo, ph::PipelineStage::VertexShader)
-				.execute([&vbo, &ssbo, &ctx](ph::CommandBuffer& cmd_buf) {
-					cmd_buf.bind_pipeline("write");
-					cmd_buf.auto_viewport_scissor();
-
-					VkDescriptorSet set = ph::DescriptorBuilder::create(ctx, cmd_buf.get_bound_pipeline())
-						.add_storage_buffer("out_buffer", ssbo)
-						.get();
-					cmd_buf.bind_descriptor_set(set);
-
-					// We don't support compute yet, so abusing vertex shaders it is
-					cmd_buf.bind_vertex_buffer(0, vbo);
-					cmd_buf.draw(6, 1, 0, 0);
-				})
-				.get();
-			ph::Pass read_pass =
-				ph::PassBuilder::create("read")
-				.add_attachment(ctx.get_swapchain_attachment_name(), ph::LoadOp::Clear, { .color = {0.0f, 0.0f, 0.0f, 1.0f} })
-				.shader_read_buffer(ssbo, ph::PipelineStage::FragmentShader)
-				.execute([&vbo, &ssbo, &ctx](ph::CommandBuffer& cmd_buf) {
+			ph::Pass read_pass = ph::PassBuilder::create("read")
+				.add_attachment(ctx.get_swapchain_attachment_name(), ph::LoadOp::Clear, { .color = {1.0f, 0.0f, 0.0f, 1.0f} })
+				.sample_image(storage_image_view, ph::PipelineStage::FragmentShader)
+				.execute([&vbo, &ctx, &scheduler, async_task, &storage_image_view](ph::CommandBuffer& cmd_buf) {
 					cmd_buf.bind_pipeline("read");
 					cmd_buf.auto_viewport_scissor();
 					
-					VkDescriptorSet set = ph::DescriptorBuilder::create(ctx, cmd_buf.get_bound_pipeline())
-						.add_storage_buffer("in_buffer", ssbo)
-						.get();
-					cmd_buf.bind_descriptor_set(set);
+					// Only do this part if the image is ready. Otherwise log a message saying it's not ready.
 
-					cmd_buf.bind_vertex_buffer(0, vbo);
-					cmd_buf.draw(6, 1, 0, 0);
+					if (scheduler.task_done(async_task)) {
+						VkDescriptorSet set = ph::DescriptorBuilder::create(ctx, cmd_buf.get_bound_pipeline())
+							.add_sampled_image("image", storage_image_view, ctx.basic_sampler())
+							.get();
+						cmd_buf.bind_descriptor_set(set);
+
+						cmd_buf.bind_vertex_buffer(0, vbo);
+						cmd_buf.draw(6, 1, 0, 0);
+					}
+					else {
+						std::cout << "Image not ready. Skipping draw\n";
+					}
 				})
 				.get();
-			graph.add_pass(write_pass);
 			graph.add_pass(read_pass);
 
 			graph.build(ctx);
@@ -240,6 +335,10 @@ int main() {
 			ctx.submit_frame_commands(graphics, commands);
 			ctx.present(*ctx.get_present_queue());
 		}
+
+		ctx.wait_idle();
+		ctx.destroy_image_view(storage_image_view);
+		ctx.destroy_image(storage_image);
 	}
 	delete wsi;
 	delete logger;

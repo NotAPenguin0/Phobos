@@ -46,6 +46,9 @@ CacheImpl::~CacheImpl() {
 	pipeline.foreach([this](ph::Pipeline pipeline) {
 		vkDestroyPipeline(ctx->device(), pipeline.handle, nullptr);
 	});
+	compute_pipeline.foreach([this](ph::Pipeline pipeline) {
+		vkDestroyPipeline(ctx->device(), pipeline.handle, nullptr);
+	});
 	vkDestroyDescriptorPool(ctx->device(), descr_pool, nullptr);
 }
 
@@ -208,7 +211,6 @@ Pipeline CacheImpl::get_or_create_pipeline(ph::PipelineCreateInfo& pci, VkRender
 		VkShaderStageFlagBits stage{};
 		if (shader_info->stage == PipelineStage::VertexShader) stage = VK_SHADER_STAGE_VERTEX_BIT;
 		else if (shader_info->stage == PipelineStage::FragmentShader) stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		else if (shader_info->stage == PipelineStage::ComputeShader) stage = VK_SHADER_STAGE_COMPUTE_BIT;
 		else assert(false && "Invalid shader stage");
 		VkPipelineShaderStageCreateInfo ssci{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -238,6 +240,43 @@ Pipeline CacheImpl::get_or_create_pipeline(ph::PipelineCreateInfo& pci, VkRender
 	}
 
 	this->pipeline.insert(pci, pipeline);
+
+	return pipeline;
+}
+
+Pipeline CacheImpl::get_or_create_compute_pipeline(ph::ComputePipelineCreateInfo& pci) {
+	{
+		Pipeline* pipeline = this->compute_pipeline.get(pci);
+		if (pipeline) { return *pipeline; }
+	}
+
+	VkComputePipelineCreateInfo cpci{};
+	VkDescriptorSetLayout set_layout = get_or_create_descriptor_set_layout(pci.layout.set_layout);
+	ph::PipelineLayout layout = get_or_create_pipeline_layout(pci.layout, set_layout);
+	cpci.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	// Create shader modules
+	ph::ShaderModuleCreateInfo* shader_info = this->shader.get(pci.shader);
+	assert(shader_info && "Invalid shader handle");
+	VkPipelineShaderStageCreateInfo ssci{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = {},
+		.stage = VK_SHADER_STAGE_COMPUTE_BIT,
+		.module = create_shader_module(ctx->device(), *shader_info),
+		.pName = shader_info->entry_point.c_str(),
+		.pSpecializationInfo = nullptr
+	};
+	cpci.stage = ssci;
+	cpci.layout = layout.handle;
+	Pipeline pipeline;
+	vkCreateComputePipelines(ctx->device(), nullptr, 1, &cpci, nullptr, &pipeline.handle);
+	pipeline.name = pci.name;
+	pipeline.layout = layout;
+	pipeline.type = PipelineType::Compute;
+	ctx->name_object(pipeline, "[Compute Pipeline] " + pci.name);
+	vkDestroyShaderModule(ctx->device(), ssci.module, nullptr);
+
+	this->compute_pipeline.insert(pci, pipeline);
 
 	return pipeline;
 }

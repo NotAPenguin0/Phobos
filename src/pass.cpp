@@ -8,6 +8,13 @@ PassBuilder PassBuilder::create(std::string_view name) {
 	return builder;
 }
 
+PassBuilder PassBuilder::create_compute(std::string_view name) {
+	PassBuilder builder{};
+	builder.pass.name = name;
+	builder.pass.compute_only = true;
+	return builder;
+}
+
 PassBuilder& PassBuilder::add_attachment(std::string_view name, LoadOp load_op, ClearValue clear) {
 	ResourceUsage usage;
 	usage.type = ResourceType::Attachment;
@@ -46,6 +53,36 @@ PassBuilder& PassBuilder::shader_write_buffer(BufferSlice slice, plib::bit_flag<
 	usage.access = ResourceAccess::ShaderWrite;
 	usage.stage = stage;
 	usage.buffer.slice = slice;
+	pass.resources.push_back(usage);
+	return *this;
+}
+
+PassBuilder& PassBuilder::write_storage_image(ImageView view, plib::bit_flag<PipelineStage> stage) {
+	ResourceUsage usage{};
+	usage.type = ResourceType::StorageImage;
+	usage.access = ResourceAccess::ShaderWrite;
+	usage.stage = stage;
+	usage.image.view = view;
+	pass.resources.push_back(usage);
+	return *this;
+}
+
+PassBuilder& PassBuilder::read_storage_image(ImageView view, plib::bit_flag<PipelineStage> stage) {
+	ResourceUsage usage{};
+	usage.type = ResourceType::StorageImage;
+	usage.access = ResourceAccess::ShaderRead;
+	usage.stage = stage;
+	usage.image.view = view;
+	pass.resources.push_back(usage);
+	return *this;
+}
+
+PassBuilder& PassBuilder::sample_image(ImageView view, plib::bit_flag<PipelineStage> stage) {
+	ResourceUsage usage{};
+	usage.type = ResourceType::Image;
+	usage.access = ResourceAccess::ShaderRead;
+	usage.stage = stage;
+	usage.image.view = view;
 	pass.resources.push_back(usage);
 	return *this;
 }

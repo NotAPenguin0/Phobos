@@ -20,6 +20,8 @@ public:
 
 	// Cleans up state of the allocator. This resets the current offset to 0 and thus frees allocator memory
 	void reset();
+
+	RawBuffer const& get_buffer() const;
 private:
 	Context* ctx = nullptr;
 

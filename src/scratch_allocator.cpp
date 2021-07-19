@@ -77,5 +77,9 @@ void ScratchAllocator::reset() {
 	current_offset = 0;
 }
 
+RawBuffer const& ScratchAllocator::get_buffer() const {
+	return buffer;
+}
+
 
 }

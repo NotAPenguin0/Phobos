@@ -294,9 +294,18 @@ void PipelineImpl::create_named_pipeline(ph::PipelineCreateInfo pci) {
 	pipelines[pci.name] = std::move(pci);
 }
 
-ShaderMeta const& PipelineImpl::get_shader_meta(std::string_view pipeline_name) {
-	return pipelines.at(std::string(pipeline_name)).meta;
+void PipelineImpl::create_named_pipeline(ph::ComputePipelineCreateInfo pci) {
+	compute_pipelines[pci.name] = std::move(pci);
 }
+
+ShaderMeta const& PipelineImpl::get_shader_meta(std::string_view pipeline_name) {
+	return get_pipeline(pipeline_name).meta;
+}
+
+ShaderMeta const& PipelineImpl::get_compute_shader_meta(std::string_view pipeline_name) {
+	return get_compute_pipeline(pipeline_name).meta;
+}
+
 
 void PipelineImpl::reflect_shaders(ph::PipelineCreateInfo& pci) {
 	std::vector<std::unique_ptr<spirv_cross::Compiler>> reflected_shaders;
@@ -308,8 +317,21 @@ void PipelineImpl::reflect_shaders(ph::PipelineCreateInfo& pci) {
 	pci.layout = reflect::make_pipeline_layout(*ctx, reflected_shaders, pci.meta);
 }
 
+void PipelineImpl::reflect_shaders(ph::ComputePipelineCreateInfo& pci) {
+	std::vector<std::unique_ptr<spirv_cross::Compiler>> reflected_shaders;
+	ph::ShaderModuleCreateInfo* shader = cache->shader.get(pci.shader);
+	assert(shader && "Invalid shader");
+	reflected_shaders.push_back(reflect::reflect_shader_stage(*shader));
+	pci.layout = reflect::make_pipeline_layout(*ctx, reflected_shaders, pci.meta);
+}
+
+
 ph::PipelineCreateInfo& PipelineImpl::get_pipeline(std::string_view name) {
-	return pipelines[std::string(name)];
+	return pipelines.at(std::string(name));
+}
+
+ph::ComputePipelineCreateInfo& PipelineImpl::get_compute_pipeline(std::string_view name) {
+	return compute_pipelines.at(std::string(name));
 }
 
 }

@@ -18,6 +18,7 @@ namespace impl {
 class Context;
 
 enum class PipelineStage {
+    TopOfPipe = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
     VertexShader = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
     FragmentShader = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
     ComputeShader = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -163,6 +164,15 @@ struct PipelineCreateInfo {
     bool blend_logic_op_enable = false;
 };
 
+struct ComputePipelineCreateInfo {
+    std::string name{};
+    PipelineLayoutCreateInfo layout{};
+    ShaderHandle shader;
+
+    ShaderMeta meta{};
+
+};
+
 class DescriptorBuilder {
 public:
     static DescriptorBuilder create(Context& ctx, Pipeline const& pipeline);
@@ -170,6 +180,10 @@ public:
     DescriptorBuilder& add_sampled_image(uint32_t binding, ImageView view, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     DescriptorBuilder& add_sampled_image(ShaderMeta::Binding const& binding, ImageView view, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     DescriptorBuilder& add_sampled_image(std::string_view binding, ImageView view, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    DescriptorBuilder& add_storage_image(uint32_t binding, ImageView view, VkImageLayout layout = VK_IMAGE_LAYOUT_GENERAL);
+    DescriptorBuilder& add_storage_image(ShaderMeta::Binding const& binding, ImageView view, VkImageLayout layout = VK_IMAGE_LAYOUT_GENERAL);
+    DescriptorBuilder& add_storage_image(std::string_view binding, ImageView view, VkImageLayout layout = VK_IMAGE_LAYOUT_GENERAL);
 
     DescriptorBuilder& add_uniform_buffer(uint32_t binding, BufferSlice buffer);
     DescriptorBuilder& add_uniform_buffer(ShaderMeta::Binding const& binding, BufferSlice buffer);
@@ -221,6 +235,20 @@ private:
     ph::PipelineCreateInfo pci{};
 
     std::unordered_map<uint32_t /* vertex input binding*/, uint32_t /* current byte offset*/> vertex_binding_offsets;
+};
+
+class ComputePipelineBuilder {
+public:
+    static ComputePipelineBuilder create(Context& ctx, std::string_view name);
+
+    ComputePipelineBuilder& set_shader(ShaderHandle shader);
+    ComputePipelineBuilder& set_shader(std::string_view path, std::string_view entry);
+    ComputePipelineBuilder& reflect();
+
+    ph::ComputePipelineCreateInfo get();
+private:
+    Context* ctx = nullptr;
+    ph::ComputePipelineCreateInfo pci{};
 };
 
 }

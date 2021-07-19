@@ -33,8 +33,10 @@ private:
 		VkRenderPass handle = nullptr;
 		VkFramebuffer framebuf = nullptr;
 		VkExtent2D render_area{};
+		// These barries will be executed BEFORE the renderpass;
+		std::vector<Barrier> pre_barriers;
 		// These barriers will be executed AFTER the renderpass.
-		std::vector<Barrier> barriers;
+		std::vector<Barrier> post_barriers;
 	};
 
 	std::vector<Pass> passes;
@@ -56,6 +58,9 @@ private:
 
 	std::pair<ResourceUsage, Pass*> find_previous_usage(Pass* current_pass, BufferSlice const* buffer);
 	std::pair<ResourceUsage, Pass*> find_next_usage(Pass* current_pass, BufferSlice const* buffer);
+
+	std::pair<ResourceUsage, Pass*> find_previous_usage(Pass* current_pass, ImageView const* image);
+	std::pair<ResourceUsage, Pass*> find_next_usage(Pass* current_pass, ImageView const* image);
 
 	AttachmentUsage get_attachment_usage(std::pair<ResourceUsage, Pass*> const& res_usage);
 
