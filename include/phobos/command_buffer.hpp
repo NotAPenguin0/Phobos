@@ -5,12 +5,14 @@
 
 #include <plib/bit_flag.hpp>
 
+#include <phobos/pass.hpp>
 #include <phobos/pipeline.hpp>
 #include <phobos/buffer.hpp>
 
 namespace ph {
 
 class Context;
+class Queue;
 
 class CommandBuffer {
 public:
@@ -41,7 +43,16 @@ public:
 	CommandBuffer& barrier(plib::bit_flag<ph::PipelineStage> src_stage, plib::bit_flag<ph::PipelineStage> dst_stage, VkImageMemoryBarrier const& barrier, VkDependencyFlags dependency = VK_DEPENDENCY_BY_REGION_BIT);
 	CommandBuffer& barrier(plib::bit_flag<ph::PipelineStage> src_stage, plib::bit_flag<ph::PipelineStage> dst_stage, VkMemoryBarrier const& barrier, VkDependencyFlags dependency = VK_DEPENDENCY_BY_REGION_BIT);
 
+	CommandBuffer& transition_layout(plib::bit_flag<ph::PipelineStage> src_stage, plib::bit_flag<ph::ResourceAccess> src_access, plib::bit_flag<ph::PipelineStage> dst_stage, plib::bit_flag<ph::ResourceAccess> dst_access, 
+		ph::ImageView const& view, VkImageLayout old_layout, VkImageLayout new_layout);
+
+	CommandBuffer& transition_layout(plib::bit_flag<ph::PipelineStage> src_stage, VkAccessFlags src_access, plib::bit_flag<ph::PipelineStage> dst_stage, VkAccessFlags dst_access,
+		ph::ImageView const& view, VkImageLayout old_layout, VkImageLayout new_layout);
+
 	CommandBuffer& dispatch(uint32_t x, uint32_t y, uint32_t z);
+
+	CommandBuffer& release_ownership(Queue const& src, Queue const& dst, ph::ImageView const& image, VkImageLayout final_layout);
+	CommandBuffer& acquire_ownership(Queue const& src, Queue const& dst, ph::ImageView const& image, VkImageLayout final_layout);
 
 	VkCommandBuffer handle() const;
 

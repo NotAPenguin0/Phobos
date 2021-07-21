@@ -170,10 +170,12 @@ struct ImageWriteTask : public Task {
 	ph::Context& ctx;
 	ph::ImageView target_image;
 	VkFence fence = nullptr;
+	VkSemaphore semaphore = nullptr;
 	ph::CommandBuffer cmd_buffer;
 
 	ImageWriteTask(ph::Context& ctx, ph::ImageView image) : ctx(ctx), target_image(image) {
 		fence = ctx.create_fence();
+		semaphore = ctx.create_semaphore();
 	}
 
 	void execute(uint32_t thread_index) override {
@@ -191,14 +193,23 @@ struct ImageWriteTask : public Task {
 			})
 		.get();
 		ph::RenderGraph graph;
-		graph.add_pass(std::move(image_write));
+		graph.add_pass(image_write);
 		graph.build(ctx);
 		ph::RenderGraphExecutor executor{};
 		
 		ph::Queue* compute = ctx.get_queue(ph::QueueType::Compute);
+		ph::Queue* graphics = ctx.get_queue(ph::QueueType::Graphics);
+
+		// Record compute queue commands
 		cmd_buffer = compute->begin_single_time(thread_index);
 		executor.execute(cmd_buffer, graph);
-		compute->end_single_time(cmd_buffer, fence);
+		cmd_buffer.release_ownership(*compute, *graphics, target_image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		compute->end_single_time(cmd_buffer, nullptr, {}, nullptr, semaphore);
+
+		// Record graphics queue commands to complete ownership transfer
+		ph::CommandBuffer gfx_command = graphics->begin_single_time(thread_index);
+		gfx_command.acquire_ownership(*compute, *graphics, target_image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		graphics->end_single_time(gfx_command, fence, ph::PipelineStage::TopOfPipe, semaphore);
 	}
 
 	bool poll() override {
@@ -210,6 +221,7 @@ struct ImageWriteTask : public Task {
 		compute->free_single_time(cmd_buffer, thread_index);
 		ctx.end_thread(thread_index);
 		ctx.destroy_fence(fence);
+		ctx.destroy_semaphore(semaphore);
 	}
 };
 

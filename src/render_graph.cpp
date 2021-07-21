@@ -4,7 +4,7 @@
 namespace ph {
 
 static bool is_output_attachment(ResourceUsage const& usage) {
-    return usage.type == ResourceType::Attachment && usage.access == ResourceAccess::AttachmentOutput && usage.stage == PipelineStage::AttachmentOutput;
+    return usage.type == ResourceType::Attachment && usage.access == ResourceAccess::ColorAttachmentOutput && usage.stage == PipelineStage::AttachmentOutput;
 }
 
 void RenderGraph::add_pass(Pass pass) {
@@ -375,14 +375,10 @@ RenderGraph::AttachmentUsage RenderGraph::get_attachment_usage(std::pair<Resourc
             .pass = pass
         };
     }
-    if (usage.access == ResourceAccess::AttachmentOutput) {
-        VkAccessFlags access = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
-        if (is_depth_format(usage.image.view.format)) {
-            access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        }
+    if (usage.access == ResourceAccess::ColorAttachmentOutput || usage.access == ResourceAccess::DepthStencilAttachmentOutput) {
         return AttachmentUsage{
             .stage = static_cast<VkPipelineStageFlags>(usage.stage.value()),
-            .access = access,
+            .access = static_cast<VkAccessFlags>(usage.access),
             .pass = pass
         };
     }

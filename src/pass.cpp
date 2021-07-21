@@ -18,7 +18,19 @@ PassBuilder PassBuilder::create_compute(std::string_view name) {
 PassBuilder& PassBuilder::add_attachment(std::string_view name, LoadOp load_op, ClearValue clear) {
 	ResourceUsage usage;
 	usage.type = ResourceType::Attachment;
-	usage.access = ResourceAccess::AttachmentOutput;
+	usage.access = ResourceAccess::ColorAttachmentOutput;
+	usage.stage = PipelineStage::AttachmentOutput;
+	usage.attachment.name = name;
+	usage.attachment.load_op = load_op;
+	usage.attachment.clear = clear;
+	pass.resources.push_back(std::move(usage));
+	return *this;
+}
+
+PassBuilder& PassBuilder::add_depth_attachment(std::string_view name, LoadOp load_op, ClearValue clear) {
+	ResourceUsage usage;
+	usage.type = ResourceType::Attachment;
+	usage.access = ResourceAccess::DepthStencilAttachmentOutput;
 	usage.stage = PipelineStage::AttachmentOutput;
 	usage.attachment.name = name;
 	usage.attachment.load_op = load_op;

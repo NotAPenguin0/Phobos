@@ -44,6 +44,9 @@ public:
 	VkResult wait_for_fence(VkFence fence, uint64_t timeout);
 	void destroy_fence(VkFence fence);
 
+	VkSemaphore create_semaphore();
+	void destroy_semaphore(VkSemaphore semaphore);
+
 	// Only used on initialization
 	void post_init(Context& ctx, ImageImpl& image_impl, AppSettings const& settings);
 

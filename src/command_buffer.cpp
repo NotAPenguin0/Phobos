@@ -1,5 +1,6 @@
 #include <phobos/command_buffer.hpp>
 #include <phobos/context.hpp>
+#include <phobos/queue.hpp>
 
 #include <cassert>
 
@@ -102,9 +103,86 @@ CommandBuffer& CommandBuffer::barrier(plib::bit_flag<ph::PipelineStage> src_stag
 	return *this;
 }
 
+CommandBuffer& CommandBuffer::transition_layout(plib::bit_flag<ph::PipelineStage> src_stage, plib::bit_flag<ph::ResourceAccess> src_access, plib::bit_flag<ph::PipelineStage> dst_stage, plib::bit_flag<ph::ResourceAccess> dst_access,
+	ph::ImageView const& view, VkImageLayout old_layout, VkImageLayout new_layout) {
+
+	return transition_layout(src_stage, static_cast<VkAccessFlags>(src_access.value()), dst_stage, static_cast<VkAccessFlags>(dst_access.value()), view, old_layout, new_layout);
+}
+
+CommandBuffer& CommandBuffer::transition_layout(plib::bit_flag<ph::PipelineStage> src_stage, VkAccessFlags src_access, plib::bit_flag<ph::PipelineStage> dst_stage, VkAccessFlags dst_access,
+	ph::ImageView const& view, VkImageLayout old_layout, VkImageLayout new_layout) {
+
+	VkImageMemoryBarrier barrier{
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.pNext = nullptr,
+		.srcAccessMask = src_access,
+		.dstAccessMask = dst_access,
+		.oldLayout = old_layout,
+		.newLayout = new_layout,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.image = view.image
+	};
+	barrier.subresourceRange = VkImageSubresourceRange{
+		.aspectMask = static_cast<VkImageAspectFlags>(view.aspect),
+		.baseMipLevel = view.base_level,
+		.levelCount = view.level_count,
+		.baseArrayLayer = view.base_layer,
+		.layerCount = view.layer_count
+	};
+	this->barrier(src_stage, dst_stage, barrier);
+	return *this;
+}
+
 CommandBuffer& CommandBuffer::dispatch(uint32_t x, uint32_t y, uint32_t z) {
 	assert(cur_pipeline.type == PipelineType::Compute && "Cannot dispatch compute shader in non-compute pipeline.");
 	vkCmdDispatch(cmd_buf, x, y, z);
+	return *this;
+}
+
+CommandBuffer& CommandBuffer::release_ownership(Queue const& src, Queue const& dst, ph::ImageView const& view, VkImageLayout final_layout) {
+	VkImageMemoryBarrier barrier{
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.pNext = nullptr,
+		.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.newLayout = final_layout,
+		.srcQueueFamilyIndex = src.family_index(),
+		.dstQueueFamilyIndex = dst.family_index(),
+		.image = view.image
+	};
+	barrier.subresourceRange = VkImageSubresourceRange{
+		.aspectMask = static_cast<VkImageAspectFlags>(view.aspect),
+		.baseMipLevel = view.base_level,
+		.levelCount = view.level_count,
+		.baseArrayLayer = view.base_layer,
+		.layerCount = view.layer_count
+	};
+	this->barrier(ph::PipelineStage::TopOfPipe, ph::PipelineStage::BottomOfPipe, barrier);
+	return *this;
+}
+
+CommandBuffer& CommandBuffer::acquire_ownership(Queue const& src, Queue const& dst, ph::ImageView const& view, VkImageLayout final_layout) {
+	VkImageMemoryBarrier barrier{
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.pNext = nullptr,
+		.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.newLayout = final_layout,
+		.srcQueueFamilyIndex = src.family_index(),
+		.dstQueueFamilyIndex = dst.family_index(),
+		.image = view.image
+	};
+	barrier.subresourceRange = VkImageSubresourceRange{
+		.aspectMask = static_cast<VkImageAspectFlags>(view.aspect),
+		.baseMipLevel = view.base_level,
+		.levelCount = view.level_count,
+		.baseArrayLayer = view.base_layer,
+		.layerCount = view.layer_count
+	};
+	this->barrier(ph::PipelineStage::TopOfPipe, ph::PipelineStage::BottomOfPipe, barrier);
 	return *this;
 }
 

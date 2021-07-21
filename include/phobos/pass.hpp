@@ -8,12 +8,13 @@
 
 #include <plib/bit_flag.hpp>
 
-#include <phobos/command_buffer.hpp>
 #include <phobos/image.hpp>
 #include <phobos/pipeline.hpp>
 #include <phobos/buffer.hpp>
 
 namespace ph {
+
+class CommandBuffer;
 
 struct ClearColor {
 	float color[4]{ 0.0f, 0.0f, 0.0f, 0.1f };
@@ -39,7 +40,8 @@ enum class LoadOp {
 enum class ResourceAccess {
 	ShaderRead = VK_ACCESS_SHADER_READ_BIT,
 	ShaderWrite = VK_ACCESS_SHADER_WRITE_BIT,
-	AttachmentOutput
+	ColorAttachmentOutput = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+	DepthStencilAttachmentOutput = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
 };
 
 enum class ResourceType {
@@ -95,6 +97,8 @@ public:
 
 	// Adds an attachment to render to in this render pass.
 	PassBuilder& add_attachment(std::string_view name, LoadOp load_op, ClearValue clear = { .color {} });
+	// Adds a depth attachment to render to in this render pass.
+	PassBuilder& add_depth_attachment(std::string_view name, LoadOp load_op, ClearValue clear = { .color {} });
 	// If you sample from an attachment that was rendered to in a previous pass, you must call this function to properly synchronize access and transition the image layout.
 	PassBuilder& sample_attachment(std::string_view name, plib::bit_flag<PipelineStage> stage);
 	// If you read from a buffer that was written to in an earlier pass, you must call this function to synchronize access automatically.

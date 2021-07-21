@@ -123,7 +123,7 @@ CommandBuffer Queue::begin_single_time(uint32_t thread) {
 	return result;
 }
 
-void Queue::end_single_time(CommandBuffer& cmd_buf, VkFence signal_fence, VkPipelineStageFlags wait_stage, VkSemaphore wait_semaphore, VkSemaphore signal_semaphore) {
+void Queue::end_single_time(CommandBuffer& cmd_buf, VkFence signal_fence, plib::bit_flag<ph::PipelineStage> wait_stage, VkSemaphore wait_semaphore, VkSemaphore signal_semaphore) {
 	cmd_buf.end();
 	submit(cmd_buf, signal_fence, wait_stage, wait_semaphore, signal_semaphore);
 }
@@ -134,7 +134,7 @@ void Queue::free_single_time(CommandBuffer& cmd_buf, uint32_t thread) {
 	vkFreeCommandBuffers(ctx->device(), pool, 1, &cbuf);
 }
 
-void Queue::submit(CommandBuffer& cmd_buf, VkFence signal_fence, VkPipelineStageFlags wait_stage, VkSemaphore wait_semaphore, VkSemaphore signal_semaphore) {
+void Queue::submit(CommandBuffer& cmd_buf, VkFence signal_fence, plib::bit_flag<ph::PipelineStage> wait_stage, VkSemaphore wait_semaphore, VkSemaphore signal_semaphore) {
 	VkSubmitInfo info{};
 	info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	info.commandBufferCount = 1;
@@ -147,7 +147,8 @@ void Queue::submit(CommandBuffer& cmd_buf, VkFence signal_fence, VkPipelineStage
 	if (wait_semaphore) {
 		info.waitSemaphoreCount = 1;
 		info.pWaitSemaphores = &wait_semaphore;
-		info.pWaitDstStageMask = &wait_stage;
+		auto const wait_stage_value = static_cast<VkPipelineStageFlags>(wait_stage.value());
+		info.pWaitDstStageMask = &wait_stage_value;
 	}
 	submit(info, signal_fence);
 }

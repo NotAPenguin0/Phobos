@@ -134,6 +134,14 @@ void Context::destroy_fence(VkFence fence) {
 	context_impl->destroy_fence(fence);
 }
 
+VkSemaphore Context::create_semaphore() {
+	return context_impl->create_semaphore();
+}
+
+void Context::destroy_semaphore(VkSemaphore semaphore) {
+	context_impl->destroy_semaphore(semaphore);
+}
+
 // FRAME
 
 size_t Context::max_frames_in_flight() const {

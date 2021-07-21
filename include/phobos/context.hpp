@@ -270,6 +270,9 @@ public:
 	bool poll_fence(VkFence fence);
 	void destroy_fence(VkFence fence);
 
+	VkSemaphore create_semaphore();
+	void destroy_semaphore(VkSemaphore semaphore);
+
 	Attachment* get_attachment(std::string_view name);
 	void create_attachment(std::string_view name, VkExtent2D size, VkFormat format);
 	bool is_swapchain_attachment(std::string const& name);

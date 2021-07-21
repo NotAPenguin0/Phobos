@@ -58,22 +58,13 @@ public:
 	// Creates a single-time command buffer. It may only be used on the same thread as it was created on.
 	CommandBuffer begin_single_time(uint32_t thread);
 	// Submits a command buffer to the queue. Optionally a fence may be specified that is signalled when the commands are completed
-	void end_single_time(CommandBuffer& cmd_buf, VkFence signal_fence = nullptr, VkPipelineStageFlags wait_stage = {},
-		VkSemaphore wait_semaphore = nullptr, VkSemaphore signal_semaphore = nullptr);
+	void end_single_time(CommandBuffer& cmd_buf, VkFence signal_fence = nullptr, plib::bit_flag<ph::PipelineStage> wait_stage = {}, VkSemaphore wait_semaphore = nullptr, VkSemaphore signal_semaphore = nullptr);
 	void free_single_time(CommandBuffer& cmd_buf, uint32_t thread);
 
-	void submit(CommandBuffer& cmd_buf, VkFence signal_fence = nullptr, VkPipelineStageFlags wait_stage = {},
-		VkSemaphore wait_semaphore = nullptr, VkSemaphore signal_semaphore = nullptr);
+	void submit(CommandBuffer& cmd_buf, VkFence signal_fence = nullptr, plib::bit_flag<ph::PipelineStage> wait_stage = {}, VkSemaphore wait_semaphore = nullptr, VkSemaphore signal_semaphore = nullptr);
 	void submit(VkSubmitInfo const& submit_info, VkFence signal_fence);
-	void present(VkPresentInfoKHR const& present_info);
 
-	// Releases onwnership of a resource. This must be externally synchronized with acquire_ownership in the other queue
-/*	void release_ownership(CommandBuffer& cmd_buf, ph::RawImage& image, Queue& dst);
-	void release_ownership(CommandBuffer& cmd_buf, ph::RawBuffer& buffer, Queue& dst);
-	// Acquire ownership of a resource.
-	void acquire_ownership(CommandBuffer& cmd_buf, ph::RawImage& image, Queue& src);
-	void acquire_ownership(CommandBuffer& cmd_buf, ph::RawBuffer& buffer, Queue& src);
-*/
+	void present(VkPresentInfoKHR const& present_info);
 
 private:
 	Context* ctx = nullptr;

@@ -22,7 +22,8 @@ enum class PipelineStage {
     VertexShader = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
     FragmentShader = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
     ComputeShader = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    AttachmentOutput = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    AttachmentOutput = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+    BottomOfPipe = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
 };
 
 enum class PipelineType {

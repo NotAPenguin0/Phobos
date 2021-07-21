@@ -579,5 +579,20 @@ void ContextImpl::destroy_fence(VkFence fence) {
 	vkDestroyFence(device, fence, nullptr);
 }
 
+VkSemaphore ContextImpl::create_semaphore() {
+	VkSemaphoreCreateInfo info{
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = {}
+	};
+	VkSemaphore semaphore;
+	vkCreateSemaphore(device, &info, nullptr, &semaphore);
+	return semaphore;
+}
+
+void ContextImpl::destroy_semaphore(VkSemaphore semaphore) {
+	vkDestroySemaphore(device, semaphore, nullptr);
+}
+
 } // namespace impl
 } // namespace ph
