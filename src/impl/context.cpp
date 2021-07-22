@@ -59,6 +59,15 @@ static PhysicalDevice select_physical_device(VkInstance instance, std::optional<
 		vkGetPhysicalDeviceProperties(device, &properties);
 		VkPhysicalDeviceMemoryProperties mem_properties{};
 		vkGetPhysicalDeviceMemoryProperties(device, &mem_properties);
+#if PHOBOS_ENABLE_RAY_TRACING
+		// Get ray tracing properties
+		VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtx_properties{
+			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR
+		};
+		VkPhysicalDeviceProperties2 properties_2{};
+		properties_2.pNext = &rtx_properties;
+		vkGetPhysicalDeviceProperties2(device, &properties_2);
+#endif
 		// Check if the properties match the required settings
 		if (requirements.dedicated && properties.deviceType != VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) continue;
 		// Only do this check if there is a minimum video memory limit
@@ -114,7 +123,16 @@ static PhysicalDevice select_physical_device(VkInstance instance, std::optional<
 			if (!found_one) continue;
 		}
 
-		return { .handle = device, .properties = properties, .memory_properties = mem_properties, .found_queues = std::move(found_queues), .surface = surface };
+		return {
+			.handle = device,
+			.properties = properties,
+			.memory_properties = mem_properties,
+			.found_queues = std::move(found_queues),
+			.surface = surface,
+#if PHOBOS_ENABLE_RAY_TRACING
+			.ray_tracing_properties = rtx_properties
+#endif
+		};
 	}
 
 	// No matching device was found.

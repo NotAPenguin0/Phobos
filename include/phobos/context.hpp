@@ -103,6 +103,9 @@ struct PhysicalDevice {
 	std::vector<QueueInfo> found_queues{};
 	// This is std::nullopt for a headless context
 	std::optional<SurfaceInfo> surface = std::nullopt;
+#if PHOBOS_ENABLE_RAY_TRACING
+	VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_properties{};
+#endif
 };
 
 struct Swapchain {
