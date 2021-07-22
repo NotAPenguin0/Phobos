@@ -201,6 +201,13 @@ ContextImpl::ContextImpl(AppSettings settings)
 	}
 	logger = settings.logger;
 
+#if PHOBOS_ENABLE_RAY_TRACING
+	// If ray tracing is enabled, add the required extensions for it
+	settings.gpu_requirements.device_extensions.push_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+	settings.gpu_requirements.device_extensions.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+	settings.gpu_requirements.device_extensions.push_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+#endif
+
 	{
 		VkApplicationInfo app_info{};
 		app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;

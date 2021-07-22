@@ -13,6 +13,7 @@ set(PHOBOS_LINK_LIBRARIES ${PHOBOS_LINK_LIBRARIES}
     ""
 ) 
 
+OPTION(PHOBOS_ENABLE_RAY_TRACING "Enable building the ray tracing functionality")
 OPTION(PHOBOS_ENABLE_TEST_APP "Enable building a test application")
 OPTION(PHOBOS_NO_FIXED_PIPELINE  "Disable the fixed pipeline functionality")
 
@@ -51,6 +52,10 @@ target_include_directories(Phobos PUBLIC "include/")
 
 if (${PHOBOS_ENABLE_TEST_APP})
     add_subdirectory("test")
+endif()
+
+if (${PHOBOS_ENABLE_RAY_TRACING})
+    target_compile_definitions(Phobos PUBLIC PHOBOS_ENABLE_RAY_TRACING)
 endif()
 
 #if (PHOBOS_ENABLE_TEST_APP)
