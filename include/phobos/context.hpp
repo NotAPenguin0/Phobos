@@ -13,6 +13,7 @@
 #include <phobos/buffer.hpp>
 #include <phobos/scratch_allocator.hpp>
 
+
 #include <vulkan/vulkan.h>
 #include "vk_mem_alloc.h"
 
@@ -25,16 +26,24 @@
 
 namespace ph {
 
+#if PHOBOS_ENABLE_RAY_TRACING
+struct AccelerationStructure;
+#endif
+
 // This struct describes capabilities the user wants the GPU to have.
 struct GPURequirements {
 	bool dedicated = false;
 	// Minimum amount of dedicated video memory (in bytes). This only counts memory heaps with the DEVICE_LOCAL bit set.
 	uint64_t min_video_memory = 0;
 	// Request queues and add them to this list
-	std::vector<QueueRequest> requested_queues;
+	std::vector<QueueRequest> requested_queues{};
 	// Device extensions and features
-	std::vector<const char*> device_extensions;
+	std::vector<const char*> device_extensions{};
 	VkPhysicalDeviceFeatures features{};
+	VkPhysicalDeviceVulkan11Features features_1_1{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES };
+	VkPhysicalDeviceVulkan12Features features_1_2{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
+	// Internal, for building the final pNext chain. You do not need to set any of these values.
+	VkPhysicalDeviceFeatures2 _features{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
 	// To add a pNext chain to the VkDeviceCreateInfo
 	void* pNext = nullptr;
 };
@@ -46,10 +55,8 @@ struct AppSettings {
 	// Whether to use the default vulkan validation layers.
 	// Defaults to false.
 	bool enable_validation = false;
-	// Amount of additional threads phobos can be used from. Using any more threads than this amount is 
+	// Amount of threads phobos can be used from. Using any more threads than this amount is 
 	// undefined behaviour and can lead to race conditions.
-	// Note that this does NOT include the main thread. So if you have N threads available including the main thread,
-	// the maximum value you can supply is N - 1.
 	uint32_t num_threads = 1;
 	// Whether to use phobos without a window. This disables all swapchain functionality.
 	// Useful for compute-only applications.
@@ -243,6 +250,8 @@ public:
 
 	void wait_idle();
 
+	LogInterface* logger();
+
 	// Sets object name. This will only be executed when validation is enabled.
 	void name_object(ph::Pipeline const& pipeline, std::string const& name);
 	void name_object(VkRenderPass pass, std::string const& name);
@@ -271,10 +280,14 @@ public:
 	VkFence create_fence();
 	void wait_for_fence(VkFence fence, uint64_t timeout = std::numeric_limits<uint64_t>::max());
 	bool poll_fence(VkFence fence);
+	void reset_fence(VkFence fence);
 	void destroy_fence(VkFence fence);
 
 	VkSemaphore create_semaphore();
 	void destroy_semaphore(VkSemaphore semaphore);
+
+	VkQueryPool create_query_pool(VkQueryType type, uint32_t count);
+	void destroy_query_pool(VkQueryPool pool);
 
 	Attachment* get_attachment(std::string_view name);
 	void create_attachment(std::string_view name, VkExtent2D size, VkFormat format);
@@ -308,6 +321,14 @@ public:
 	// Resizes the raw buffer to be able to hold at least requested_size bytes. Returns whether a reallocation occured. 
 	// Note: If the buffer needs a resize, the old contents will be lost.
 	bool ensure_buffer_size(RawBuffer& buf, VkDeviceSize requested_size);
+	// Returns the device address for a buffer
+	VkDeviceAddress get_device_address(RawBuffer const& buf);
+	VkDeviceAddress get_device_address(BufferSlice slice);
+
+#if PHOBOS_ENABLE_RAY_TRACING
+	void destroy_acceleration_structure(AccelerationStructure& as);
+#endif
+
 private:
 	// Pointers to implementation classes. We declare these in a very specific order so reverse destruction order can take care of the proper destruction order.
 	// The reason image_impl is above context_impl is because we need to destroy image views inside the context destructor. Luckily, the image implementation does not need to do anything upon destruction, 
@@ -330,6 +351,9 @@ private:
 	friend class CommandBuffer;
 	friend class RenderGraph;
 	friend class DescriptorBuilder;
+#if PHOBOS_ENABLE_RAY_TRACING
+	friend class AccelerationStructureBuilder;
+#endif
 	friend class impl::CacheImpl;
 
 	VkDevice device();
@@ -344,6 +368,18 @@ private:
 
 	ShaderMeta const& get_shader_meta(std::string_view pipeline_name);
 	ShaderMeta const& get_compute_shader_meta(std::string_view pipeline_name);
+
+#if PHOBOS_ENABLE_RAY_TRACING
+	struct RTXExtensionFunctions {
+		PFN_vkCreateAccelerationStructureKHR _vkCreateAccelerationStructureKHR = nullptr;
+		PFN_vkDestroyAccelerationStructureKHR _vkDestroyAccelerationStructureKHR = nullptr;
+		PFN_vkGetAccelerationStructureBuildSizesKHR _vkGetAccelerationStructureBuildSizesKHR = nullptr;
+		PFN_vkCmdBuildAccelerationStructuresKHR _vkCmdBuildAccelerationStructuresKHR = nullptr;
+		PFN_vkCmdWriteAccelerationStructuresPropertiesKHR _vkCmdWriteAccelerationStructuresPropertiesKHR = nullptr;
+		PFN_vkCmdCopyAccelerationStructureKHR _vkCmdCopyAccelerationStructureKHR = nullptr;
+		PFN_vkGetAccelerationStructureDeviceAddressKHR _vkGetAccelerationStructureDeviceAddressKHR = nullptr;
+	} rtx_fun;
+#endif
 };
 
 }

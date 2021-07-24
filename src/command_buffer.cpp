@@ -6,6 +6,10 @@
 
 namespace ph {
 
+#if PHOBOS_ENABLE_RAY_TRACING
+	#define PH_RTX_CALL(func, ...) ctx->rtx_fun._##func(__VA_ARGS__)
+#endif
+
 CommandBuffer::CommandBuffer(Context& context, VkCommandBuffer&& cmd_buf) : ctx(&context), cmd_buf(cmd_buf) {
 
 }
@@ -186,8 +190,58 @@ CommandBuffer& CommandBuffer::acquire_ownership(Queue const& src, Queue const& d
 	return *this;
 }
 
+CommandBuffer& CommandBuffer::copy_buffer(BufferSlice src, BufferSlice dst) {
+	assert(src.range == dst.range && "Cannot copy between slices of different sizes");
+	VkBufferCopy copy{
+		.srcOffset = src.offset,
+		.dstOffset = dst.offset,
+		.size = src.range
+	};
+	vkCmdCopyBuffer(cmd_buf, src.buffer, dst.buffer, 1, &copy);
+	return *this;
+}
+
+#if PHOBOS_ENABLE_RAY_TRACING
+
+CommandBuffer& CommandBuffer::build_acceleration_structure(VkAccelerationStructureBuildGeometryInfoKHR const& info, VkAccelerationStructureBuildRangeInfoKHR const* ranges) {
+	PH_RTX_CALL(vkCmdBuildAccelerationStructuresKHR, cmd_buf, 1, &info, &ranges);
+	return *this;
+}
+
+CommandBuffer& CommandBuffer::write_acceleration_structure_properties(VkAccelerationStructureKHR as, VkQueryType query_type, VkQueryPool query_pool, uint32_t index) {
+	PH_RTX_CALL(vkCmdWriteAccelerationStructuresPropertiesKHR, cmd_buf, 1, &as, query_type, query_pool, index);
+	return *this;
+}
+
+CommandBuffer& CommandBuffer::copy_acceleration_structure(VkAccelerationStructureKHR src, VkAccelerationStructureKHR dst, VkCopyAccelerationStructureModeKHR mode) {
+	VkCopyAccelerationStructureInfoKHR info{
+		.sType = VK_STRUCTURE_TYPE_COPY_ACCELERATION_STRUCTURE_INFO_KHR,
+		.pNext = nullptr,
+		.src = src,
+		.dst = dst,
+		.mode = mode
+	};
+	PH_RTX_CALL(vkCmdCopyAccelerationStructureKHR, cmd_buf, &info);
+	return *this;
+}
+
+CommandBuffer& CommandBuffer::compact_acceleration_structure(VkAccelerationStructureKHR src, VkAccelerationStructureKHR dst) {
+	return copy_acceleration_structure(src, dst, VK_COPY_ACCELERATION_STRUCTURE_MODE_COMPACT_KHR);
+}
+
+#endif
+
+CommandBuffer& CommandBuffer::reset_query_pool(VkQueryPool pool, uint32_t first, uint32_t count) {
+	vkCmdResetQueryPool(cmd_buf, pool, first, count);
+	return *this;
+}
+
 VkCommandBuffer CommandBuffer::handle() const {
 	return cmd_buf;
 }
 
 }
+
+#if PHOBOS_ENABLE_RAY_TRACING
+	#undef PH_RTX_CALL
+#endif

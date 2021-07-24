@@ -21,14 +21,10 @@ enum class BufferType {
     StorageBufferStatic,
     MappedUniformBuffer,
     IndexBuffer,
-    IndexBufferDynamic
-};
-
-struct RawBuffer {
-    BufferType type = BufferType::Undefined;
-    VkDeviceSize size = 0;
-    VkBuffer handle = nullptr;
-    VmaAllocation memory = nullptr;
+    IndexBufferDynamic,
+    AccelerationStructure,
+    AccelerationStructureScratch,
+    AccelerationStructureInstance
 };
 
 // Note that free conversions from BufferSlice to TypedBufferSlice and vice versa are allowed.
@@ -37,6 +33,16 @@ template<typename T>
 struct TypedBufferSlice;
 
 using BufferSlice = TypedBufferSlice<std::byte>;
+
+struct RawBuffer {
+    BufferType type = BufferType::Undefined;
+    VkDeviceSize size = 0;
+    VkBuffer handle = nullptr;
+    VmaAllocation memory = nullptr;
+
+    BufferSlice slice(VkDeviceSize offset, VkDeviceSize range);
+};
+
 
 template<typename T>
 struct TypedBufferSlice {

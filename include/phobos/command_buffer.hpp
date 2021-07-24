@@ -17,7 +17,11 @@ class Queue;
 class CommandBuffer {
 public:
 	CommandBuffer() = default;
+	CommandBuffer(CommandBuffer&& rhs) = default;
+	CommandBuffer(CommandBuffer const& rhs) = delete;
 	CommandBuffer(Context& context, VkCommandBuffer&& cmd_buf);
+
+	CommandBuffer& operator=(CommandBuffer&& rhs) = default;
 
 	CommandBuffer& begin(VkCommandBufferUsageFlags flags = {});
 	CommandBuffer& end();
@@ -53,6 +57,17 @@ public:
 
 	CommandBuffer& release_ownership(Queue const& src, Queue const& dst, ph::ImageView const& image, VkImageLayout final_layout);
 	CommandBuffer& acquire_ownership(Queue const& src, Queue const& dst, ph::ImageView const& image, VkImageLayout final_layout);
+	
+	CommandBuffer& copy_buffer(BufferSlice src, BufferSlice dst);
+
+#if PHOBOS_ENABLE_RAY_TRACING
+	CommandBuffer& build_acceleration_structure(VkAccelerationStructureBuildGeometryInfoKHR const& info, VkAccelerationStructureBuildRangeInfoKHR const* ranges);
+	CommandBuffer& write_acceleration_structure_properties(VkAccelerationStructureKHR as, VkQueryType query_type, VkQueryPool query_pool, uint32_t index);
+	CommandBuffer& copy_acceleration_structure(VkAccelerationStructureKHR src, VkAccelerationStructureKHR dst, VkCopyAccelerationStructureModeKHR mode);
+	CommandBuffer& compact_acceleration_structure(VkAccelerationStructureKHR src, VkAccelerationStructureKHR dst);
+#endif
+
+	CommandBuffer& reset_query_pool(VkQueryPool pool, uint32_t first = 0, uint32_t count = 1);
 
 	VkCommandBuffer handle() const;
 

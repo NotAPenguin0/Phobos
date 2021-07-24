@@ -11,6 +11,10 @@
 #include <phobos/impl/image.hpp>
 #include <phobos/impl/buffer.hpp>
 
+#if PHOBOS_ENABLE_RAY_TRACING
+#include <phobos/acceleration_structure.hpp>
+#endif
+
 #include <cassert>
 
 namespace ph {
@@ -27,6 +31,19 @@ Context::Context(AppSettings settings) {
 	context_impl->post_init(*this, *image_impl, settings);
 	frame_impl->post_init(*this, settings);
 	pipeline_impl = std::make_unique<impl::PipelineImpl>(*context_impl, *cache_impl);
+
+#if PHOBOS_ENABLE_RAY_TRACING
+
+#define PH_RTX_LOAD_FUNCTION(name) rtx_fun._##name = (PFN_##name)vkGetInstanceProcAddr(context_impl->instance, #name)
+	PH_RTX_LOAD_FUNCTION(vkCreateAccelerationStructureKHR);
+	PH_RTX_LOAD_FUNCTION(vkDestroyAccelerationStructureKHR);
+	PH_RTX_LOAD_FUNCTION(vkGetAccelerationStructureDeviceAddressKHR);
+	PH_RTX_LOAD_FUNCTION(vkGetAccelerationStructureBuildSizesKHR);
+	PH_RTX_LOAD_FUNCTION(vkCmdBuildAccelerationStructuresKHR);
+	PH_RTX_LOAD_FUNCTION(vkCmdWriteAccelerationStructuresPropertiesKHR);
+	PH_RTX_LOAD_FUNCTION(vkCmdCopyAccelerationStructureKHR);
+#undef PH_RTX_LOAD_FUNCTION
+#endif
 }
 
 Context::~Context() {
@@ -60,6 +77,11 @@ Queue* Context::get_present_queue() {
 void Context::wait_idle() {
 	vkDeviceWaitIdle(device());
 }
+
+LogInterface* Context::logger() {
+	return context_impl->get_logger();
+}
+
 
 void Context::name_object(ph::Pipeline const& pipeline, std::string const& name) {
 	context_impl->name_object(pipeline, name);
@@ -130,6 +152,10 @@ bool Context::poll_fence(VkFence fence) {
 	return context_impl->wait_for_fence(fence, 0) == VK_SUCCESS;
 }
 
+void Context::reset_fence(VkFence fence) {
+	return context_impl->reset_fence(fence);
+}
+
 void Context::destroy_fence(VkFence fence) {
 	context_impl->destroy_fence(fence);
 }
@@ -140,6 +166,14 @@ VkSemaphore Context::create_semaphore() {
 
 void Context::destroy_semaphore(VkSemaphore semaphore) {
 	context_impl->destroy_semaphore(semaphore);
+}
+
+VkQueryPool Context::create_query_pool(VkQueryType type, uint32_t count) {
+	return context_impl->create_query_pool(type, count);
+}
+
+void Context::destroy_query_pool(VkQueryPool pool) {
+	context_impl->destroy_query_pool(pool);
 }
 
 // FRAME
@@ -272,6 +306,14 @@ bool Context::ensure_buffer_size(RawBuffer& buf, VkDeviceSize requested_size) {
 	return buffer_impl->ensure_buffer_size(buf, requested_size);
 }
 
+VkDeviceAddress Context::get_device_address(RawBuffer const& buf) {
+	return buffer_impl->get_device_address(buf);
+}
+
+VkDeviceAddress Context::get_device_address(BufferSlice slice) {
+	return buffer_impl->get_device_address(slice);
+}
+
 // CACHING
 
 VkFramebuffer Context::get_or_create(VkFramebufferCreateInfo const& info, std::string const& name) {
@@ -302,6 +344,23 @@ VkDescriptorSet Context::get_or_create(DescriptorSetBinding set_binding, Pipelin
 	return cache_impl->get_or_create_descriptor_set(set_binding, pipeline, pNext);
 }
 
+#if PHOBOS_ENABLE_RAY_TRACING
+
+// RTX
+
+void Context::destroy_acceleration_structure(AccelerationStructure& as) {
+	for (auto& blas : as.bottom_level) {
+		rtx_fun._vkDestroyAccelerationStructureKHR(device(), blas.handle, nullptr);
+		destroy_buffer(blas.buffer);
+	}
+	as.bottom_level.clear();
+
+	destroy_buffer(as.instance_buffer);
+	rtx_fun._vkDestroyAccelerationStructureKHR(device(), as.top_level.handle, nullptr);
+	destroy_buffer(as.top_level.buffer);
+}
+
+#endif
 
 VkDevice Context::device() {
 	return context_impl->device;

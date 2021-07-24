@@ -577,7 +577,9 @@ void RenderGraphExecutor::execute(ph::CommandBuffer& cmd_buf, RenderGraph& graph
 
             cmd_buf.begin_renderpass(pass_begin_info);
         }
-		pass.execute(cmd_buf);
+        if (pass.execute != nullptr) {
+            pass.execute(cmd_buf);
+        }
         if (build.handle) {
             cmd_buf.end_renderpass();
         }

@@ -43,8 +43,7 @@ void AttachmentImpl::create_attachment(std::string_view name, VkExtent2D size, V
 }
 
 bool AttachmentImpl::is_swapchain_attachment(std::string const& name) {
-	bool result = name == swapchain_attachment_name;
-	return result;
+	return name == swapchain_attachment_name;
 }
 
 std::string AttachmentImpl::get_swapchain_attachment_name() const {

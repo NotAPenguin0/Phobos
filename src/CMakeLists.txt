@@ -22,6 +22,10 @@ target_sources(Phobos PRIVATE
 	"shader.cpp"
 )
 
+if (${PHOBOS_ENABLE_RAY_TRACING}) 
+	target_sources(Phobos PRIVATE "acceleration_structure.cpp")
+endif()
+
 # if (NOT ${PHOBOS_NO_FIXED_PIPELINE}) 
 #    message("Phobos: Compiling fixed pipeline")
 #    set(PHOBOS_SOURCES

@@ -14,7 +14,8 @@ static VkBufferUsageFlags get_usage_flags(BufferType buf_type) {
         return VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     case BufferType::VertexBuffer:
     case BufferType::VertexBufferDynamic:
-        return VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        return VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+            | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
     case BufferType::StorageBufferDynamic:
     case BufferType::StorageBufferStatic:
         return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
@@ -22,7 +23,15 @@ static VkBufferUsageFlags get_usage_flags(BufferType buf_type) {
         return VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     case BufferType::IndexBuffer:
     case BufferType::IndexBufferDynamic:
-        return VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        return VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT
+            | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+    case BufferType::AccelerationStructure:
+        return VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR 
+            | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+    case BufferType::AccelerationStructureScratch:
+        return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+    case BufferType::AccelerationStructureInstance:
+        return VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     case BufferType::Undefined:
         return VkBufferUsageFlags{};
     }
@@ -46,6 +55,12 @@ static VmaMemoryUsage get_memory_usage(BufferType buf_type) {
         return VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;
     case BufferType::MappedUniformBuffer:
         return VmaMemoryUsage::VMA_MEMORY_USAGE_CPU_TO_GPU;
+    case BufferType::AccelerationStructure:
+        return VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;
+    case BufferType::AccelerationStructureScratch:
+        return VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;
+    case BufferType::AccelerationStructureInstance:
+        return VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;
     case BufferType::Undefined:
         return VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;
     }
@@ -163,6 +178,26 @@ bool BufferImpl::ensure_buffer_size(RawBuffer& buf, VkDeviceSize requested_size)
     buf = create_buffer(buf_type, requested_size);
 
     return true;
+}
+
+VkDeviceAddress BufferImpl::get_device_address(RawBuffer const& buf) {
+    VkBufferDeviceAddressInfo info{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+        .pNext = nullptr,
+        .buffer = buf.handle
+    };
+    return vkGetBufferDeviceAddress(ctx->device, &info);
+}
+
+VkDeviceAddress BufferImpl::get_device_address(BufferSlice slice) {
+    VkBufferDeviceAddressInfo info{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+        .pNext = nullptr,
+        .buffer = slice.buffer
+    };
+    // Since a VkDeviceAddress is simply an address we can offset it by the slice offset
+    // to obtain the device address to a range in a buffer.
+    return vkGetBufferDeviceAddress(ctx->device, &info) + slice.offset;
 }
 
 }

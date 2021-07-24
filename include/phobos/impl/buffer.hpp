@@ -27,6 +27,10 @@ public:
 	// Resizes the raw buffer to be able to hold at least requested_size bytes. Returns whether a reallocation occured. 
 	// Note: If the buffer needs a resize, the old contents will be lost.
 	bool ensure_buffer_size(RawBuffer& buf, VkDeviceSize requested_size);
+
+	// Returns the device address for a buffer
+	VkDeviceAddress get_device_address(RawBuffer const& buf);
+	VkDeviceAddress get_device_address(BufferSlice slice);
 private:
 	ContextImpl* ctx;
 };

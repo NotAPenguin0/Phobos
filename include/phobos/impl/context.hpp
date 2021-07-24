@@ -42,18 +42,24 @@ public:
 
 	VkFence create_fence();
 	VkResult wait_for_fence(VkFence fence, uint64_t timeout);
+	void reset_fence(VkFence fence);
 	void destroy_fence(VkFence fence);
 
 	VkSemaphore create_semaphore();
 	void destroy_semaphore(VkSemaphore semaphore);
 
+	VkQueryPool create_query_pool(VkQueryType type, uint32_t count);
+	void destroy_query_pool(VkQueryPool pool);
+
 	// Only used on initialization
 	void post_init(Context& ctx, ImageImpl& image_impl, AppSettings const& settings);
 
 	template<typename... Args>
-	void log(LogSeverity sev, std::string_view format, Args&&... args) {
+	void log(LogSeverity sev, std::string_view format, Args&&... args) const {
 		logger->write_fmt(sev, format, std::forward<Args>(args)...);
 	}
+
+	LogInterface* get_logger();
 
 	VkInstance instance = nullptr;
 	VkDevice device = nullptr;

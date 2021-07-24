@@ -64,8 +64,10 @@ static PhysicalDevice select_physical_device(VkInstance instance, std::optional<
 		VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtx_properties{
 			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR
 		};
-		VkPhysicalDeviceProperties2 properties_2{};
-		properties_2.pNext = &rtx_properties;
+		VkPhysicalDeviceProperties2 properties_2{
+			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+			.pNext = &rtx_properties
+		};
 		vkGetPhysicalDeviceProperties2(device, &properties_2);
 #endif
 		// Check if the properties match the required settings
@@ -224,6 +226,19 @@ ContextImpl::ContextImpl(AppSettings settings)
 	settings.gpu_requirements.device_extensions.push_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
 	settings.gpu_requirements.device_extensions.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
 	settings.gpu_requirements.device_extensions.push_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+	settings.gpu_requirements.features_1_2.bufferDeviceAddress = true;
+
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtx_features{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
+		.pNext = nullptr,
+		.rayTracingPipeline = true
+	};
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR accel_structure_features{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+		.pNext = nullptr,
+		.accelerationStructure = true
+	};
+	rtx_features.pNext = &accel_structure_features;
 #endif
 
 	{
@@ -313,8 +328,39 @@ ContextImpl::ContextImpl(AppSettings settings)
 		}
 		info.enabledExtensionCount = settings.gpu_requirements.device_extensions.size();
 		info.ppEnabledExtensionNames = settings.gpu_requirements.device_extensions.data();
-		info.pNext = settings.gpu_requirements.pNext;
+
+		// Build pNext chain for physical device features.
+		settings.gpu_requirements._features.features = settings.gpu_requirements.features;
+		settings.gpu_requirements._features.pNext = &settings.gpu_requirements.features_1_1;
+		settings.gpu_requirements.features_1_1.pNext = &settings.gpu_requirements.features_1_2;
+#if PHOBOS_ENABLE_RAY_TRACING
+		settings.gpu_requirements.features_1_2.pNext = &rtx_features;
+#endif
+
+		// If we have a pNext chain both supplied by the user and in the features pNext chain we need to
+		// chain them together.
+		// To do this we'll iterate over the features pNext chain until we arrive at the end.
+		// Then, we'll add the user pNext value at the end.
+		// This way, this function also works when the user pNext chain is nullptr.
+		if (settings.gpu_requirements._features.pNext) {
+			// VkBaseOutStructure contains the sType and pNext of an item in the pNext chain.
+			auto* user_pNext = reinterpret_cast<VkBaseOutStructure*>(settings.gpu_requirements.pNext);
+			// Iteration start. We'll also set the final pNext to this pointer since it is the start of the
+			// final pNext chain.
+			auto* cur = reinterpret_cast<VkBaseOutStructure*>(settings.gpu_requirements._features.pNext);
+			info.pNext = cur;
+			// While there is a next item in the pNext chain
+			while (cur->pNext != nullptr) {
+				cur = cur->pNext;
+			}
+			// We've arrived at the end of the chain, we now append the user chain
+			cur->pNext = user_pNext;
+		}
+		else {
+			info.pNext = settings.gpu_requirements.pNext;
+		}
 		info.pEnabledFeatures = &settings.gpu_requirements.features;
+		
 
 		VkResult result = vkCreateDevice(phys_device.handle, &info, nullptr, &device);
 		assert(result == VK_SUCCESS && "Failed to create logical device");
@@ -328,6 +374,7 @@ ContextImpl::ContextImpl(AppSettings settings)
 		info.instance = instance;
 		info.physicalDevice = phys_device.handle;
 		info.vulkanApiVersion = VK_API_VERSION_1_2;
+		info.flags = VmaAllocatorCreateFlagBits::VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 		vmaCreateAllocator(&info, &allocator);
 	}
 
@@ -600,6 +647,10 @@ VkResult ContextImpl::wait_for_fence(VkFence fence, uint64_t timeout) {
 	return vkWaitForFences(device, 1, &fence, VK_TRUE, timeout);
 }
 
+void ContextImpl::reset_fence(VkFence fence) {
+	vkResetFences(device, 1, &fence);
+}
+
 void ContextImpl::destroy_fence(VkFence fence) {
 	vkDestroyFence(device, fence, nullptr);
 }
@@ -615,8 +666,29 @@ VkSemaphore ContextImpl::create_semaphore() {
 	return semaphore;
 }
 
+VkQueryPool ContextImpl::create_query_pool(VkQueryType type, uint32_t count) {
+	VkQueryPoolCreateInfo info{
+		.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = {},
+		.queryType = type,
+		.queryCount = count
+	};
+	VkQueryPool pool{};
+	vkCreateQueryPool(device, &info, nullptr, &pool);
+	return pool;
+}
+
+void ContextImpl::destroy_query_pool(VkQueryPool pool) {
+	vkDestroyQueryPool(device, pool, nullptr);
+}
+
 void ContextImpl::destroy_semaphore(VkSemaphore semaphore) {
 	vkDestroySemaphore(device, semaphore, nullptr);
+}
+
+LogInterface* ContextImpl::get_logger() {
+	return logger;
 }
 
 } // namespace impl

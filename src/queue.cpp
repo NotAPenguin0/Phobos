@@ -28,14 +28,12 @@ Queue::Queue(Context& context, QueueInfo info, VkQueue handle) : ctx(&context), 
 	VkCommandPoolCreateInfo pool_info{};
 	pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	pool_info.queueFamilyIndex = info.family_index;
-	if (context.thread_count() > 0) {
-		// Create per-thread command pools for in-flight contexts
-		in_flight_pools.resize(context.thread_count());
-		pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-		for (uint32_t thread_index = 0; thread_index < in_flight_pools.size(); ++thread_index) {
-			vkCreateCommandPool(context.device(), &pool_info, nullptr, &in_flight_pools[thread_index]);
-			ctx->name_object(in_flight_pools[thread_index], fmt::format("[Command Pool] Thread - {} ({})", to_string(info.type), thread_index));
-		}
+	// Create per-thread command pools for in-flight contexts
+	in_flight_pools.resize(context.thread_count());
+	pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+	for (uint32_t thread_index = 0; thread_index < in_flight_pools.size(); ++thread_index) {
+		vkCreateCommandPool(context.device(), &pool_info, nullptr, &in_flight_pools[thread_index]);
+		ctx->name_object(in_flight_pools[thread_index], fmt::format("[Command Pool] Thread - {} ({})", to_string(info.type), thread_index));
 	}
 	// Create per-frame command pools
 	pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
