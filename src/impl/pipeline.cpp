@@ -14,14 +14,16 @@
 
 namespace ph {
 	namespace reflect {
-	static PipelineStage get_shader_stage(spirv_cross::Compiler& refl) {
+	static ShaderStage get_shader_stage(spirv_cross::Compiler& refl) {
 		auto entry_point_name = refl.get_entry_points_and_stages()[0];
 		auto entry_point = refl.get_entry_point(entry_point_name.name, entry_point_name.execution_model);
 
 		switch (entry_point.model) {
-		case spv::ExecutionModel::ExecutionModelVertex: return PipelineStage::VertexShader;
-		case spv::ExecutionModel::ExecutionModelFragment: return PipelineStage::FragmentShader;
-		case spv::ExecutionModel::ExecutionModelGLCompute: return PipelineStage::ComputeShader;
+		case spv::ExecutionModel::ExecutionModelVertex: return ShaderStage::Vertex;
+		case spv::ExecutionModel::ExecutionModelFragment: return ShaderStage::Fragment;
+		case spv::ExecutionModel::ExecutionModelGLCompute: return ShaderStage::Compute;
+		case spv::ExecutionModel::ExecutionModelRayGenerationKHR: return ShaderStage::RayGeneration;
+		case spv::ExecutionModel::ExecutionModelClosestHitKHR: return ShaderStage::ClosestHit;
 		default: return {};
 		}
 	}
@@ -45,24 +47,15 @@ namespace ph {
 		return refl;
 	}
 
-	static VkShaderStageFlags pipeline_to_shader_stage(PipelineStage stage) {
-		switch (stage) {
-		case PipelineStage::VertexShader: return VK_SHADER_STAGE_VERTEX_BIT;
-		case PipelineStage::FragmentShader: return VK_SHADER_STAGE_FRAGMENT_BIT;
-		case PipelineStage::ComputeShader: return VK_SHADER_STAGE_COMPUTE_BIT;
-		default: return {};
-		}
-	}
-
 	// This function merges all push constant ranges in a single shader stage into one push constant range.
 	// We need this because spirv-cross reports one push constant range for each variable, instead of for each block.
 	static void merge_ranges(std::vector<VkPushConstantRange>& out, std::vector<VkPushConstantRange> const& in,
-		PipelineStage stage) {
+		ShaderStage stage) {
 
 		VkPushConstantRange merged{};
 		merged.size = 0;
 		merged.offset = 1000000; // some arbitrarily large value to start with, we'll make this smaller using std::min() later
-		merged.stageFlags = pipeline_to_shader_stage(stage);
+		merged.stageFlags = static_cast<VkShaderStageFlagBits>(stage);
 		for (auto& range : in) {
 			if (range.stageFlags == merged.stageFlags) {
 				merged.offset = std::min(merged.offset, range.offset);
@@ -87,7 +80,7 @@ namespace ph {
 					VkPushConstantRange pc_range{};
 					pc_range.offset = range.offset;
 					pc_range.size = range.range;
-					pc_range.stageFlags = pipeline_to_shader_stage(stage);
+					pc_range.stageFlags = static_cast<VkShaderStageFlagBits>(stage);
 					pc_ranges.push_back(pc_range);
 				}
 			}
@@ -97,7 +90,7 @@ namespace ph {
 	}
 
 	static void find_uniform_buffers(ShaderMeta& info, spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
-		VkShaderStageFlags const stage = pipeline_to_shader_stage(get_shader_stage(refl));
+		VkShaderStageFlags const stage = static_cast<VkShaderStageFlagBits>(get_shader_stage(refl));
 		spirv_cross::ShaderResources res = refl.get_shader_resources();
 		for (auto& ubo : res.uniform_buffers) {
 			VkDescriptorSetLayoutBinding binding{};
@@ -112,7 +105,7 @@ namespace ph {
 	}
 
 	static void find_shader_storage_buffers(ShaderMeta& info, spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
-		VkShaderStageFlags const stage = pipeline_to_shader_stage(get_shader_stage(refl));
+		VkShaderStageFlags const stage = static_cast<VkShaderStageFlagBits>(get_shader_stage(refl));
 		spirv_cross::ShaderResources res = refl.get_shader_resources();
 		for (auto& ssbo : res.storage_buffers) {
 			VkDescriptorSetLayoutBinding binding{};
@@ -127,7 +120,7 @@ namespace ph {
 	}
 
 	static void find_sampled_images(impl::ContextImpl& ctx, ShaderMeta& info, spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
-		VkShaderStageFlags const stage = pipeline_to_shader_stage(get_shader_stage(refl));
+		VkShaderStageFlags const stage = static_cast<VkShaderStageFlagBits>(get_shader_stage(refl));
 		spirv_cross::ShaderResources res = refl.get_shader_resources();
 		for (auto& si : res.sampled_images) {
 			VkDescriptorSetLayoutBinding binding{};
@@ -164,7 +157,7 @@ namespace ph {
 	}
 
 	static void find_storage_images(ShaderMeta& info, spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
-		VkShaderStageFlags const stage = pipeline_to_shader_stage(get_shader_stage(refl));
+		VkShaderStageFlags const stage = static_cast<VkShaderStageFlagBits>(get_shader_stage(refl));
 		spirv_cross::ShaderResources res = refl.get_shader_resources();
 
 		for (auto& si : res.storage_images) {
@@ -177,6 +170,23 @@ namespace ph {
 			dslci.bindings.push_back(binding);
 		}
 	}
+
+#if PHOBOS_ENABLE_RAY_TRACING
+	static void find_acceleration_structures(ShaderMeta& info, spirv_cross::Compiler& refl, DescriptorSetLayoutCreateInfo& dslci) {
+		VkShaderStageFlags const stage = static_cast<VkShaderStageFlagBits>(get_shader_stage(refl));
+		spirv_cross::ShaderResources res = refl.get_shader_resources();
+
+		for (auto& as : res.acceleration_structures) {
+			VkDescriptorSetLayoutBinding binding{};
+			binding.binding = refl.get_decoration(as.id, spv::DecorationBinding);
+			binding.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+			binding.stageFlags = stage;
+			binding.descriptorCount = 1;
+			info.add_binding(refl.get_name(as.id), { binding.binding, binding.descriptorType });
+			dslci.bindings.push_back(binding);
+		}
+	}
+#endif
 
 	static void collapse_bindings(DescriptorSetLayoutCreateInfo& info) {
 		std::vector<VkDescriptorSetLayoutBinding> final_bindings;
@@ -221,6 +231,9 @@ namespace ph {
 			find_shader_storage_buffers(info, *refl, dslci);
 			find_sampled_images(ctx, info, *refl, dslci);
 			find_storage_images(info, *refl, dslci);
+#if PHOBOS_ENABLE_RAY_TRACING
+			find_acceleration_structures(info, *refl, dslci);
+#endif
 		}
 		collapse_bindings(dslci);
 		return dslci;
@@ -276,7 +289,7 @@ namespace {
 
 }
 
-ShaderHandle PipelineImpl::create_shader(std::string_view path, std::string_view entry_point, PipelineStage stage) {
+ShaderHandle PipelineImpl::create_shader(std::string_view path, std::string_view entry_point, ShaderStage stage) {
 	uint32_t id = ShaderHandleId::next();
 
 	ph::ShaderModuleCreateInfo info;
@@ -333,6 +346,32 @@ ph::PipelineCreateInfo& PipelineImpl::get_pipeline(std::string_view name) {
 ph::ComputePipelineCreateInfo& PipelineImpl::get_compute_pipeline(std::string_view name) {
 	return compute_pipelines.at(std::string(name));
 }
+
+#if PHOBOS_ENABLE_RAY_TRACING
+
+void PipelineImpl::reflect_shaders(ph::RayTracingPipelineCreateInfo& pci) {
+	std::vector<std::unique_ptr<spirv_cross::Compiler>> reflected_shaders;
+	for (auto handle : pci.shaders) {
+		ph::ShaderModuleCreateInfo* shader = cache->shader.get(handle);
+		assert(shader && "Invalid shader");
+		reflected_shaders.push_back(reflect::reflect_shader_stage(*shader));
+	}
+	pci.layout = reflect::make_pipeline_layout(*ctx, reflected_shaders, pci.meta);
+}
+
+void PipelineImpl::create_named_pipeline(ph::RayTracingPipelineCreateInfo pci) {
+	rtx_pipelines[pci.name] = std::move(pci);
+}
+
+ShaderMeta const& PipelineImpl::get_ray_tracing_shader_meta(std::string_view pipeline_name) {
+	return get_ray_tracing_pipeline(pipeline_name).meta;
+}
+
+ph::RayTracingPipelineCreateInfo& PipelineImpl::get_ray_tracing_pipeline(std::string_view name) {
+	return rtx_pipelines.at(std::string(name));
+}
+
+#endif
 
 }
 }

@@ -2,6 +2,10 @@
 #include <phobos/context.hpp>
 #include <phobos/memory.hpp>
 
+#if PHOBOS_ENABLE_RAY_TRACING
+#include <phobos/acceleration_structure.hpp>
+#endif
+
 namespace ph {
 
 DescriptorBuilder DescriptorBuilder::create(Context& ctx, Pipeline const& pipeline) {
@@ -69,7 +73,7 @@ DescriptorBuilder& DescriptorBuilder::add_uniform_buffer(uint32_t binding, Buffe
 		.offset = buffer.offset,
 		.range = buffer.range
 	};
-	info.bindings.push_back(std::move(descr));
+	info.bindings.push_back(descr);
 	return *this;
 }
 
@@ -91,7 +95,7 @@ DescriptorBuilder& DescriptorBuilder::add_storage_buffer(uint32_t binding, Buffe
 		.offset = buffer.offset,
 		.range = buffer.range
 	};
-	info.bindings.push_back(std::move(descr));
+	info.bindings.push_back(descr);
 	return *this;
 }
 
@@ -102,6 +106,30 @@ DescriptorBuilder& DescriptorBuilder::add_storage_buffer(ShaderMeta::Binding con
 DescriptorBuilder& DescriptorBuilder::add_storage_buffer(std::string_view binding, BufferSlice buffer) {
 	return add_storage_buffer(ctx->get_shader_meta(pipeline)[binding], buffer);
 }
+
+#if PHOBOS_ENABLE_RAY_TRACING
+
+DescriptorBuilder& DescriptorBuilder::add_acceleration_structure(uint32_t binding, AccelerationStructure const& as) {
+	DescriptorBinding descr{};
+	descr.binding = binding;
+	descr.type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+	auto& descriptor = descr.descriptors.emplace_back();
+	descriptor.accel_structure = ph::DescriptorAccelerationStructureInfo{
+		.structure = as.top_level.handle
+	};
+	info.bindings.push_back(descr);
+	return *this;
+}
+
+DescriptorBuilder& DescriptorBuilder::add_acceleration_structure(ShaderMeta::Binding const& binding, AccelerationStructure const& as) {
+	return add_acceleration_structure(binding.binding, as);
+}
+
+DescriptorBuilder& DescriptorBuilder::add_acceleration_structure(std::string_view binding, AccelerationStructure const& as) {
+	return add_acceleration_structure(ctx->get_shader_meta(pipeline)[binding], as);
+}
+
+#endif
 
 VkDescriptorSet DescriptorBuilder::get() {
 	void* pNext = nullptr;
@@ -153,7 +181,7 @@ PipelineBuilder& PipelineBuilder::add_vertex_attribute(uint32_t binding, uint32_
 	return *this;
 }
 
-PipelineBuilder& PipelineBuilder::add_shader(std::string_view path, std::string_view entry, PipelineStage stage) {
+PipelineBuilder& PipelineBuilder::add_shader(std::string_view path, std::string_view entry, ShaderStage stage) {
 	add_shader(ctx->create_shader(path, entry, stage));
 	return *this;
 }
@@ -255,7 +283,7 @@ ComputePipelineBuilder& ComputePipelineBuilder::set_shader(ShaderHandle shader) 
 }
 
 ComputePipelineBuilder& ComputePipelineBuilder::set_shader(std::string_view path, std::string_view entry) {
-	return set_shader(ctx->create_shader(path, entry, ph::PipelineStage::ComputeShader));
+	return set_shader(ctx->create_shader(path, entry, ph::ShaderStage::Compute));
 }
 
 ComputePipelineBuilder& ComputePipelineBuilder::reflect() {
@@ -267,5 +295,60 @@ ComputePipelineBuilder& ComputePipelineBuilder::reflect() {
 ph::ComputePipelineCreateInfo ComputePipelineBuilder::get() {
 	return std::move(pci);
 }
+
+#if PHOBOS_ENABLE_RAY_TRACING
+
+RayTracingPipelineBuilder RayTracingPipelineBuilder::create(Context& ctx, std::string_view name) {
+	RayTracingPipelineBuilder builder{};
+	builder.ctx = &ctx;
+	builder.pci.name = name;
+	return builder;
+}
+
+RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_shader(ShaderHandle shader) {
+	pci.shaders.push_back(shader);
+	return *this;
+}
+
+RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_ray_gen_group(ShaderHandle shader) {
+	pci.shader_groups.push_back(
+		RayTracingShaderGroup{
+			.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+			.general = shader
+		}
+	);
+	return *this;
+}
+
+RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_ray_miss_group(ShaderHandle shader) {
+	pci.shader_groups.push_back(
+		RayTracingShaderGroup{
+			.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+			.general = shader
+		}
+	);
+	return *this;
+}
+
+RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_ray_hit_group(ShaderHandle shader) {
+	pci.shader_groups.push_back(
+		RayTracingShaderGroup{
+			.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR,
+			.closest_hit = shader
+		}
+	);
+	return *this;
+}
+
+RayTracingPipelineBuilder& RayTracingPipelineBuilder::reflect() {
+	ctx->reflect_shaders(pci);
+	return *this;
+}
+
+ph::RayTracingPipelineCreateInfo RayTracingPipelineBuilder::get() {
+	return std::move(pci);
+}
+
+#endif
 
 }

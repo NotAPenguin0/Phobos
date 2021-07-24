@@ -42,6 +42,7 @@ Context::Context(AppSettings settings) {
 	PH_RTX_LOAD_FUNCTION(vkCmdBuildAccelerationStructuresKHR);
 	PH_RTX_LOAD_FUNCTION(vkCmdWriteAccelerationStructuresPropertiesKHR);
 	PH_RTX_LOAD_FUNCTION(vkCmdCopyAccelerationStructureKHR);
+	PH_RTX_LOAD_FUNCTION(vkCreateRayTracingPipelinesKHR);
 #undef PH_RTX_LOAD_FUNCTION
 #endif
 }
@@ -214,7 +215,7 @@ std::string Context::get_swapchain_attachment_name() const {
 
 // PIPELINE
 
-ShaderHandle Context::create_shader(std::string_view path, std::string_view entry_point, PipelineStage stage) {
+ShaderHandle Context::create_shader(std::string_view path, std::string_view entry_point, ShaderStage stage) {
 	return pipeline_impl->create_shader(path, entry_point, stage);
 }
 
@@ -238,6 +239,9 @@ void Context::create_named_pipeline(ph::ComputePipelineCreateInfo pci) {
 ShaderMeta const& Context::get_shader_meta(ph::Pipeline const& pipeline) {
 	if (pipeline.type == ph::PipelineType::Graphics) return get_shader_meta(pipeline.name);
 	else if (pipeline.type == ph::PipelineType::Compute) return get_compute_shader_meta(pipeline.name);
+#if PHOBOS_ENABLE_RAY_TRACING
+	else if (pipeline.type == ph::PipelineType::RayTracing) return get_ray_tracing_shader_meta(pipeline.name);
+#endif
 	assert(false && "Invalid pipeline type");
 }
 
@@ -252,6 +256,22 @@ ShaderMeta const& Context::get_compute_shader_meta(std::string_view pipeline_nam
 VkSampler Context::basic_sampler() {
 	return pipeline_impl->basic_sampler;
 }
+
+#if PHOBOS_ENABLE_RAY_TRACING
+
+void Context::create_named_pipeline(ph::RayTracingPipelineCreateInfo pci) {
+	pipeline_impl->create_named_pipeline(std::move(pci));
+}
+
+void Context::reflect_shaders(ph::RayTracingPipelineCreateInfo& pci) {
+	pipeline_impl->reflect_shaders(pci);
+}
+
+ShaderMeta const& Context::get_ray_tracing_shader_meta(std::string_view pipeline_name) {
+	return pipeline_impl->get_ray_tracing_shader_meta(pipeline_name);
+}
+
+#endif
 
 // IMAGE 
 
@@ -339,6 +359,14 @@ Pipeline Context::get_or_create_pipeline(std::string_view name, VkRenderPass ren
 Pipeline Context::get_or_create_compute_pipeline(std::string_view name) {
 	return cache_impl->get_or_create_compute_pipeline(pipeline_impl->get_compute_pipeline(name));
 }
+
+#if PHOBOS_ENABLE_RAY_TRACING
+
+Pipeline Context::get_or_create_ray_tracing_pipeline(std::string_view name) {
+	return cache_impl->get_or_create_ray_tracing_pipeline(pipeline_impl->get_ray_tracing_pipeline(name));
+}
+
+#endif
 
 VkDescriptorSet Context::get_or_create(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext) {
 	return cache_impl->get_or_create_descriptor_set(set_binding, pipeline, pNext);

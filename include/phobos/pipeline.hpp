@@ -15,6 +15,10 @@ namespace impl {
     class CacheImpl;
 }
 
+#if PHOBOS_ENABLE_RAY_TRACING
+struct AccelerationStructure;
+#endif
+
 class Context;
 
 enum class PipelineStage {
@@ -29,9 +33,23 @@ enum class PipelineStage {
     BottomOfPipe = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
 };
 
+enum class ShaderStage {
+    Vertex = VK_SHADER_STAGE_VERTEX_BIT,
+    Fragment = VK_SHADER_STAGE_FRAGMENT_BIT,
+    Compute = VK_SHADER_STAGE_COMPUTE_BIT,
+#if PHOBOS_ENABLE_RAY_TRACING
+    RayGeneration = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+    ClosestHit = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+    RayMiss = VK_SHADER_STAGE_MISS_BIT_KHR,
+#endif
+};
+
 enum class PipelineType {
     Graphics = VK_PIPELINE_BIND_POINT_GRAPHICS,
-    Compute = VK_PIPELINE_BIND_POINT_COMPUTE
+    Compute = VK_PIPELINE_BIND_POINT_COMPUTE,
+#if PHOBOS_ENABLE_RAY_TRACING
+    RayTracing = VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR
+#endif
 };
 
 struct DescriptorBufferInfo {
@@ -46,13 +64,22 @@ struct DescriptorImageInfo {
     VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
 };
 
+#if PHOBOS_ENABLE_RAY_TRACING
+struct DescriptorAccelerationStructureInfo {
+    VkAccelerationStructureKHR structure = nullptr;
+};
+#endif
+
 struct DescriptorBinding {
     uint32_t binding = 0;
     VkDescriptorType type;
 
     struct DescriptorContents {
-        DescriptorBufferInfo buffer = {};
-        DescriptorImageInfo image;
+        DescriptorBufferInfo buffer{};
+        DescriptorImageInfo image{};
+#if PHOBOS_ENABLE_RAY_TRACING
+        DescriptorAccelerationStructureInfo accel_structure{};
+#endif
     };
 
     std::vector<DescriptorContents> descriptors;
@@ -94,7 +121,7 @@ struct Pipeline {
 struct ShaderModuleCreateInfo {
     std::vector<uint32_t> code;
     std::string entry_point;
-    PipelineStage stage;
+    ShaderStage stage;
 };
 
 struct PipelineCreateInfo {
@@ -177,6 +204,30 @@ struct ComputePipelineCreateInfo {
 
 };
 
+#if PHOBOS_ENABLE_RAY_TRACING
+
+struct RayTracingShaderGroup {
+    VkRayTracingShaderGroupTypeKHR type{};
+    ShaderHandle general{ ShaderHandle::none };
+    ShaderHandle closest_hit{ ShaderHandle::none };
+    ShaderHandle any_hit{ ShaderHandle::none };
+    ShaderHandle intersection{ ShaderHandle::none };
+};
+
+struct RayTracingPipelineCreateInfo {
+    std::string name{};
+    PipelineLayoutCreateInfo layout{};
+
+    std::vector<ShaderHandle> shaders{};
+    std::vector<RayTracingShaderGroup> shader_groups{};
+
+    uint32_t max_recursion_depth = 1;
+
+    ShaderMeta meta{};
+};
+
+#endif
+
 class DescriptorBuilder {
 public:
     static DescriptorBuilder create(Context& ctx, Pipeline const& pipeline);
@@ -197,6 +248,12 @@ public:
     DescriptorBuilder& add_storage_buffer(ShaderMeta::Binding const& binding, BufferSlice buffer);
     DescriptorBuilder& add_storage_buffer(std::string_view binding, BufferSlice buffer);
 
+#if PHOBOS_ENABLE_RAY_TRACING
+    DescriptorBuilder& add_acceleration_structure(uint32_t binding, AccelerationStructure const& as);
+    DescriptorBuilder& add_acceleration_structure(ShaderMeta::Binding const& binding, AccelerationStructure const& as);
+    DescriptorBuilder& add_acceleration_structure(std::string_view binding, AccelerationStructure const& as);
+#endif
+
     DescriptorBuilder& add_pNext(void* p);
 
     VkDescriptorSet get();
@@ -214,7 +271,7 @@ public:
     // Note that vertex attributes must be added in order. add_vertex_input() must be called before adding any attributes
     PipelineBuilder& add_vertex_input(uint32_t binding, VkVertexInputRate input_rate = VK_VERTEX_INPUT_RATE_VERTEX);
     PipelineBuilder& add_vertex_attribute(uint32_t binding, uint32_t location, VkFormat format);
-    PipelineBuilder& add_shader(std::string_view path, std::string_view entry, PipelineStage stage);
+    PipelineBuilder& add_shader(std::string_view path, std::string_view entry, ShaderStage stage);
     PipelineBuilder& add_shader(ShaderHandle shader);
     PipelineBuilder& set_depth_test(bool test);
     PipelineBuilder& set_depth_write(bool write);
@@ -254,5 +311,32 @@ private:
     Context* ctx = nullptr;
     ph::ComputePipelineCreateInfo pci{};
 };
+
+#if PHOBOS_ENABLE_RAY_TRACING
+
+class RayTracingPipelineBuilder {
+public:
+    static RayTracingPipelineBuilder create(Context& ctx, std::string_view name);
+
+    RayTracingPipelineBuilder& add_shader(ShaderHandle shader);
+    // Defines a shader group as a ray generation group with the supplied shader.
+    // Shader must be a ray generation shader.
+    RayTracingPipelineBuilder& add_ray_gen_group(ShaderHandle shader);
+    // Defines a shader group as a ray miss group with the supplied shader.
+    // Shader must be a ray miss shader
+    RayTracingPipelineBuilder& add_ray_miss_group(ShaderHandle shader);
+    // Defines a shader group as a ray hit group with the supplied shader.
+    // Shader must be a closest hit shader.
+    RayTracingPipelineBuilder& add_ray_hit_group(ShaderHandle shader);
+
+    RayTracingPipelineBuilder& reflect();
+
+    ph::RayTracingPipelineCreateInfo get();
+private:
+    Context* ctx = nullptr;
+    ph::RayTracingPipelineCreateInfo pci{};
+};
+
+#endif
 
 }

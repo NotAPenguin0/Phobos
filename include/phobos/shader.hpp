@@ -29,6 +29,9 @@ struct ShaderHandle {
 	static constexpr uint32_t none = static_cast<uint32_t>(-1);
 
 	uint32_t id = none;
+
+    inline bool operator==(ShaderHandle const& rhs) const { return id == rhs.id; }
+    inline bool operator!=(ShaderHandle const& rhs) const { return id != rhs.id; }
 };
 
 std::vector<uint32_t> load_shader_code(std::string_view file_path);

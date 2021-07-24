@@ -19,7 +19,10 @@ CacheImpl::CacheImpl(Context& ctx, AppSettings const& settings) : ctx(&ctx) {
 		VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, sets_per_type },
 		VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, sets_per_type },
 		VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, sets_per_type },
-		VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, sets_per_type }
+		VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, sets_per_type },
+#if PHOBOS_ENABLE_RAY_TRACING
+		VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, sets_per_type },
+#endif
 	};
 	dpci.maxSets = sets_per_type * sizeof(pool_sizes) / sizeof(VkDescriptorPoolSize);
 	dpci.poolSizeCount = sizeof(pool_sizes) / sizeof(VkDescriptorPoolSize);
@@ -49,6 +52,11 @@ CacheImpl::~CacheImpl() {
 	compute_pipeline.foreach([this](ph::Pipeline pipeline) {
 		vkDestroyPipeline(ctx->device(), pipeline.handle, nullptr);
 	});
+#if PHOBOS_ENABLE_RAY_TRACING
+	rtx_pipeline.foreach([this](ph::Pipeline pipeline) {
+		vkDestroyPipeline(ctx->device(), pipeline.handle, nullptr);
+	});
+#endif
 	vkDestroyDescriptorPool(ctx->device(), descr_pool, nullptr);
 }
 
@@ -208,15 +216,11 @@ Pipeline CacheImpl::get_or_create_pipeline(ph::PipelineCreateInfo& pci, VkRender
 	for (auto const& handle : pci.shaders) {
 		auto shader_info = this->shader.get(handle);
 		assert(shader_info && "Invalid shader handle");
-		VkShaderStageFlagBits stage{};
-		if (shader_info->stage == PipelineStage::VertexShader) stage = VK_SHADER_STAGE_VERTEX_BIT;
-		else if (shader_info->stage == PipelineStage::FragmentShader) stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		else assert(false && "Invalid shader stage");
 		VkPipelineShaderStageCreateInfo ssci{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.pNext = nullptr,
 			.flags = {},
-			.stage = stage,
+			.stage = static_cast<VkShaderStageFlagBits>(shader_info->stage),
 			.module = create_shader_module(ctx->device(), *shader_info),
 			.pName = shader_info->entry_point.c_str(),
 			.pSpecializationInfo = nullptr
@@ -281,6 +285,79 @@ Pipeline CacheImpl::get_or_create_compute_pipeline(ph::ComputePipelineCreateInfo
 	return pipeline;
 }
 
+#if PHOBOS_ENABLE_RAY_TRACING
+
+#define PH_RTX_CALL(func, ...) ctx->rtx_fun._##func(__VA_ARGS__)
+
+Pipeline CacheImpl::get_or_create_ray_tracing_pipeline(ph::RayTracingPipelineCreateInfo& pci) {
+	{
+		Pipeline* pipeline = this->rtx_pipeline.get(pci);
+		if (pipeline) { return *pipeline; }
+	}
+
+	VkRayTracingPipelineCreateInfoKHR rtpci{};
+	rtpci.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
+	VkDescriptorSetLayout set_layout = get_or_create_descriptor_set_layout(pci.layout.set_layout);
+	ph::PipelineLayout layout = get_or_create_pipeline_layout(pci.layout, set_layout);
+	rtpci.layout = layout.handle;
+
+	std::vector<VkPipelineShaderStageCreateInfo> sscis{};
+	// Used for creating the shader groups in the next step
+	std::unordered_map<ShaderHandle, uint32_t> shader_indices;
+	for (uint32_t i = 0; i < pci.shaders.size(); ++i) {
+		ShaderHandle shader_handle = pci.shaders[i];
+		shader_indices[shader_handle] = i;
+
+		ph::ShaderModuleCreateInfo* shader = this->shader.get(shader_handle);
+		assert(shader && "Invalid shader handle");
+		sscis.push_back(VkPipelineShaderStageCreateInfo{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+			.pNext = nullptr,
+			.flags = {},
+			.stage = static_cast<VkShaderStageFlagBits>(shader->stage),
+			.module = create_shader_module(ctx->device(), *shader),
+			.pName = shader->entry_point.c_str()
+		});
+	}
+
+	// Now we create the shader groups
+	std::vector<VkRayTracingShaderGroupCreateInfoKHR> groups;
+	for (RayTracingShaderGroup& group : pci.shader_groups) {
+		groups.push_back(VkRayTracingShaderGroupCreateInfoKHR{
+			.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+			.pNext = nullptr,
+			.type = group.type,
+			.generalShader = (group.general.id != ShaderHandle::none) ? shader_indices[group.general] : VK_SHADER_UNUSED_KHR,
+			.closestHitShader = (group.closest_hit.id != ShaderHandle::none) ? shader_indices[group.closest_hit] : VK_SHADER_UNUSED_KHR,
+			.anyHitShader = (group.any_hit.id != ShaderHandle::none) ? shader_indices[group.any_hit] : VK_SHADER_UNUSED_KHR,
+			.intersectionShader = (group.intersection.id != ShaderHandle::none) ? shader_indices[group.intersection] : VK_SHADER_UNUSED_KHR,
+			.pShaderGroupCaptureReplayHandle = nullptr
+		});
+	}
+
+	// We can now create the RT pipeline.
+	rtpci.stageCount = sscis.size();
+	rtpci.pStages = sscis.data();
+	rtpci.groupCount = groups.size();
+	rtpci.pGroups = groups.data();
+
+	Pipeline pipeline;
+	PH_RTX_CALL(vkCreateRayTracingPipelinesKHR, ctx->device(), {}, {}, 1, &rtpci, nullptr, &pipeline.handle);
+	pipeline.name = pci.name;
+	pipeline.type = ph::PipelineType::RayTracing;
+	pipeline.layout = layout;
+	ctx->name_object(pipeline, "[RTX Pipeline] " + pci.name);
+	// Destroy shader modules
+	for (auto& shader : sscis) {
+		vkDestroyShaderModule(ctx->device(), shader.module, nullptr);
+	}
+	this->rtx_pipeline.insert(pci, pipeline);
+
+	return pipeline;
+}
+
+#endif
+
 VkDescriptorSet CacheImpl::get_or_create_descriptor_set(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext) {
 	set_binding.set_layout = pipeline.layout.set_layout;
 	auto set_opt = this->descriptor_set.current().get(set_binding);
@@ -305,6 +382,9 @@ VkDescriptorSet CacheImpl::get_or_create_descriptor_set(DescriptorSetBinding set
 	struct DescriptorWriteInfo {
 		std::vector<VkDescriptorBufferInfo> buffer_infos;
 		std::vector<VkDescriptorImageInfo> image_infos;
+#if PHOBOS_ENABLE_RAY_TRACING
+		std::vector<VkWriteDescriptorSetAccelerationStructureKHR> accel_infos;
+#endif
 	};
 	std::vector<DescriptorWriteInfo> write_infos;
 	writes.reserve(set_binding.bindings.size());
@@ -333,8 +413,25 @@ VkDescriptorSet CacheImpl::get_or_create_descriptor_set(DescriptorSetBinding set
 				write_info.image_infos.push_back(img);
 				// Push dummy buffer info to make sure indices match
 				write_info.buffer_infos.emplace_back();
+#if PHOBOS_ENABLE_RAY_TRACING
+				write_info.accel_infos.emplace_back();
+#endif
 			}
 		} break;
+#if PHOBOS_ENABLE_RAY_TRACING
+		case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR: {
+			auto& info = binding.descriptors.front().accel_structure;
+			VkWriteDescriptorSetAccelerationStructureKHR as{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+				.pNext = nullptr,
+				.accelerationStructureCount = 1,
+				.pAccelerationStructures = &info.structure
+			};
+			write_info.accel_infos.push_back(as);
+			write_info.buffer_infos.emplace_back();
+			write_info.image_infos.emplace_back();
+		} break;
+#endif
 		default: {
 			auto& info = binding.descriptors.front().buffer;
 			VkDescriptorBufferInfo buf{
@@ -346,6 +443,9 @@ VkDescriptorSet CacheImpl::get_or_create_descriptor_set(DescriptorSetBinding set
 			write_info.buffer_infos.push_back(buf);
 			// Push dummy image info to make sure indices match
 			write_info.image_infos.emplace_back();
+#if PHOBOS_ENABLE_RAY_TRACING
+			write_info.accel_infos.emplace_back();
+#endif
 		} break;
 		}
 		write_infos.push_back(write_info);
@@ -359,6 +459,11 @@ VkDescriptorSet CacheImpl::get_or_create_descriptor_set(DescriptorSetBinding set
 		case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE: {
 			writes[i].pImageInfo = write_infos[i].image_infos.data();
 		} break;
+#if PHOBOS_ENABLE_RAY_TRACING
+		case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR: {
+			writes[i].pNext = write_infos[i].accel_infos.data();
+		} break;
+#endif
 		default: {
 			writes[i].pBufferInfo = write_infos[i].buffer_infos.data();
 		} break;

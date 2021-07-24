@@ -264,4 +264,15 @@ struct hash<ph::ComputePipelineCreateInfo> {
     }
 };
 
+#if PHOBOS_ENABLE_RAY_TRACING
+template<>
+struct hash<ph::RayTracingPipelineCreateInfo> {
+    size_t operator()(ph::RayTracingPipelineCreateInfo const& info) const noexcept {
+        size_t h = 0;
+        ph::hash_combine(h, info.name);
+        return h;
+    }
+};
+#endif
+
 }

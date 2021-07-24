@@ -294,13 +294,18 @@ public:
 	bool is_swapchain_attachment(std::string const& name);
 	std::string get_swapchain_attachment_name() const;
 
-	ShaderHandle create_shader(std::string_view path, std::string_view entry_point, PipelineStage stage);
+	ShaderHandle create_shader(std::string_view path, std::string_view entry_point, ShaderStage stage);
 	void create_named_pipeline(ph::PipelineCreateInfo pci);
 	void create_named_pipeline(ph::ComputePipelineCreateInfo pci);
 	void reflect_shaders(ph::PipelineCreateInfo& pci);
 	void reflect_shaders(ph::ComputePipelineCreateInfo& pci);
 	ShaderMeta const& get_shader_meta(ph::Pipeline const& pipeline);
 	VkSampler basic_sampler();
+
+#if PHOBOS_ENABLE_RAY_TRACING
+	void create_named_pipeline(ph::RayTracingPipelineCreateInfo pci);
+	void reflect_shaders(ph::RayTracingPipelineCreateInfo& pci);
+#endif
 
 	RawImage create_image(ImageType type, VkExtent2D size, VkFormat format);
 	void destroy_image(RawImage& image);
@@ -364,10 +369,16 @@ private:
 	PipelineLayout get_or_create(PipelineLayoutCreateInfo const& plci, VkDescriptorSetLayout set_layout);
 	Pipeline get_or_create_pipeline(std::string_view name, VkRenderPass render_pass);
 	Pipeline get_or_create_compute_pipeline(std::string_view name);
+#if PHOBOS_ENABLE_RAY_TRACING
+	Pipeline get_or_create_ray_tracing_pipeline(std::string_view name);
+#endif
 	VkDescriptorSet get_or_create(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext = nullptr);
 
 	ShaderMeta const& get_shader_meta(std::string_view pipeline_name);
 	ShaderMeta const& get_compute_shader_meta(std::string_view pipeline_name);
+#if PHOBOS_ENABLE_RAY_TRACING
+	ShaderMeta const& get_ray_tracing_shader_meta(std::string_view pipeline_name);
+#endif
 
 #if PHOBOS_ENABLE_RAY_TRACING
 	struct RTXExtensionFunctions {
@@ -378,6 +389,8 @@ private:
 		PFN_vkCmdWriteAccelerationStructuresPropertiesKHR _vkCmdWriteAccelerationStructuresPropertiesKHR = nullptr;
 		PFN_vkCmdCopyAccelerationStructureKHR _vkCmdCopyAccelerationStructureKHR = nullptr;
 		PFN_vkGetAccelerationStructureDeviceAddressKHR _vkGetAccelerationStructureDeviceAddressKHR = nullptr;
+
+		PFN_vkCreateRayTracingPipelinesKHR _vkCreateRayTracingPipelinesKHR = nullptr;
 	} rtx_fun;
 #endif
 };
