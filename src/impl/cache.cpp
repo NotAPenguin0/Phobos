@@ -323,10 +323,12 @@ Pipeline CacheImpl::get_or_create_ray_tracing_pipeline(ph::RayTracingPipelineCre
 	// Now we create the shader groups
 	std::vector<VkRayTracingShaderGroupCreateInfoKHR> groups;
 	for (RayTracingShaderGroup& group : pci.shader_groups) {
+		VkRayTracingShaderGroupTypeKHR type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+		if (group.type == RayTracingShaderGroupType::RayHit) type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
 		groups.push_back(VkRayTracingShaderGroupCreateInfoKHR{
 			.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
 			.pNext = nullptr,
-			.type = group.type,
+			.type = type,
 			.generalShader = (group.general.id != ShaderHandle::none) ? shader_indices[group.general] : VK_SHADER_UNUSED_KHR,
 			.closestHitShader = (group.closest_hit.id != ShaderHandle::none) ? shader_indices[group.closest_hit] : VK_SHADER_UNUSED_KHR,
 			.anyHitShader = (group.any_hit.id != ShaderHandle::none) ? shader_indices[group.any_hit] : VK_SHADER_UNUSED_KHR,
@@ -346,7 +348,7 @@ Pipeline CacheImpl::get_or_create_ray_tracing_pipeline(ph::RayTracingPipelineCre
 	pipeline.name = pci.name;
 	pipeline.type = ph::PipelineType::RayTracing;
 	pipeline.layout = layout;
-	ctx->name_object(pipeline, "[RTX Pipeline] " + pci.name);
+	ctx->name_object(pipeline, "[Raytracing Pipeline] " + pci.name);
 	// Destroy shader modules
 	for (auto& shader : sscis) {
 		vkDestroyShaderModule(ctx->device(), shader.module, nullptr);

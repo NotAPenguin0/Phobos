@@ -22,9 +22,12 @@ enum class BufferType {
     MappedUniformBuffer,
     IndexBuffer,
     IndexBufferDynamic,
+#if PHOBOS_ENABLE_RAY_TRACING
     AccelerationStructure,
     AccelerationStructureScratch,
-    AccelerationStructureInstance
+    AccelerationStructureInstance,
+    ShaderBindingTable
+#endif
 };
 
 // Note that free conversions from BufferSlice to TypedBufferSlice and vice versa are allowed.

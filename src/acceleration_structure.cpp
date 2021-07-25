@@ -291,7 +291,7 @@ VkAccelerationStructureInstanceKHR AccelerationStructureBuilder::instance_info_t
 	info.accelerationStructureReference = blas_address;
 	info.instanceCustomIndex = instance.custom_id;
 	info.instanceShaderBindingTableRecordOffset = instance.hit_group_index;
-	info.mask = {};
+	info.mask = 0xFF;
 	info.flags = instance.flags;
 	std::memcpy(&info.transform, &instance.transform, sizeof(instance.transform));
 
@@ -308,7 +308,6 @@ ph::RawBuffer AccelerationStructureBuilder::create_instance_buffer(uint32_t thre
 
 	std::byte* memory = ctx.map_memory(scratch);
 	std::memcpy(memory, instance_data.data(), size);
-	ctx.unmap_memory(scratch);
 
 	ph::Queue& queue = *ctx.get_queue(ph::QueueType::Transfer);
 	ph::CommandBuffer cmd = queue.begin_single_time(thread_index);

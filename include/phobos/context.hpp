@@ -305,6 +305,11 @@ public:
 #if PHOBOS_ENABLE_RAY_TRACING
 	void create_named_pipeline(ph::RayTracingPipelineCreateInfo pci);
 	void reflect_shaders(ph::RayTracingPipelineCreateInfo& pci);
+
+	// Creates a shader binding table for the specified pipeline.
+	// The pipeline must be created before using create_named_pipeline()
+	ShaderBindingTable create_shader_binding_table(std::string_view pipeline);
+	void destroy_shader_binding_table(ShaderBindingTable& sbt);
 #endif
 
 	RawImage create_image(ImageType type, VkExtent2D size, VkFormat format);
@@ -389,8 +394,8 @@ private:
 		PFN_vkCmdWriteAccelerationStructuresPropertiesKHR _vkCmdWriteAccelerationStructuresPropertiesKHR = nullptr;
 		PFN_vkCmdCopyAccelerationStructureKHR _vkCmdCopyAccelerationStructureKHR = nullptr;
 		PFN_vkGetAccelerationStructureDeviceAddressKHR _vkGetAccelerationStructureDeviceAddressKHR = nullptr;
-
 		PFN_vkCreateRayTracingPipelinesKHR _vkCreateRayTracingPipelinesKHR = nullptr;
+		PFN_vkCmdTraceRaysKHR _vkCmdTraceRaysKHR = nullptr;
 	} rtx_fun;
 #endif
 };

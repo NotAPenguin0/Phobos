@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <array>
 
 #include <vulkan/vulkan.h>
 
@@ -29,6 +30,7 @@ enum class PipelineStage {
     AttachmentOutput = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 #if PHOBOS_ENABLE_RAY_TRACING
     AccelerationStructureBuild = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+    RayTracingShader = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
 #endif
     BottomOfPipe = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
 };
@@ -206,8 +208,16 @@ struct ComputePipelineCreateInfo {
 
 #if PHOBOS_ENABLE_RAY_TRACING
 
+// These enum values are chosen so the shader groups can be sorted into arrays
+enum class RayTracingShaderGroupType {
+    RayGeneration = 0,
+    RayMiss = 1,
+    RayHit = 2,
+    Callable = 3
+};
+
 struct RayTracingShaderGroup {
-    VkRayTracingShaderGroupTypeKHR type{};
+    RayTracingShaderGroupType type{};
     ShaderHandle general{ ShaderHandle::none };
     ShaderHandle closest_hit{ ShaderHandle::none };
     ShaderHandle any_hit{ ShaderHandle::none };
@@ -224,6 +234,32 @@ struct RayTracingPipelineCreateInfo {
     uint32_t max_recursion_depth = 1;
 
     ShaderMeta meta{};
+};
+
+struct ShaderBindingTable {
+    ph::RawBuffer buffer;
+    // Offset of the ray generation groups in elemetns
+    uint32_t raygen_offset = 0;
+    // Amount of ray generation groups.
+    uint32_t raygen_count = 0;
+    // Offset of the ray miss groups in elements
+    uint32_t raymiss_offset = 0;
+    // Amount of ray miss groups
+    uint32_t raymiss_count = 0;
+    // Offset of the ray hit groups in elements
+    uint32_t rayhit_offset = 0;
+    // Amount of ray hit groups
+    uint32_t rayhit_count = 0;
+    // Offset of the callable groups in elements
+    uint32_t callable_offset = 0;
+    // Amount of callable groups
+    uint32_t callable_count = 0;
+
+    // Group size in bytes. This is aligned to the correct alignment.
+    uint32_t group_size_bytes = 0;
+
+    VkDeviceAddress address{};
+    std::array<VkStridedDeviceAddressRegionKHR, 4> regions;
 };
 
 #endif

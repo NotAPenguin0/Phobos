@@ -82,7 +82,7 @@ struct Pass {
 	std::string name = "";
 	// Execution callback
 	std::function<void(ph::CommandBuffer&)> execute{};
-	bool compute_only = false;
+	bool no_renderpass = false;
 };
 
 // Utility class that helps creating render passes (ph::Pass).
@@ -94,6 +94,10 @@ public:
 	static PassBuilder create(std::string_view name);
 	// Create a compute-only pass.
 	static PassBuilder create_compute(std::string_view name);
+	// Create a raytracing pass
+#if PHOBOS_ENABLE_RAY_TRACING
+	static PassBuilder create_ray_tracing(std::string_view name);
+#endif
 
 	// Adds an attachment to render to in this render pass.
 	PassBuilder& add_attachment(std::string_view name, LoadOp load_op, ClearValue clear = { .color {} });

@@ -47,7 +47,7 @@ void RenderGraph::build(Context& ctx) {
         create_pass_barriers(*pass, build);
 
         // Only create renderpass in non-compute passes
-        if (!pass->compute_only) {
+        if (!pass->no_renderpass) {
 
             // Create subpass description
             VkSubpassDescription subpass{};

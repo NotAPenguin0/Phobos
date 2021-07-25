@@ -7,7 +7,7 @@ namespace impl {
 	
 class PipelineImpl {
 public:
-	PipelineImpl(ContextImpl& ctx, CacheImpl& cache);
+	PipelineImpl(ContextImpl& ctx, CacheImpl& cache, BufferImpl& buffer);
 	~PipelineImpl();
 
 	// PUBLIC API
@@ -25,6 +25,8 @@ public:
 	void reflect_shaders(ph::RayTracingPipelineCreateInfo& pci);
 	void create_named_pipeline(ph::RayTracingPipelineCreateInfo pci);
 	ShaderMeta const& get_ray_tracing_shader_meta(std::string_view pipeline_name);
+
+	ShaderBindingTable create_shader_binding_table(std::string_view pipeline_name);
 #endif
 
 	// PRIVATE API
@@ -39,6 +41,7 @@ public:
 private:
 	ContextImpl* ctx;
 	CacheImpl* cache;
+	BufferImpl* buffer;
 
 	std::unordered_map<std::string, ph::PipelineCreateInfo> pipelines{};
 	std::unordered_map<std::string, ph::ComputePipelineCreateInfo> compute_pipelines;

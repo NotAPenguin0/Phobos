@@ -30,7 +30,6 @@ static VkBufferUsageFlags get_usage_flags(BufferType buf_type) {
 #if PHOBOS_ENABLE_RAY_TRACING
             | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT 
             | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
-#endif
     case BufferType::AccelerationStructure:
         return VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR 
             | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
@@ -38,6 +37,10 @@ static VkBufferUsageFlags get_usage_flags(BufferType buf_type) {
         return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
     case BufferType::AccelerationStructureInstance:
         return VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    case BufferType::ShaderBindingTable:
+        return VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+            | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+#endif
     case BufferType::Undefined:
         return VkBufferUsageFlags{};
     }
@@ -61,12 +64,16 @@ static VmaMemoryUsage get_memory_usage(BufferType buf_type) {
         return VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;
     case BufferType::MappedUniformBuffer:
         return VmaMemoryUsage::VMA_MEMORY_USAGE_CPU_TO_GPU;
+#if PHOBOS_ENABLE_RAY_TRACING
     case BufferType::AccelerationStructure:
         return VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;
     case BufferType::AccelerationStructureScratch:
         return VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;
     case BufferType::AccelerationStructureInstance:
         return VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;
+    case BufferType::ShaderBindingTable:
+        return VmaMemoryUsage::VMA_MEMORY_USAGE_CPU_TO_GPU;
+#endif
     case BufferType::Undefined:
         return VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;
     }
@@ -74,6 +81,7 @@ static VmaMemoryUsage get_memory_usage(BufferType buf_type) {
 
 static VmaAllocationCreateFlags get_allocation_flags(BufferType buf_type) {
     switch (buf_type) {
+    case BufferType::TransferBuffer: return VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_MAPPED_BIT;
     case BufferType::MappedUniformBuffer: return VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_MAPPED_BIT;
     case BufferType::StorageBufferDynamic: return VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_MAPPED_BIT;
     case BufferType::IndexBufferDynamic: return VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_MAPPED_BIT;

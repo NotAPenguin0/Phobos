@@ -7,10 +7,12 @@
 #include <phobos/impl/context.hpp>
 #include <phobos/impl/pipeline.hpp>
 #include <phobos/impl/cache.hpp>
+#include <phobos/impl/buffer.hpp>
 
 #include <phobos/pipeline.hpp>
 
 #include <spirv_cross.hpp>
+#include <algorithm>
 
 namespace ph {
 	namespace reflect {
@@ -24,6 +26,7 @@ namespace ph {
 		case spv::ExecutionModel::ExecutionModelGLCompute: return ShaderStage::Compute;
 		case spv::ExecutionModel::ExecutionModelRayGenerationKHR: return ShaderStage::RayGeneration;
 		case spv::ExecutionModel::ExecutionModelClosestHitKHR: return ShaderStage::ClosestHit;
+		case spv::ExecutionModel::ExecutionModelMissKHR: return ShaderStage::RayMiss;
 		default: return {};
 		}
 	}
@@ -40,10 +43,7 @@ namespace ph {
 
 	static std::unique_ptr<spirv_cross::Compiler> reflect_shader_stage(ph::ShaderModuleCreateInfo& shader) {
 		auto refl = std::make_unique<spirv_cross::Compiler>(shader.code);
-
 		assert(refl && "Failed to reflect shader");
-		spirv_cross::ShaderResources res = refl->get_shader_resources();
-
 		return refl;
 	}
 
@@ -249,7 +249,8 @@ namespace ph {
 
 namespace impl {
 
-PipelineImpl::PipelineImpl(ContextImpl& ctx, CacheImpl& cache) : ctx(&ctx), cache(&cache) {
+PipelineImpl::PipelineImpl(ContextImpl& ctx, CacheImpl& cache, BufferImpl& buffer) 
+	: ctx(&ctx), cache(&cache), buffer(&buffer) {
 	VkSamplerCreateInfo sci{
 		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
 		.pNext = nullptr,
@@ -369,6 +370,105 @@ ShaderMeta const& PipelineImpl::get_ray_tracing_shader_meta(std::string_view pip
 
 ph::RayTracingPipelineCreateInfo& PipelineImpl::get_ray_tracing_pipeline(std::string_view name) {
 	return rtx_pipelines.at(std::string(name));
+}
+
+ShaderBindingTable PipelineImpl::create_shader_binding_table(std::string_view pipeline_name) {
+	ph::RayTracingPipelineCreateInfo& pci = get_ray_tracing_pipeline(pipeline_name);
+	// Make sure the pipeline is created before trying to build a SBT.
+	ph::Pipeline pipeline = cache->get_or_create_ray_tracing_pipeline(pci);
+
+	uint32_t const group_count = pci.shader_groups.size();
+	uint32_t const group_handle_size = ctx->phys_device.ray_tracing_properties.shaderGroupHandleSize;
+	uint32_t const group_alignment = ctx->phys_device.ray_tracing_properties.shaderGroupBaseAlignment;
+	// Align the group size to the group alignmnet using the formula
+	uint32_t const aligned_group_size = (group_handle_size + (group_alignment - 1)) & ~(group_alignment - 1);
+	// Final size in bytes of the shader binding table
+	uint32_t const sbt_byte_size = aligned_group_size * group_count;
+
+	ph::RawBuffer sbt_buffer = buffer->create_buffer(ph::BufferType::ShaderBindingTable, sbt_byte_size);
+	ctx->name_object(sbt_buffer.handle, "[RT SBT] " + std::string(pipeline_name));
+
+	// Read back the shader handle data from the created pipeline
+	std::vector<std::byte> shader_handle_data{ sbt_byte_size };
+
+	// This function is only used here, and we don't have access to the main context, so we load it now
+	static auto _vkGetRayTracingShaderGroupHandlesKHR = (PFN_vkGetRayTracingShaderGroupHandlesKHR)vkGetInstanceProcAddr(
+		ctx->instance, "vkGetRayTracingShaderGroupHandlesKHR");
+	_vkGetRayTracingShaderGroupHandlesKHR(ctx->device, pipeline.handle, 0, group_count,
+		sbt_byte_size, shader_handle_data.data());
+
+	// Write the handles to the SBT buffer
+	std::byte* sbt_data = buffer->map_memory(sbt_buffer);
+	std::byte* src_data = shader_handle_data.data();
+	for (uint32_t group = 0; group < group_count; ++group) {
+		std::memcpy(sbt_data, src_data, aligned_group_size);
+		// Adjust pointers to next group
+		sbt_data += aligned_group_size;
+		src_data += group_handle_size;
+	}
+
+	buffer->unmap_memory(sbt_buffer);
+
+	ShaderBindingTable sbt{};
+	sbt.buffer = sbt_buffer;
+
+	// Set group information in SBT. This is needed for when calling vkCmdTraceRaysKHR
+	sbt.group_size_bytes = aligned_group_size;
+
+	// Functor to more easily write the count_if and find() calls
+	struct FindShaderGroupType {
+		RayTracingShaderGroupType type{};
+
+		bool operator()(RayTracingShaderGroup const& group) const {
+			return group.type == type;
+		}
+	};
+
+	sbt.raygen_count = std::count_if(pci.shader_groups.begin(), pci.shader_groups.end(), 
+		FindShaderGroupType{RayTracingShaderGroupType::RayGeneration});
+	sbt.raymiss_count = std::count_if(pci.shader_groups.begin(), pci.shader_groups.end(),
+		FindShaderGroupType{ RayTracingShaderGroupType::RayMiss });
+	sbt.rayhit_count = std::count_if(pci.shader_groups.begin(), pci.shader_groups.end(),
+		FindShaderGroupType{ RayTracingShaderGroupType::RayHit });
+	sbt.callable_count = std::count_if(pci.shader_groups.begin(), pci.shader_groups.end(),
+		FindShaderGroupType{ RayTracingShaderGroupType::Callable });
+	// Ray generation is always first, so this offset is always zero (cfr the std::sort() call).
+	sbt.raygen_offset = 0;
+	// Only set offset if there is a raymiss group, otherwise leaving it at zero is fine.
+	if (sbt.raymiss_count > 0) {
+		// The offset is equal to the index of the first raymiss group
+		sbt.raymiss_offset = std::find_if(pci.shader_groups.begin(), pci.shader_groups.end(),
+			FindShaderGroupType{ RayTracingShaderGroupType::RayMiss }) - pci.shader_groups.begin();
+	}
+
+	// Equivalent for rayhit and callable groups
+
+	if (sbt.rayhit_count > 0) {
+		sbt.rayhit_offset = std::find_if(pci.shader_groups.begin(), pci.shader_groups.end(),
+			FindShaderGroupType{ RayTracingShaderGroupType::RayHit }) - pci.shader_groups.begin();
+	}
+	if (sbt.callable_count > 0) {
+		// The offset is equal to the index of the first raymiss group
+		sbt.callable_offset = std::find_if(pci.shader_groups.begin(), pci.shader_groups.end(),
+			FindShaderGroupType{ RayTracingShaderGroupType::Callable }) - pci.shader_groups.begin();
+	}
+
+	VkDeviceAddress const sbt_address = buffer->get_device_address(sbt.buffer);
+	uint32_t const group_stride = sbt.group_size_bytes;
+	uint32_t const group_size = sbt.group_size_bytes;
+	using Region = VkStridedDeviceAddressRegionKHR;
+	sbt.regions = {
+		Region { sbt_address, group_stride, group_size * sbt.raygen_count },
+		Region { sbt_address + sbt.raymiss_offset * group_size, group_stride, group_size * sbt.raymiss_count},
+		Region { sbt_address + sbt.rayhit_offset * group_size, group_stride, group_size * sbt.rayhit_count},
+		Region { sbt.callable_count > 0 ? sbt_address + sbt.callable_count * group_size : 0,
+				 sbt.callable_count > 0 ? group_stride : 0,
+				 group_size * sbt.callable_count
+			   }
+	};
+	sbt.address = sbt_address;
+
+	return sbt;
 }
 
 #endif

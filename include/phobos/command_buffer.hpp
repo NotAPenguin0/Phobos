@@ -61,10 +61,14 @@ public:
 	CommandBuffer& copy_buffer(BufferSlice src, BufferSlice dst);
 
 #if PHOBOS_ENABLE_RAY_TRACING
+	CommandBuffer& bind_ray_tracing_pipeline(std::string_view name);
+
 	CommandBuffer& build_acceleration_structure(VkAccelerationStructureBuildGeometryInfoKHR const& info, VkAccelerationStructureBuildRangeInfoKHR const* ranges);
 	CommandBuffer& write_acceleration_structure_properties(VkAccelerationStructureKHR as, VkQueryType query_type, VkQueryPool query_pool, uint32_t index);
 	CommandBuffer& copy_acceleration_structure(VkAccelerationStructureKHR src, VkAccelerationStructureKHR dst, VkCopyAccelerationStructureModeKHR mode);
 	CommandBuffer& compact_acceleration_structure(VkAccelerationStructureKHR src, VkAccelerationStructureKHR dst);
+
+	CommandBuffer& trace_rays(ShaderBindingTable const& sbt, uint32_t x, uint32_t y, uint32_t z);
 #endif
 
 	CommandBuffer& reset_query_pool(VkQueryPool pool, uint32_t first = 0, uint32_t count = 1);

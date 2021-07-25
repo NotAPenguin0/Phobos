@@ -3,6 +3,7 @@
 #include <phobos/queue.hpp>
 
 #include <cassert>
+#include <array>
 
 namespace ph {
 
@@ -203,6 +204,13 @@ CommandBuffer& CommandBuffer::copy_buffer(BufferSlice src, BufferSlice dst) {
 
 #if PHOBOS_ENABLE_RAY_TRACING
 
+CommandBuffer& CommandBuffer::bind_ray_tracing_pipeline(std::string_view name) {
+	Pipeline pipeline = ctx->get_or_create_ray_tracing_pipeline(name);
+	vkCmdBindPipeline(cmd_buf, static_cast<VkPipelineBindPoint>(pipeline.type), pipeline.handle);
+	cur_pipeline = pipeline;
+	return *this;
+}
+
 CommandBuffer& CommandBuffer::build_acceleration_structure(VkAccelerationStructureBuildGeometryInfoKHR const& info, VkAccelerationStructureBuildRangeInfoKHR const* ranges) {
 	PH_RTX_CALL(vkCmdBuildAccelerationStructuresKHR, cmd_buf, 1, &info, &ranges);
 	return *this;
@@ -227,6 +235,12 @@ CommandBuffer& CommandBuffer::copy_acceleration_structure(VkAccelerationStructur
 
 CommandBuffer& CommandBuffer::compact_acceleration_structure(VkAccelerationStructureKHR src, VkAccelerationStructureKHR dst) {
 	return copy_acceleration_structure(src, dst, VK_COPY_ACCELERATION_STRUCTURE_MODE_COMPACT_KHR);
+}
+
+CommandBuffer& CommandBuffer::trace_rays(ShaderBindingTable const& sbt, uint32_t x, uint32_t y, uint32_t z) {
+	PH_RTX_CALL(vkCmdTraceRaysKHR, cmd_buf, &sbt.regions[0], &sbt.regions[1], &sbt.regions[2], &sbt.regions[3], x, y, z);
+
+	return *this;
 }
 
 #endif

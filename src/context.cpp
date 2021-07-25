@@ -30,7 +30,7 @@ Context::Context(AppSettings settings) {
 	}
 	context_impl->post_init(*this, *image_impl, settings);
 	frame_impl->post_init(*this, settings);
-	pipeline_impl = std::make_unique<impl::PipelineImpl>(*context_impl, *cache_impl);
+	pipeline_impl = std::make_unique<impl::PipelineImpl>(*context_impl, *cache_impl, *buffer_impl);
 
 #if PHOBOS_ENABLE_RAY_TRACING
 
@@ -43,6 +43,7 @@ Context::Context(AppSettings settings) {
 	PH_RTX_LOAD_FUNCTION(vkCmdWriteAccelerationStructuresPropertiesKHR);
 	PH_RTX_LOAD_FUNCTION(vkCmdCopyAccelerationStructureKHR);
 	PH_RTX_LOAD_FUNCTION(vkCreateRayTracingPipelinesKHR);
+	PH_RTX_LOAD_FUNCTION(vkCmdTraceRaysKHR);
 #undef PH_RTX_LOAD_FUNCTION
 #endif
 }
@@ -269,6 +270,15 @@ void Context::reflect_shaders(ph::RayTracingPipelineCreateInfo& pci) {
 
 ShaderMeta const& Context::get_ray_tracing_shader_meta(std::string_view pipeline_name) {
 	return pipeline_impl->get_ray_tracing_shader_meta(pipeline_name);
+}
+
+ShaderBindingTable Context::create_shader_binding_table(std::string_view pipeline_name) {
+	return pipeline_impl->create_shader_binding_table(pipeline_name);
+}
+
+void Context::destroy_shader_binding_table(ShaderBindingTable& sbt) {
+	destroy_buffer(sbt.buffer);
+	sbt = {};
 }
 
 #endif

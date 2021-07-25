@@ -11,7 +11,14 @@ PassBuilder PassBuilder::create(std::string_view name) {
 PassBuilder PassBuilder::create_compute(std::string_view name) {
 	PassBuilder builder{};
 	builder.pass.name = name;
-	builder.pass.compute_only = true;
+	builder.pass.no_renderpass = true;
+	return builder;
+}
+
+PassBuilder PassBuilder::create_ray_tracing(std::string_view name) {
+	PassBuilder builder{};
+	builder.pass.name = name;
+	builder.pass.no_renderpass = true;
 	return builder;
 }
 

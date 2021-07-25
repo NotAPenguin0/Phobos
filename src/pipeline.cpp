@@ -4,6 +4,7 @@
 
 #if PHOBOS_ENABLE_RAY_TRACING
 #include <phobos/acceleration_structure.hpp>
+#include <algorithm> // std::sort
 #endif
 
 namespace ph {
@@ -313,7 +314,7 @@ RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_shader(ShaderHandle sh
 RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_ray_gen_group(ShaderHandle shader) {
 	pci.shader_groups.push_back(
 		RayTracingShaderGroup{
-			.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+			.type = RayTracingShaderGroupType::RayGeneration,
 			.general = shader
 		}
 	);
@@ -323,7 +324,7 @@ RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_ray_gen_group(ShaderHa
 RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_ray_miss_group(ShaderHandle shader) {
 	pci.shader_groups.push_back(
 		RayTracingShaderGroup{
-			.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+			.type = RayTracingShaderGroupType::RayMiss,
 			.general = shader
 		}
 	);
@@ -333,7 +334,7 @@ RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_ray_miss_group(ShaderH
 RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_ray_hit_group(ShaderHandle shader) {
 	pci.shader_groups.push_back(
 		RayTracingShaderGroup{
-			.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR,
+			.type = RayTracingShaderGroupType::RayHit,
 			.closest_hit = shader
 		}
 	);
@@ -346,6 +347,14 @@ RayTracingPipelineBuilder& RayTracingPipelineBuilder::reflect() {
 }
 
 ph::RayTracingPipelineCreateInfo RayTracingPipelineBuilder::get() {
+
+	// Before completing the pipeline creation, we sort the shader groups into their types.
+	// This is needed to have contiguous arrays in the shader binding table
+	std::sort(pci.shader_groups.begin(), pci.shader_groups.end(), 
+		[](RayTracingShaderGroup const& lhs, RayTracingShaderGroup const& rhs) {
+			return static_cast<int>(lhs.type) < static_cast<int>(rhs.type);
+		});
+
 	return std::move(pci);
 }
 
