@@ -75,6 +75,11 @@ CommandBuffer& CommandBuffer::bind_vertex_buffer(uint32_t first_binding, BufferS
 	return bind_vertex_buffer(first_binding, slice.buffer, slice.offset);
 }
 
+CommandBuffer& CommandBuffer::push_constants(plib::bit_flag<ph::ShaderStage> stage, uint32_t offset, uint32_t size, void const* data) {
+	vkCmdPushConstants(cmd_buf, cur_pipeline.layout.handle, static_cast<VkShaderStageFlags>(stage.value()), offset, size, data);
+	return *this;
+}
+
 CommandBuffer& CommandBuffer::auto_viewport_scissor() {
 	VkViewport vp{};
 	vp.width = cur_render_area.extent.width;

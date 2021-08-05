@@ -68,6 +68,10 @@ uint32_t Context::thread_count() const {
 	return context_impl->thread_count();
 }
 
+PhysicalDevice const& Context::get_physical_device() const {
+	return context_impl->phys_device;
+}
+
 Queue* Context::get_queue(QueueType type) {
 	return context_impl->get_queue(type);
 }

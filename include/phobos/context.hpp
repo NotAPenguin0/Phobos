@@ -244,6 +244,8 @@ public:
 	bool validation_enabled() const;
 	uint32_t thread_count() const;
 
+	PhysicalDevice const& get_physical_device() const;
+
 	Queue* get_queue(QueueType type);
 	// Gets the pointer to the first present-capable queue.
 	Queue* get_present_queue();

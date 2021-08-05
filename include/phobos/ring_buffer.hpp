@@ -41,6 +41,11 @@ public:
 		return buffer[cur];
 	}
 
+	T& previous() {
+		if (cur == 0) return buffer.back();
+		else return buffer[cur - 1];
+	}
+
 	void set(size_t index, T&& value) {
 		buffer[index] = std::move(value);
 	}

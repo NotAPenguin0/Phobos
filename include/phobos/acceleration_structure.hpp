@@ -45,6 +45,8 @@ struct AccelerationStructureMesh {
 	uint32_t num_indices = 0;
 
 	uint32_t stride = 0;
+
+	VkGeometryFlagsKHR flags = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;
 };
 
 struct AccelerationStructureInstance {
@@ -58,6 +60,8 @@ struct AccelerationStructureInstance {
 	uint32_t hit_group_index{};
 	// Additional flags
 	VkGeometryInstanceFlagsKHR flags{};
+	// Culling mask
+	uint8_t cull_mask = 0xFF;
 };
 
 class AccelerationStructureBuilder {

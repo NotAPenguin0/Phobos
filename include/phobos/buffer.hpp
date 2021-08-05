@@ -57,7 +57,7 @@ struct TypedBufferSlice {
     T* data = nullptr;
 
     TypedBufferSlice() = default;
-    TypedBufferSlice(RawBuffer& buffer, VkDeviceSize range = WHOLE_BUFFER_SIZE, VkDeviceSize offset = 0, T* data = nullptr) 
+    TypedBufferSlice(RawBuffer const& buffer, VkDeviceSize range = WHOLE_BUFFER_SIZE, VkDeviceSize offset = 0, T* data = nullptr) 
         : buffer(buffer.handle), memory(buffer.memory), offset(offset), data(data) {
 
         if (range == WHOLE_BUFFER_SIZE) { this->range = buffer.size; }
@@ -79,7 +79,7 @@ struct TypedBufferSlice {
     TypedBufferSlice& operator=(TypedBufferSlice const&) = default;
     
     // Conversion from TypedbufferSlice to BufferSlice
-    operator BufferSlice() {
+    operator BufferSlice() const {
         // This isn't working for some reason, guess we'll manually assign the values ...
         // return TypedBufferSlice<std::byte>{ .buffer = buffer, .offset = offset, .range = range, .memory = memory, .data = reinterpret_cast<std::byte*>(data) };
         BufferSlice slice;

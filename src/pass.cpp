@@ -112,6 +112,46 @@ PassBuilder& PassBuilder::execute(std::function<void(ph::CommandBuffer&)> callba
 }
 
 Pass PassBuilder::get() {
+
+	// 'Collapse' usages by finding usage structs with the same resource but different usage flags.
+	// Add the usage flags together into one struct and replace
+
+	struct ResourceFinder {
+		ResourceUsage const& a;
+
+		bool operator()(ResourceUsage const& b) const {
+			if (a.stage != b.stage) return false;
+
+			if (a.type == ResourceType::Attachment && b.type == ResourceType::Attachment) {
+				return a.attachment.name == b.attachment.name;
+			}
+			if (a.type == ResourceType::Buffer && b.type == ResourceType::Buffer) {
+				return a.buffer.slice == b.buffer.slice;
+			}
+			if (a.type == ResourceType::Image && b.type == ResourceType::Image) {
+				return a.image.view == b.image.view;
+			}
+			if (a.type == ResourceType::StorageImage && b.type == ResourceType::StorageImage) {
+				return a.image.view == b.image.view;
+			}
+		}
+	};
+
+	std::vector<ResourceUsage> resources_final{};
+	for (auto& resource : pass.resources) {
+		// If this resource is already in the resources list, add it's usage flag.
+		auto it = std::find_if(resources_final.begin(), resources_final.end(), ResourceFinder{ resource });
+		if (it != resources_final.end()) {
+			it->access |= resource.access;
+		}
+		// It's not in the resources list yet, simply add it by copying it over
+		else {
+			resources_final.push_back(resource);
+		}
+	}
+	// Swap the pass resources with the resulting resource list.
+	pass.resources = std::move(resources_final);
+
 	return std::move(pass);
 }
 

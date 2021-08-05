@@ -53,7 +53,7 @@ enum class ResourceType {
 
 struct ResourceUsage {
 	plib::bit_flag<PipelineStage> stage{};
-	ResourceAccess access{};
+	plib::bit_flag<ResourceAccess> access{};
 
 	struct Attachment {
 		std::string name = "";

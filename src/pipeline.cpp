@@ -311,11 +311,11 @@ RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_shader(ShaderHandle sh
 	return *this;
 }
 
-RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_ray_gen_group(ShaderHandle shader) {
+RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_ray_gen_group(ShaderHandle closest_hit_shader) {
 	pci.shader_groups.push_back(
 		RayTracingShaderGroup{
 			.type = RayTracingShaderGroupType::RayGeneration,
-			.general = shader
+			.general = closest_hit_shader
 		}
 	);
 	return *this;
@@ -331,13 +331,20 @@ RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_ray_miss_group(ShaderH
 	return *this;
 }
 
-RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_ray_hit_group(ShaderHandle shader) {
+RayTracingPipelineBuilder& RayTracingPipelineBuilder::add_ray_hit_group(ShaderHandle closest_hit_shader, 
+	std::optional<ShaderHandle> anyhit_shader) {
 	pci.shader_groups.push_back(
 		RayTracingShaderGroup{
 			.type = RayTracingShaderGroupType::RayHit,
-			.closest_hit = shader
+			.closest_hit = closest_hit_shader,
+			.any_hit = anyhit_shader.value_or(ph::ShaderHandle{})
 		}
 	);
+	return *this;
+}
+
+RayTracingPipelineBuilder& RayTracingPipelineBuilder::set_recursion_depth(uint32_t depth) {
+	pci.max_recursion_depth = depth;
 	return *this;
 }
 

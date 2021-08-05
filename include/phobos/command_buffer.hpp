@@ -37,6 +37,8 @@ public:
 	CommandBuffer& bind_vertex_buffer(uint32_t first_binding, VkBuffer buffer, VkDeviceSize offset);
 	CommandBuffer& bind_vertex_buffer(uint32_t first_binding, BufferSlice slice);
 
+	CommandBuffer& push_constants(plib::bit_flag<ph::ShaderStage> stage, uint32_t offset, uint32_t size, void const* data);
+
 	// Sets viewport and scissor regions to the current framebuffer size.
 	// Only valid if viewport and scissor are dynamic states of the current pipeline
 	CommandBuffer& auto_viewport_scissor();

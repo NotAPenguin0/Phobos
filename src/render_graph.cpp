@@ -1,6 +1,8 @@
 #include <phobos/render_graph.hpp>
 #include <cassert>
 
+#include <exception>
+
 namespace ph {
 
 static bool is_output_attachment(ResourceUsage const& usage) {
@@ -184,6 +186,8 @@ VkImageLayout RenderGraph::get_initial_layout(Context& ctx, Pass* pass, Resource
     if (previous_usage.access == VK_ACCESS_SHADER_READ_BIT) {
         return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
+
+    throw std::runtime_error("Invalid resource access");
 }
 
 VkImageLayout RenderGraph::get_final_layout(Context& ctx, Pass* pass, ResourceUsage const& resource) {
@@ -225,6 +229,8 @@ VkImageLayout RenderGraph::get_final_layout(Context& ctx, Pass* pass, ResourceUs
     if (next_usage.access == VK_ACCESS_SHADER_READ_BIT) {
         return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
+
+    throw std::runtime_error("Invalid resource access");
 }
 
 std::pair<ResourceUsage, Pass*> RenderGraph::find_previous_usage(Context& ctx, Pass* current_pass, Attachment* attachment) {
@@ -371,14 +377,14 @@ RenderGraph::AttachmentUsage RenderGraph::get_attachment_usage(std::pair<Resourc
     if (usage.access == ResourceAccess::ShaderRead) {
         return AttachmentUsage{
             .stage = static_cast<VkPipelineStageFlags>(usage.stage.value()),
-            .access = static_cast<VkAccessFlags>(usage.access),
+            .access = static_cast<VkAccessFlags>(usage.access.value()),
             .pass = pass
         };
     }
     if (usage.access == ResourceAccess::ColorAttachmentOutput || usage.access == ResourceAccess::DepthStencilAttachmentOutput) {
         return AttachmentUsage{
             .stage = static_cast<VkPipelineStageFlags>(usage.stage.value()),
-            .access = static_cast<VkAccessFlags>(usage.access),
+            .access = static_cast<VkAccessFlags>(usage.access.value()),
             .pass = pass
         };
     }
@@ -405,18 +411,18 @@ void RenderGraph::create_pass_barriers(Pass& pass, BuiltPass& result) {
                 barrier.offset = buffer->offset;
                 barrier.size = buffer->range;
                 barrier.pNext = nullptr;
-                if (resource.access == ResourceAccess::ShaderRead) {
+                if (resource.access & ResourceAccess::ShaderRead) {
                     // When reading, we only need a barrier if the next usage is a write
-                    if (next.access == ResourceAccess::ShaderWrite) {
-                        barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-                        barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    if (next.access & ResourceAccess::ShaderWrite) {
+                        barrier.srcAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+                        barrier.dstAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
                     }
                 }
-                else if (resource.access == ResourceAccess::ShaderWrite) {
+                if (resource.access & ResourceAccess::ShaderWrite) {
                     // We always need a barrier when writing
-                    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-                    if (next.access == ResourceAccess::ShaderRead) { barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT; }
-                    else { barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT; }
+                    barrier.srcAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+                    if (next.access & ResourceAccess::ShaderRead) { barrier.dstAccessMask |= VK_ACCESS_SHADER_READ_BIT; }
+                    if (next.access & ResourceAccess::ShaderWrite) { barrier.dstAccessMask |= VK_ACCESS_SHADER_WRITE_BIT; }
                 }
 
                 // Only actually inser the barrier if we set any values (meaning we need it)
@@ -455,7 +461,7 @@ void RenderGraph::create_pass_barriers(Pass& pass, BuiltPass& result) {
 
                 // No access sicen it wasn't used earlier
                 barrier.srcAccessMask = {};
-                barrier.dstAccessMask = static_cast<VkAccessFlagBits>(resource.access);
+                barrier.dstAccessMask = static_cast<VkAccessFlagBits>(resource.access.value());
 
                 Barrier final_barrier;
                 final_barrier.image = barrier;
@@ -486,40 +492,40 @@ void RenderGraph::create_pass_barriers(Pass& pass, BuiltPass& result) {
                 if (resource.type == ResourceType::StorageImage) { barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL; }
                 else if (resource.type == ResourceType::Image) { barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; }
                 
-                if (resource.access == ResourceAccess::ShaderRead) {
+                if (resource.access & ResourceAccess::ShaderRead) {
                     // Read -> Read, we need a barrier for layout transition only if the next usage is not of the same usage type
-                    if (next.access == ResourceAccess::ShaderRead) {
+                    if (next.access & ResourceAccess::ShaderRead) {
                         if (resource.type == ResourceType::StorageImage && next.type == ResourceType::Image) {
                             barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-                            barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                            barrier.srcAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+                            barrier.dstAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
                         }
                         else if (resource.type == ResourceType::Image && next.type == ResourceType::StorageImage) {
                             barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-                            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-                            barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                            barrier.srcAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+                            barrier.dstAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
                         }
                     }
                     // Read -> Write, we need a barrier for synchronization, which will optionally do a layout transition
-                    else if (next.access == ResourceAccess::ShaderWrite) {
+                    if (next.access & ResourceAccess::ShaderWrite) {
                         barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL; // Writing only happens on storage images so we know this has to be VK_IMAGE_LAYOUT_GENERAL
-                        barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-                        barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                        barrier.srcAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+                        barrier.dstAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
                     }
                 }
-                else if (resource.access == ResourceAccess::ShaderWrite) {
+                if (resource.access & ResourceAccess::ShaderWrite) {
                     // If we write and there is a next usage, we need a barrier
-                    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    barrier.srcAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
                     // Write -> Read, add transition to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL if next is not a storage image
-                    if (next.access == ResourceAccess::ShaderRead) {
+                    if (next.access & ResourceAccess::ShaderRead) {
                         if (next.type == ResourceType::Image) { barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; }
                         else { barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL; }
-                        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                        barrier.dstAccessMask |= VK_ACCESS_SHADER_READ_BIT;
                     }
                     // Write -> Write, no transition needed since this is always a storage image, but we need a barrier for synchronization
-                    else if (next.access == ResourceAccess::ShaderWrite) {
+                    if (next.access & ResourceAccess::ShaderWrite) {
                         barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-                        barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                        barrier.dstAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
                     }
                 }
 

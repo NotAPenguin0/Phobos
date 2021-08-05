@@ -51,7 +51,7 @@ AccelerationStructureBuilder::BLASEntry AccelerationStructureBuilder::build_blas
 	BLASEntry entry{};
 	entry.geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
 	entry.geometry.pNext = nullptr;
-	entry.geometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+	entry.geometry.flags = mesh.flags;
 	entry.geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
 	entry.geometry.geometry.triangles = VkAccelerationStructureGeometryTrianglesDataKHR{
 		.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
@@ -188,7 +188,8 @@ void AccelerationStructureBuilder::build_blas(uint32_t thread_index, VkDeviceSiz
 void AccelerationStructureBuilder::compact_blas(uint32_t thread_index, std::vector<BLASBuildInfo> const& infos) {
 	uint32_t num_blas = infos.size();
 	// Read back the query results.
-	std::vector<uint32_t> compacted_sizes{ num_blas };
+	std::vector<uint32_t> compacted_sizes;
+	compacted_sizes.resize(num_blas);
 	vkGetQueryPoolResults(ctx.device(), compacted_blas_size_qp,
 		0, num_blas, num_blas * sizeof(uint32_t),
 		compacted_sizes.data(), sizeof(uint32_t), VK_QUERY_RESULT_WAIT_BIT);
@@ -291,7 +292,7 @@ VkAccelerationStructureInstanceKHR AccelerationStructureBuilder::instance_info_t
 	info.accelerationStructureReference = blas_address;
 	info.instanceCustomIndex = instance.custom_id;
 	info.instanceShaderBindingTableRecordOffset = instance.hit_group_index;
-	info.mask = 0xFF;
+	info.mask = instance.cull_mask;
 	info.flags = instance.flags;
 	std::memcpy(&info.transform, &instance.transform, sizeof(instance.transform));
 

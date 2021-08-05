@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <array>
+#include <optional>
 
 #include <vulkan/vulkan.h>
 
@@ -43,6 +44,7 @@ enum class ShaderStage {
     RayGeneration = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
     ClosestHit = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
     RayMiss = VK_SHADER_STAGE_MISS_BIT_KHR,
+    AnyHit = VK_SHADER_STAGE_ANY_HIT_BIT_KHR
 #endif
 };
 
@@ -363,7 +365,11 @@ public:
     RayTracingPipelineBuilder& add_ray_miss_group(ShaderHandle shader);
     // Defines a shader group as a ray hit group with the supplied shader.
     // Shader must be a closest hit shader.
-    RayTracingPipelineBuilder& add_ray_hit_group(ShaderHandle shader);
+    RayTracingPipelineBuilder& add_ray_hit_group(
+        ShaderHandle closest_hit_shader,
+        std::optional<ShaderHandle> anyhit_shader = std::nullopt);
+    // Sets the maximum number level of recusion rays can have in this pipeline.
+    RayTracingPipelineBuilder& set_recursion_depth(uint32_t depth);
 
     RayTracingPipelineBuilder& reflect();
 
