@@ -211,8 +211,8 @@ CommandBuffer& CommandBuffer::copy_buffer_to_image(BufferSlice src, ph::ImageVie
 	VkDeviceSize offset = src.offset;
 	std::vector<VkBufferImageCopy> regions{ dst.level_count };
 	for (uint32_t mip = dst.base_level; mip < dst.level_count; ++mip) {
-		VkDeviceSize const level_width = dst.size.width / pow(2, mip);
-		VkDeviceSize const level_height = dst.size.height / pow(2, mip);
+		uint32_t const level_width = dst.size.width / pow(2, mip);
+		uint32_t const level_height = dst.size.height / pow(2, mip);
 		VkBufferImageCopy copy{
 			.bufferOffset = offset,
 			.bufferRowLength = 0,
