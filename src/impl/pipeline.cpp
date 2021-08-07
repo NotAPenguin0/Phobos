@@ -24,11 +24,13 @@ namespace ph {
 		case spv::ExecutionModel::ExecutionModelVertex: return ShaderStage::Vertex;
 		case spv::ExecutionModel::ExecutionModelFragment: return ShaderStage::Fragment;
 		case spv::ExecutionModel::ExecutionModelGLCompute: return ShaderStage::Compute;
+#if PHOBOS_ENABLE_RAY_TRACING
 		case spv::ExecutionModel::ExecutionModelRayGenerationKHR: return ShaderStage::RayGeneration;
 		case spv::ExecutionModel::ExecutionModelClosestHitKHR: return ShaderStage::ClosestHit;
 		case spv::ExecutionModel::ExecutionModelMissKHR: return ShaderStage::RayMiss;
 		case spv::ExecutionModel::ExecutionModelAnyHitKHR: return ShaderStage::AnyHit;
 		default: return {};
+#endif
 		}
 	}
 

@@ -60,4 +60,7 @@ struct ImageView {
 
 bool is_depth_format(VkFormat format);
 
+// Returns the size in bytes of a single pixel stored using the specified format.
+VkDeviceSize format_size(VkFormat format);
+
 }

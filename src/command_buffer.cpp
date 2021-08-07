@@ -207,6 +207,37 @@ CommandBuffer& CommandBuffer::copy_buffer(BufferSlice src, BufferSlice dst) {
 	return *this;
 }
 
+CommandBuffer& CommandBuffer::copy_buffer_to_image(BufferSlice src, ph::ImageView dst, VkImageLayout layout) {
+	VkDeviceSize offset = src.offset;
+	std::vector<VkBufferImageCopy> regions{ dst.level_count };
+	for (uint32_t mip = dst.base_level; mip < dst.level_count; ++mip) {
+		VkDeviceSize const level_width = dst.size.width / pow(2, mip);
+		VkDeviceSize const level_height = dst.size.height / pow(2, mip);
+		VkBufferImageCopy copy{
+			.bufferOffset = offset,
+			.bufferRowLength = 0,
+			.bufferImageHeight = 0,
+			.imageSubresource = {
+				.aspectMask = static_cast<VkImageAspectFlags>(dst.aspect),
+				.mipLevel = mip,
+				.baseArrayLayer = dst.base_layer,
+				.layerCount = dst.layer_count
+			},
+			.imageOffset = {},
+			.imageExtent = { level_width, level_height, 1 }
+		};
+
+		regions[mip] = copy;
+
+		VkDeviceSize level_size = format_size(dst.format) * level_width * level_height;
+		offset += level_size;
+	}
+
+	vkCmdCopyBufferToImage(cmd_buf, src.buffer, dst.image, layout, regions.size(), regions.data());
+	
+	return *this;
+}
+
 #if PHOBOS_ENABLE_RAY_TRACING
 
 CommandBuffer& CommandBuffer::bind_ray_tracing_pipeline(std::string_view name) {
