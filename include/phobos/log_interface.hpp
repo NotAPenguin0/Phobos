@@ -7,7 +7,7 @@
 #include <fmt/format.h>
 
 namespace ph {
-
+    
 enum class LogSeverity {
     Debug = 0x00000001, // VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
     Info = 0x00000010, // VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT

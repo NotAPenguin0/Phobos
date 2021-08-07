@@ -25,6 +25,7 @@ class Context;
 
 enum class PipelineStage {
     TopOfPipe = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+    Transfer = VK_PIPELINE_STAGE_TRANSFER_BIT,
     VertexShader = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
     FragmentShader = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
     ComputeShader = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
