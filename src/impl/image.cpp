@@ -67,13 +67,13 @@ ImageImpl::ImageImpl(ContextImpl& ctx) : ctx(&ctx) {
 
 }
 
-RawImage ImageImpl::create_image(ImageType type, VkExtent2D size, VkFormat format) {
+RawImage ImageImpl::create_image(ImageType type, VkExtent2D size, VkFormat format, uint32_t mips) {
     RawImage image;
     image.size = size;
     image.format = format;
     image.type = type;
     image.layers = 1;
-    image.mip_levels = 1;
+    image.mip_levels = mips;
     image.samples = VK_SAMPLE_COUNT_1_BIT;
 
     VkImageCreateInfo info{
@@ -83,7 +83,7 @@ RawImage ImageImpl::create_image(ImageType type, VkExtent2D size, VkFormat forma
         .imageType = VK_IMAGE_TYPE_2D,
         .format = format,
         .extent = VkExtent3D{size.width, size.height, 1},
-        .mipLevels = 1,
+        .mipLevels = mips,
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = get_image_tiling(type),

@@ -289,8 +289,8 @@ void Context::destroy_shader_binding_table(ShaderBindingTable& sbt) {
 
 // IMAGE 
 
-RawImage Context::create_image(ImageType type, VkExtent2D size, VkFormat format) {
-	return image_impl->create_image(type, size, format);
+RawImage Context::create_image(ImageType type, VkExtent2D size, VkFormat format, uint32_t mips) {
+	return image_impl->create_image(type, size, format, mips);
 }
 
 void Context::destroy_image(RawImage& image) {
