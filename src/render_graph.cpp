@@ -240,7 +240,7 @@ std::pair<ResourceUsage, Pass*> RenderGraph::find_previous_usage(Context& ctx, P
     }
 
     // Go over each earlier pass
-    for (Pass* pass = current_pass - 1; pass != &passes.front(); --pass) {
+    for (Pass* pass = current_pass - 1; pass >= &passes.front(); --pass) {
         // Look in this pass's resources
         auto find_resource = [&ctx, attachment](ph::ResourceUsage const& resource) {
             if (resource.type != ResourceType::Attachment) return false;
@@ -286,7 +286,7 @@ std::pair<ResourceUsage, Pass*> RenderGraph::find_previous_usage(Pass* current_p
     }
 
     // Go over each earlier pass
-    for (Pass* pass = current_pass - 1; pass != &passes.front(); --pass) {
+    for (Pass* pass = current_pass - 1; pass >= &passes.front(); --pass) {
         // Look in this pass's resources
         auto find_resource = [buffer](ph::ResourceUsage const& resource) {
             if (resource.type != ResourceType::Buffer) return false;
@@ -332,7 +332,7 @@ std::pair<ResourceUsage, Pass*> RenderGraph::find_previous_usage(Pass* current_p
     }
 
     // Go over each earlier pass
-    for (Pass* pass = current_pass - 1; pass != &passes.front(); --pass) {
+    for (Pass* pass = current_pass - 1; pass >= &passes.front(); --pass) {
         // Look in this pass's resources
         auto find_resource = [image](ph::ResourceUsage const& resource) {
             if (resource.type != ResourceType::Image && resource.type != ResourceType::StorageImage) return false;
