@@ -48,6 +48,9 @@ public:
 	VkSemaphore create_semaphore();
 	void destroy_semaphore(VkSemaphore semaphore);
 
+	VkSampler create_sampler(VkSamplerCreateInfo info);
+	void destroy_sampler(VkSampler sampler);
+
 	VkQueryPool create_query_pool(VkQueryType type, uint32_t count);
 	void destroy_query_pool(VkQueryPool pool);
 

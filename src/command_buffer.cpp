@@ -196,6 +196,38 @@ CommandBuffer& CommandBuffer::acquire_ownership(Queue const& src, Queue const& d
 	return *this;
 }
 
+CommandBuffer& CommandBuffer::release_ownership(Queue const& src, Queue const& dst, ph::RawBuffer const& buffer) {
+	VkBufferMemoryBarrier barrier{
+		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+		.pNext = nullptr,
+		.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+		.srcQueueFamilyIndex = src.family_index(),
+		.dstQueueFamilyIndex = dst.family_index(),
+		.buffer = buffer.handle,
+		.offset = 0,
+		.size = buffer.size
+	};
+	this->barrier(ph::PipelineStage::TopOfPipe, ph::PipelineStage::BottomOfPipe, barrier);
+	return *this;
+}
+
+CommandBuffer& CommandBuffer::acquire_ownership(Queue const& src, Queue const& dst, ph::RawBuffer const& buffer) {
+	VkBufferMemoryBarrier barrier{
+		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+		.pNext = nullptr,
+		.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+		.srcQueueFamilyIndex = src.family_index(),
+		.dstQueueFamilyIndex = dst.family_index(),
+		.buffer = buffer.handle,
+		.offset = 0,
+		.size = buffer.size
+	};
+	this->barrier(ph::PipelineStage::TopOfPipe, ph::PipelineStage::BottomOfPipe, barrier);
+	return *this;
+}
+
 CommandBuffer& CommandBuffer::copy_buffer(BufferSlice src, BufferSlice dst) {
 	assert(src.range == dst.range && "Cannot copy between slices of different sizes");
 	VkBufferCopy copy{

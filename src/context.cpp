@@ -174,6 +174,14 @@ void Context::destroy_semaphore(VkSemaphore semaphore) {
 	context_impl->destroy_semaphore(semaphore);
 }
 
+VkSampler Context::create_sampler(VkSamplerCreateInfo info) {
+	return context_impl->create_sampler(info);
+}
+
+void Context::destroy_sampler(VkSampler sampler) {
+	context_impl->destroy_sampler(sampler);
+}
+
 VkQueryPool Context::create_query_pool(VkQueryType type, uint32_t count) {
 	return context_impl->create_query_pool(type, count);
 }

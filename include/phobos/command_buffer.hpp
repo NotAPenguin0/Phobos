@@ -60,6 +60,9 @@ public:
 	CommandBuffer& release_ownership(Queue const& src, Queue const& dst, ph::ImageView const& image, VkImageLayout final_layout);
 	CommandBuffer& acquire_ownership(Queue const& src, Queue const& dst, ph::ImageView const& image, VkImageLayout final_layout);
 	
+	CommandBuffer& release_ownership(Queue const& src, Queue const& dst, ph::RawBuffer const& buffer);
+	CommandBuffer& acquire_ownership(Queue const& src, Queue const& dst, ph::RawBuffer const& buffer);
+
 	CommandBuffer& copy_buffer(BufferSlice src, BufferSlice dst);
 	CommandBuffer& copy_buffer_to_image(BufferSlice src, ph::ImageView dst, VkImageLayout layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 

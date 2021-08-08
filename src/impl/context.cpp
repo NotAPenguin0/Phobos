@@ -666,6 +666,12 @@ VkSemaphore ContextImpl::create_semaphore() {
 	return semaphore;
 }
 
+VkSampler ContextImpl::create_sampler(VkSamplerCreateInfo info) {
+	VkSampler sampler;
+	vkCreateSampler(device, &info, nullptr, &sampler);
+	return sampler;
+}
+
 VkQueryPool ContextImpl::create_query_pool(VkQueryType type, uint32_t count) {
 	VkQueryPoolCreateInfo info{
 		.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
@@ -681,6 +687,10 @@ VkQueryPool ContextImpl::create_query_pool(VkQueryType type, uint32_t count) {
 
 void ContextImpl::destroy_query_pool(VkQueryPool pool) {
 	vkDestroyQueryPool(device, pool, nullptr);
+}
+
+void ContextImpl::destroy_sampler(VkSampler sampler) {
+	vkDestroySampler(device, sampler, nullptr);
 }
 
 void ContextImpl::destroy_semaphore(VkSemaphore semaphore) {
