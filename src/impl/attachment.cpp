@@ -42,6 +42,14 @@ bool AttachmentImpl::is_attachment(ImageView view) {
 	return false;
 }
 
+std::string AttachmentImpl::get_attachment_name(ImageView view) {
+	auto it = std::find_if(attachments.begin(), attachments.end(), [view](auto const& att) {
+		return att.second.attachment.view.id == view.id;
+		});
+	if (it != attachments.end()) return it->first;
+	return "";
+}
+
 void AttachmentImpl::create_attachment(std::string_view name, VkExtent2D size, VkFormat format) {
 	InternalAttachment attachment{};
 	// Create image and image view

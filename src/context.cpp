@@ -226,6 +226,10 @@ bool Context::is_attachment(ImageView view) {
 	return attachment_impl->is_attachment(view);
 }
 
+std::string Context::get_attachment_name(ImageView view) {
+	return attachment_impl->get_attachment_name(view);
+}
+
 std::string Context::get_swapchain_attachment_name() const {
 	return attachment_impl->get_swapchain_attachment_name();
 }

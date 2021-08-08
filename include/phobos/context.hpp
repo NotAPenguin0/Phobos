@@ -298,6 +298,8 @@ public:
 	void create_attachment(std::string_view name, VkExtent2D size, VkFormat format);
 	bool is_swapchain_attachment(std::string const& name);
 	bool is_attachment(ImageView view);
+	// if this view is an attachment, you can get its name by calling this function.
+	std::string get_attachment_name(ImageView view);
 	std::string get_swapchain_attachment_name() const;
 
 	ShaderHandle create_shader(std::string_view path, std::string_view entry_point, ShaderStage stage);

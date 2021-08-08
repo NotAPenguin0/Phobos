@@ -16,6 +16,7 @@ public:
 	void create_attachment(std::string_view name, VkExtent2D size, VkFormat format);
 	bool is_swapchain_attachment(std::string const& name);
 	bool is_attachment(ImageView view);
+	std::string get_attachment_name(ImageView view);
 	std::string get_swapchain_attachment_name() const;
 
 	// PRIVATE IMPLEMENTATION FUNCTIONS (these are public since they can be used by other impl classes freely)
