@@ -75,6 +75,12 @@ CommandBuffer& CommandBuffer::bind_vertex_buffer(uint32_t first_binding, BufferS
 	return bind_vertex_buffer(first_binding, slice.buffer, slice.offset);
 }
 
+CommandBuffer& CommandBuffer::bind_index_buffer(BufferSlice slice, VkIndexType type) {
+	assert(cur_renderpass && "bind_index_buffer called without an active renderpass");
+	vkCmdBindIndexBuffer(cmd_buf, slice.buffer, slice.offset, type);
+	return *this;
+}
+
 CommandBuffer& CommandBuffer::push_constants(plib::bit_flag<ph::ShaderStage> stage, uint32_t offset, uint32_t size, void const* data) {
 	vkCmdPushConstants(cmd_buf, cur_pipeline.layout.handle, static_cast<VkShaderStageFlags>(stage.value()), offset, size, data);
 	return *this;
@@ -95,6 +101,11 @@ CommandBuffer& CommandBuffer::auto_viewport_scissor() {
 
 CommandBuffer& CommandBuffer::draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex, uint32_t first_instance) {
 	vkCmdDraw(cmd_buf, vertex_count, instance_count, first_vertex, first_instance);
+	return *this;
+}
+
+CommandBuffer& CommandBuffer::draw_indexed(uint32_t index_count, uint32_t instance_count, uint32_t first_index, int32_t vertex_offset, uint32_t first_instance) {
+	vkCmdDrawIndexed(cmd_buf, index_count, instance_count, first_index, vertex_offset, first_instance);
 	return *this;
 }
 
