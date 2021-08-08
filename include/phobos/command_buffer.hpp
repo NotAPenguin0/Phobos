@@ -44,6 +44,8 @@ public:
 	// Sets viewport and scissor regions to the current framebuffer size.
 	// Only valid if viewport and scissor are dynamic states of the current pipeline
 	CommandBuffer& auto_viewport_scissor();
+	CommandBuffer& set_viewport(VkViewport vp);
+	CommandBuffer& set_scissor(VkRect2D scissor);
 
 	CommandBuffer& draw(uint32_t vertex_count, uint32_t instance_count = 1, uint32_t first_vertex = 0, uint32_t first_instance = 0);
 	CommandBuffer& draw_indexed(uint32_t index_count, uint32_t instance_count = 1, uint32_t first_index = 0, int32_t vertex_offset = 0, uint32_t first_instance = 0);

@@ -99,6 +99,16 @@ CommandBuffer& CommandBuffer::auto_viewport_scissor() {
 	return *this;
 }
 
+CommandBuffer& CommandBuffer::set_viewport(VkViewport vp) {
+	vkCmdSetViewport(cmd_buf, 0, 1, &vp);
+	return *this;
+}
+
+CommandBuffer& CommandBuffer::set_scissor(VkRect2D scissor) {
+	vkCmdSetScissor(cmd_buf, 0, 1, &scissor);
+	return *this;
+}
+
 CommandBuffer& CommandBuffer::draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex, uint32_t first_instance) {
 	vkCmdDraw(cmd_buf, vertex_count, instance_count, first_vertex, first_instance);
 	return *this;
