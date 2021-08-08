@@ -305,6 +305,10 @@ void Context::destroy_image_view(ImageView& view) {
 	return image_impl->destroy_image_view(view);
 }
 
+ImageView Context::get_image_view(uint64_t id) {
+	return image_impl->get_image_view(id);
+}
+
 // BUFFER
 
 

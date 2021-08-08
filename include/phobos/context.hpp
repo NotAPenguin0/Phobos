@@ -318,6 +318,7 @@ public:
 	void destroy_image(RawImage& image);
 	ImageView create_image_view(RawImage const& target, ImageAspect aspect = ImageAspect::Color);
 	void destroy_image_view(ImageView& view);
+	ImageView get_image_view(uint64_t id);
 
 	RawBuffer create_buffer(BufferType type, VkDeviceSize size);
 	void destroy_buffer(RawBuffer& buffer);

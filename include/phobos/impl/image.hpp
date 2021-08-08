@@ -2,6 +2,8 @@
 
 #include <phobos/context.hpp>
 
+#include <unordered_map>
+
 namespace ph {
 namespace impl {
 
@@ -17,10 +19,17 @@ public:
 	ImageView create_image_view(RawImage const& target, ImageAspect aspect = ImageAspect::Color);
 	void destroy_image_view(ImageView& view);
 
+	ImageView get_image_view(uint64_t id);
+
 	// PRIVATE API
 
 private:
 	ContextImpl* ctx;
+
+	/**
+	 * @brief We keep track of all image views so that they can be requested by ID.
+	*/
+	std::unordered_map<uint64_t /*id*/, ImageView> all_image_views;
 };
 
 }
