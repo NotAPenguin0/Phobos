@@ -3,6 +3,7 @@
 #include <phobos/context.hpp>
 
 #include <unordered_map>
+#include <mutex>
 
 namespace ph {
 namespace impl {
@@ -25,6 +26,8 @@ public:
 
 private:
 	ContextImpl* ctx;
+
+	mutable std::mutex mutex{};
 
 	/**
 	 * @brief We keep track of all image views so that they can be requested by ID.

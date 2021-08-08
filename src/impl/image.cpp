@@ -138,18 +138,25 @@ ImageView ImageImpl::create_image_view(RawImage const& target, ImageAspect aspec
     view.base_level = 0;
     view.level_count = target.mip_levels;
 
-    all_image_views.emplace(view.id, view);
+    {
+        std::lock_guard lock{ mutex };
+        all_image_views.emplace(view.id, view);
+    }
 
     return view;
 }
 
 void ImageImpl::destroy_image_view(ImageView& view) {
     vkDestroyImageView(ctx->device, view.handle, nullptr);
-    all_image_views.erase(view.id);
+    {
+        std::lock_guard lock{ mutex };
+        all_image_views.erase(view.id);
+    }
     view = ImageView{};
 }
 
 ImageView ImageImpl::get_image_view(uint64_t id) {
+    std::lock_guard lock{ mutex };
     return all_image_views.at(id);
 }
 
