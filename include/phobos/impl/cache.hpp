@@ -23,16 +23,16 @@ public:
 
 	void next_frame();
 
-	Cache<VkFramebufferCreateInfo, VkFramebuffer> framebuffer{};
-	Cache<VkRenderPassCreateInfo, VkRenderPass> renderpass{};
-	Cache<ph::DescriptorSetLayoutCreateInfo, VkDescriptorSetLayout> set_layout{};
-	Cache<ph::PipelineLayoutCreateInfo, ph::PipelineLayout> pipeline_layout{};
-	Cache<ph::PipelineCreateInfo, ph::Pipeline> pipeline{};
-	Cache<ph::ComputePipelineCreateInfo, ph::Pipeline> compute_pipeline{};
+	Cache<VkFramebufferCreateInfo, VkFramebuffer> framebuffer;
+	Cache<VkRenderPassCreateInfo, VkRenderPass> renderpass;
+	Cache<ph::DescriptorSetLayoutCreateInfo, VkDescriptorSetLayout> set_layout;
+	Cache<ph::PipelineLayoutCreateInfo, ph::PipelineLayout> pipeline_layout;
+	Cache<ph::PipelineCreateInfo, ph::Pipeline> pipeline;
+	Cache<ph::ComputePipelineCreateInfo, ph::Pipeline> compute_pipeline;
 #if PHOBOS_ENABLE_RAY_TRACING
 	Cache<ph::RayTracingPipelineCreateInfo, ph::Pipeline> rtx_pipeline{};
 #endif
-	Cache<ShaderHandle, ph::ShaderModuleCreateInfo> shader{};
+	Cache<ShaderHandle, ph::ShaderModuleCreateInfo> shader;
 	RingBuffer<Cache<DescriptorSetBinding, VkDescriptorSet>> descriptor_set{};
 
 	// TODO: automatically growing descriptor pool

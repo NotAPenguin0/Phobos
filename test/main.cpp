@@ -277,8 +277,8 @@ int main() {
 		// Create pipeline for reading from the buffer and displaying the result
 		ph::PipelineCreateInfo read_pci =
 			ph::PipelineBuilder::create(ctx, "read")
-			.add_shader("data/shaders/read.vert.spv", "main", ph::PipelineStage::VertexShader)
-			.add_shader("data/shaders/read.frag.spv", "main", ph::PipelineStage::FragmentShader)
+			.add_shader("data/shaders/read.vert.spv", "main", ph::ShaderStage::Vertex)
+			.add_shader("data/shaders/read.frag.spv", "main", ph::ShaderStage::Fragment)
 			.add_vertex_input(0)
 			.add_vertex_attribute(0, 0, VK_FORMAT_R32G32_SFLOAT)
 			.add_vertex_attribute(0, 1, VK_FORMAT_R32G32_SFLOAT)

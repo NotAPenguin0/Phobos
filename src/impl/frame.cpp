@@ -111,7 +111,7 @@ uint32_t FrameImpl::max_frames_in_flight() const {
 	ctx->swapchain->per_image[ctx->swapchain->image_index].fence = frame_data.fence;
 
 	// Once we have a frame we need to update where the swapchain attachment in our attachments list is pointing to
-	attachment_impl->update_swapchain_attachment(ctx->swapchain->per_image[ctx->swapchain->image_index].view);
+	attachment_impl->new_frame(ctx->swapchain->per_image[ctx->swapchain->image_index].view);
 
 	// Reset scratch allocators and return InFlightContext for this frame
 	frame_data.vbo_allocator.reset();

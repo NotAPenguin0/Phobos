@@ -3,6 +3,7 @@
 #include <mutex>
 #include <functional>
 #include <unordered_map>
+#include <algorithm>
 
 #include <phobos/hash.hpp>
 
@@ -12,14 +13,15 @@ template<typename Key, typename Value>
 class Cache {
 private:
     struct Entry {
-        Value data;
-        Key key;
-        size_t frames_since_last_usage = 0;
-        bool used_this_frame = false;
+        Value data{};
+        Key key{};
+        mutable size_t frames_since_last_usage = 0;
+        mutable bool used_this_frame = false;
     };
 public:
-    Cache() {
+    Cache(uint32_t max_frames = 0) {
         mutex = std::make_unique<std::mutex>();
+        this->max_frames = max_frames;
     }
 
     Cache(Cache const&) = delete;
@@ -29,8 +31,36 @@ public:
 
     template<typename F>
     void foreach(F&& func) const {
+        std::lock_guard lock(*mutex);
         for (auto const& [_, val] : cache) {
             func(val.data);
+        }
+    }
+
+
+    template<typename F>
+    void foreach_unused(F&& func) {
+        std::lock_guard lock(*mutex);
+        for (auto& [_, val] : cache) {
+            if (val.frames_since_last_usage > max_frames) {
+                func(val.data);
+            }
+        }
+    }
+
+    // Remove unused entries from the cache
+    void erase_unused() {
+        std::lock_guard lock(*mutex);
+        auto find_unused_func = [this](std::pair<size_t const, Entry> const& item) -> bool {
+            return item.second.frames_since_last_usage > max_frames;
+        };
+        for (auto it = cache.begin(); it != cache.end();) {
+            if (find_unused_func(*it)) {
+                it = cache.erase(it);
+            }
+            else {
+                ++it;
+            }
         }
     }
 
@@ -80,6 +110,20 @@ public:
         return cache[hash].frames_since_last_usage;
     }
 
+    // Update frames since last usage for every entry
+    void next_frame() {
+        std::lock_guard lock(*mutex);
+        for (auto& [key, entry] : cache) {
+            if (!entry.used_this_frame) {
+                entry.frames_since_last_usage += 1;
+            }
+            else {
+                entry.frames_since_last_usage = 0;
+            }
+            entry.used_this_frame = false;
+        }
+    }
+
     void lock() {
         mutex->lock();
     }
@@ -88,9 +132,15 @@ public:
         mutex->unlock();
     }
 
+    void set_max_frames(uint32_t frames) {
+        max_frames = frames;
+    }
+
 private:
     std::unordered_map<size_t, Entry> cache;
     std::unique_ptr<std::mutex> mutex;
+
+    uint32_t max_frames = 0;
 };
 
 }

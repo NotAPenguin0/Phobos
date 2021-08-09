@@ -10,10 +10,21 @@
 namespace ph {
 namespace impl {
 
-CacheImpl::CacheImpl(Context& ctx, AppSettings const& settings) : ctx(&ctx) {
+CacheImpl::CacheImpl(Context& ctx, AppSettings const& settings) : ctx(&ctx),
+	framebuffer(ctx.max_frames_in_flight() + 2),
+	renderpass(ctx.max_frames_in_flight() + 2),
+	set_layout(ctx.max_frames_in_flight() + 2),
+	pipeline_layout(ctx.max_frames_in_flight() + 2),
+	pipeline(ctx.max_frames_in_flight() + 2),
+	compute_pipeline(ctx.max_frames_in_flight() + 2),
+#if PHOBOS_ENABLE_RAY_TRACING
+	rtx_pipeline(ctx.max_frames_in_flight() + 2),
+#endif
+	shader(ctx.max_frames_in_flight() + 2) {
+
 	VkDescriptorPoolCreateInfo dpci{};
 	dpci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	dpci.flags = {};
+	dpci.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 	dpci.pNext = nullptr;
 	VkDescriptorPoolSize pool_sizes[]{
 		VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, sets_per_type },
@@ -30,6 +41,9 @@ CacheImpl::CacheImpl(Context& ctx, AppSettings const& settings) : ctx(&ctx) {
 	vkCreateDescriptorPool(ctx.device(), &dpci, nullptr, &descr_pool);
 
 	descriptor_set = RingBuffer<Cache<DescriptorSetBinding, VkDescriptorSet>>{ settings.max_frames_in_flight };
+	for (auto& set_cache : descriptor_set) {
+		set_cache.set_max_frames(ctx.max_frames_in_flight() + 2);
+	}
 }
 
 CacheImpl::~CacheImpl() {
@@ -155,7 +169,12 @@ static VkShaderModule create_shader_module(VkDevice device, ph::ShaderModuleCrea
 Pipeline CacheImpl::get_or_create_pipeline(ph::PipelineCreateInfo& pci, VkRenderPass render_pass) {
 	{
 		Pipeline* pipeline = this->pipeline.get(pci);
-		if (pipeline) { return *pipeline; }
+		// Also register usage for set and pipeline layout if found
+		if (pipeline) {
+			this->set_layout.get(pci.layout.set_layout);
+			this->pipeline_layout.get(pci.layout);
+			return *pipeline;
+		}
 	}
 
 	// Set up pipeline create info
@@ -251,7 +270,12 @@ Pipeline CacheImpl::get_or_create_pipeline(ph::PipelineCreateInfo& pci, VkRender
 Pipeline CacheImpl::get_or_create_compute_pipeline(ph::ComputePipelineCreateInfo& pci) {
 	{
 		Pipeline* pipeline = this->compute_pipeline.get(pci);
-		if (pipeline) { return *pipeline; }
+		// Also register usage for set and pipeline layout if found
+		if (pipeline) { 
+			this->set_layout.get(pci.layout.set_layout);
+			this->pipeline_layout.get(pci.layout);
+			return *pipeline; 
+		}
 	}
 
 	VkComputePipelineCreateInfo cpci{};
@@ -292,7 +316,12 @@ Pipeline CacheImpl::get_or_create_compute_pipeline(ph::ComputePipelineCreateInfo
 Pipeline CacheImpl::get_or_create_ray_tracing_pipeline(ph::RayTracingPipelineCreateInfo& pci) {
 	{
 		Pipeline* pipeline = this->rtx_pipeline.get(pci);
-		if (pipeline) { return *pipeline; }
+		// Also register usage for set and pipeline layout if found
+		if (pipeline) {
+			this->set_layout.get(pci.layout.set_layout);
+			this->pipeline_layout.get(pci.layout);
+			return *pipeline;
+		}
 	}
 
 	VkRayTracingPipelineCreateInfoKHR rtpci{};
@@ -478,6 +507,40 @@ VkDescriptorSet CacheImpl::get_or_create_descriptor_set(DescriptorSetBinding set
 }
 
 void CacheImpl::next_frame() {
+
+	auto update_cache = [this](auto& cache, auto delete_fun) {
+		cache.next_frame();
+		cache.foreach_unused(delete_fun);
+		cache.erase_unused();
+	};
+
+	update_cache(framebuffer, [this](VkFramebuffer fbuf) {
+		vkDestroyFramebuffer(ctx->device(), fbuf, nullptr);
+	});
+	update_cache(renderpass, [this](VkRenderPass pass) {
+		vkDestroyRenderPass(ctx->device(), pass, nullptr);
+	});
+	update_cache(set_layout, [this](VkDescriptorSetLayout layout) {
+		vkDestroyDescriptorSetLayout(ctx->device(), layout, nullptr);
+	});
+	update_cache(pipeline_layout, [this](ph::PipelineLayout layout) {
+		vkDestroyPipelineLayout(ctx->device(), layout.handle, nullptr);
+	});
+	update_cache(pipeline, [this](ph::Pipeline pipeline) {
+		vkDestroyPipeline(ctx->device(), pipeline.handle, nullptr);
+	});
+	update_cache(compute_pipeline, [this](ph::Pipeline pipeline) {
+		vkDestroyPipeline(ctx->device(), pipeline.handle, nullptr);
+	});
+#if PHOBOS_ENABLE_RAY_TRACING
+	update_cache(rtx_pipeline, [this](ph::Pipeline pipeline) {
+		vkDestroyPipeline(ctx->device(), pipeline.handle, nullptr);
+	});
+#endif
+	update_cache(descriptor_set.current(), [this](VkDescriptorSet set) {
+		vkFreeDescriptorSets(ctx->device(), descr_pool, 1, &set);
+	});
+
 	this->descriptor_set.next();
 }
 
