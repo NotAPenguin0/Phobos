@@ -14,6 +14,7 @@ public:
 
 	Attachment* get_attachment(std::string_view name);
 	void create_attachment(std::string_view name, VkExtent2D size, VkFormat format);
+	void resize_attachment(std::string_view name, VkExtent2D new_size);
 	bool is_swapchain_attachment(std::string const& name);
 	bool is_attachment(ImageView view);
 	std::string get_attachment_name(ImageView view);
@@ -22,7 +23,7 @@ public:
 	// PRIVATE IMPLEMENTATION FUNCTIONS (these are public since they can be used by other impl classes freely)
 
 	// Called at the beginning of a frame by the frame implementation to set the swapchain attachment to point to the correct image view.
-	void update_swapchain_attachment(ImageView& view);
+	void new_frame(ImageView& swapchain_view);
 
 private:
 	ContextImpl* ctx;
@@ -35,6 +36,12 @@ private:
 		std::optional<RawImage> image;
 	};
 	std::unordered_map<std::string, InternalAttachment> attachments{};
+
+	struct DeferredDelete {
+		InternalAttachment attachment;
+		uint32_t frames_left = 0;
+	};
+	std::vector<DeferredDelete> deferred_delete{};
 };
 
 }

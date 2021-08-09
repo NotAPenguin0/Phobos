@@ -218,6 +218,10 @@ void Context::create_attachment(std::string_view name, VkExtent2D size, VkFormat
 	attachment_impl->create_attachment(name, size, format);
 }
 
+void Context::resize_attachment(std::string_view name, VkExtent2D new_size) {
+	attachment_impl->resize_attachment(name, new_size);
+}
+
 bool Context::is_swapchain_attachment(std::string const& name) {
 	return attachment_impl->is_swapchain_attachment(name);
 }

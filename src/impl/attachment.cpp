@@ -58,6 +58,28 @@ void AttachmentImpl::create_attachment(std::string_view name, VkExtent2D size, V
 	attachments[std::string{ name }] = attachment;
 }
 
+void AttachmentImpl::resize_attachment(std::string_view name, VkExtent2D new_size) {
+	Attachment* att = get_attachment(name);
+	if (att == nullptr) {
+		ctx->log(ph::LogSeverity::Error, "Tried to resize nonexistent attachment");
+		return;
+	}
+
+	// No resize needed
+	if (att->view.size.width == new_size.width && att->view.size.height == new_size.height) {
+		return;
+	}
+
+	// Lookup internal attachment
+	InternalAttachment& data = attachments.at(std::string(name));
+	// Prepare old data for deferred deletion
+	deferred_delete.push_back({ .attachment = data, .frames_left = ctx->max_frames_in_flight + 2 }); // Might be too many frames, but the extra safety doesn't hurt.
+	// Create new attachment
+	VkFormat format = att->view.format;
+	data.image = img->create_image(is_depth_format(format) ? ImageType::DepthStencilAttachment : ImageType::ColorAttachment, new_size, format);
+	data.attachment.view = img->create_image_view(*data.image, is_depth_format(format) ? ImageAspect::Depth : ImageAspect::Color);
+}
+
 bool AttachmentImpl::is_swapchain_attachment(std::string const& name) {
 	return name == swapchain_attachment_name;
 }
@@ -67,8 +89,27 @@ std::string AttachmentImpl::get_swapchain_attachment_name() const {
 }
 
 
-void AttachmentImpl::update_swapchain_attachment(ImageView& view) {
-	attachments[swapchain_attachment_name] = InternalAttachment{ Attachment{.view = view }, std::nullopt };
+void AttachmentImpl::new_frame(ImageView& swapchain_view) {
+	attachments[swapchain_attachment_name] = InternalAttachment{ Attachment{.view = swapchain_view }, std::nullopt };
+
+	// Update deferred deletion list
+	for (auto& deferred : deferred_delete) {
+		deferred.frames_left -= 1;
+		// Lifetime expired, deleting
+		if (deferred.frames_left == 0) {
+			img->destroy_image_view(deferred.attachment.attachment.view);
+			img->destroy_image(*deferred.attachment.image);
+			continue;
+		}
+	}
+
+	// Remove expired entries
+	deferred_delete.erase(
+		std::remove_if(deferred_delete.begin(), deferred_delete.end(), 
+			[](DeferredDelete const& entry) {
+				return entry.frames_left == 0; 
+			}), 
+		deferred_delete.end());
 }
 
 } // namespace impl
