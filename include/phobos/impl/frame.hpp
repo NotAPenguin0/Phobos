@@ -2,6 +2,8 @@
 
 #include <phobos/context.hpp>
 
+#include <future>
+
 namespace ph {
 namespace impl {
 
@@ -40,6 +42,17 @@ private:
 	};
 
 	RingBuffer<PerFrame> per_frame{}; // RingBuffer with in_flight_frames elements.
+
+	std::future<Swapchain> resize_future{};
+
+	struct DeferredDeleteSwapchain {
+		uint32_t frames_left = 0;
+		Swapchain swapchain;
+	};
+
+	std::vector<DeferredDeleteSwapchain> deferred_delete_swapchain;
+
+	Swapchain resize_swapchain();
 };
 
 }

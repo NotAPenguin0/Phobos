@@ -75,6 +75,8 @@ public:
 	uint32_t const max_unbounded_array_size = 0;
 	uint32_t const max_frames_in_flight = 0;
 private:
+	friend class FrameImpl;
+
 	ImageImpl* img = nullptr;
 
 	PFN_vkSetDebugUtilsObjectNameEXT set_debug_utils_name_fun;

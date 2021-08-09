@@ -99,7 +99,6 @@ void AttachmentImpl::new_frame(ImageView& swapchain_view) {
 		if (deferred.frames_left == 0) {
 			img->destroy_image_view(deferred.attachment.attachment.view);
 			img->destroy_image(*deferred.attachment.image);
-			continue;
 		}
 	}
 
