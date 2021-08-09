@@ -62,9 +62,11 @@ public:
 
 	CommandBuffer& dispatch(uint32_t x, uint32_t y, uint32_t z);
 
+	// Doesn't work. Don't use anyway since images have concurrent sharing mode
 	CommandBuffer& release_ownership(Queue const& src, Queue const& dst, ph::ImageView const& image, VkImageLayout final_layout);
 	CommandBuffer& acquire_ownership(Queue const& src, Queue const& dst, ph::ImageView const& image, VkImageLayout final_layout);
 	
+	// Doens't work. Also no need because concurrent sharing mode
 	CommandBuffer& release_ownership(Queue const& src, Queue const& dst, ph::RawBuffer const& buffer);
 	CommandBuffer& acquire_ownership(Queue const& src, Queue const& dst, ph::RawBuffer const& buffer);
 

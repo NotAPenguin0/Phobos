@@ -54,6 +54,16 @@ static VkImageCreateFlags get_image_flags(ImageType type) {
     }
 }
 
+static VkSharingMode get_sharing_mode(ImageType type) {
+    switch (type) {
+    case ImageType::ColorAttachment:
+    case ImageType::DepthStencilAttachment:
+        return VK_SHARING_MODE_EXCLUSIVE;
+    default:
+        return VK_SHARING_MODE_CONCURRENT;
+    }
+}
+
 static VkImageTiling get_image_tiling(ImageType type) {
     return VK_IMAGE_TILING_OPTIMAL;
 }
@@ -88,7 +98,7 @@ RawImage ImageImpl::create_image(ImageType type, VkExtent2D size, VkFormat forma
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = get_image_tiling(type),
         .usage = get_image_usage(type),
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .sharingMode = get_sharing_mode(type),
         .queueFamilyIndexCount = 0,
         .pQueueFamilyIndices = nullptr,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED

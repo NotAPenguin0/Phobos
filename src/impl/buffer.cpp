@@ -116,7 +116,7 @@ RawBuffer BufferImpl::create_buffer(BufferType type, VkDeviceSize size) {
     info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     info.size = size;
     info.usage = get_usage_flags(type);
-    info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    info.sharingMode = VK_SHARING_MODE_CONCURRENT;
 
     VmaAllocationCreateInfo alloc_info{};
     alloc_info.usage = get_memory_usage(type);
