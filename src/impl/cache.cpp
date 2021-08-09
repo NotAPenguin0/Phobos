@@ -11,16 +11,16 @@ namespace ph {
 namespace impl {
 
 CacheImpl::CacheImpl(Context& ctx, AppSettings const& settings) : ctx(&ctx),
-	framebuffer(ctx.max_frames_in_flight() + 2),
-	renderpass(ctx.max_frames_in_flight() + 2),
-	set_layout(ctx.max_frames_in_flight() + 2),
-	pipeline_layout(ctx.max_frames_in_flight() + 2),
-	pipeline(ctx.max_frames_in_flight() + 2),
-	compute_pipeline(ctx.max_frames_in_flight() + 2),
+	framebuffer(settings.max_frames_in_flight + 2),
+	renderpass(settings.max_frames_in_flight + 2),
+	set_layout(settings.max_frames_in_flight + 2),
+	pipeline_layout(settings.max_frames_in_flight + 2),
+	pipeline(settings.max_frames_in_flight + 2),
+	compute_pipeline(settings.max_frames_in_flight + 2),
 #if PHOBOS_ENABLE_RAY_TRACING
-	rtx_pipeline(ctx.max_frames_in_flight() + 2),
+	rtx_pipeline(settings.max_frames_in_flight + 2),
 #endif
-	shader(ctx.max_frames_in_flight() + 2) {
+	shader(settings.max_frames_in_flight + 2) {
 
 	VkDescriptorPoolCreateInfo dpci{};
 	dpci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -42,7 +42,7 @@ CacheImpl::CacheImpl(Context& ctx, AppSettings const& settings) : ctx(&ctx),
 
 	descriptor_set = RingBuffer<Cache<DescriptorSetBinding, VkDescriptorSet>>{ settings.max_frames_in_flight };
 	for (auto& set_cache : descriptor_set) {
-		set_cache.set_max_frames(ctx.max_frames_in_flight() + 2);
+		set_cache.set_max_frames(settings.max_frames_in_flight + 2);
 	}
 }
 
