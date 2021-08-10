@@ -59,12 +59,12 @@ private:
 	std::pair<ResourceUsage, Pass*> find_previous_usage(Pass* current_pass, BufferSlice const* buffer);
 	std::pair<ResourceUsage, Pass*> find_next_usage(Pass* current_pass, BufferSlice const* buffer);
 
-	std::pair<ResourceUsage, Pass*> find_previous_usage(Pass* current_pass, ImageView const* image);
-	std::pair<ResourceUsage, Pass*> find_next_usage(Pass* current_pass, ImageView const* image);
+	std::pair<ResourceUsage, Pass*> find_previous_usage(Context& ctx, Pass* current_pass, ImageView const* image);
+	std::pair<ResourceUsage, Pass*> find_next_usage(Context& ctx, Pass* current_pass, ImageView const* image);
 
 	AttachmentUsage get_attachment_usage(std::pair<ResourceUsage, Pass*> const& res_usage);
 
-	void create_pass_barriers(Pass& pass, BuiltPass& result);
+	void create_pass_barriers(Context& ctx, Pass& pass, BuiltPass& result);
 };
 
 class RenderGraphExecutor {
