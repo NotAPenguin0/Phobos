@@ -316,6 +316,7 @@ ContextImpl::ContextImpl(AppSettings settings)
 			info.queueFamilyIndex = queue.family_index;
 			info.pQueuePriorities = &priority;
 			queue_infos.push_back(info);
+			family_indices.push_back(queue.family_index);
 		}
 
 		VkDeviceCreateInfo info{};
@@ -699,6 +700,10 @@ void ContextImpl::destroy_semaphore(VkSemaphore semaphore) {
 
 LogInterface* ContextImpl::get_logger() {
 	return logger;
+}
+
+std::vector<uint32_t> const& ContextImpl::queue_family_indices() const {
+	return family_indices;
 }
 
 } // namespace impl

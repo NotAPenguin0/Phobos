@@ -99,10 +99,14 @@ RawImage ImageImpl::create_image(ImageType type, VkExtent2D size, VkFormat forma
         .tiling = get_image_tiling(type),
         .usage = get_image_usage(type),
         .sharingMode = get_sharing_mode(type),
-        .queueFamilyIndexCount = 0,
-        .pQueueFamilyIndices = nullptr,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
     };
+
+    if (info.sharingMode == VK_SHARING_MODE_CONCURRENT) {
+        auto const& queues = ctx->queue_family_indices();
+        info.queueFamilyIndexCount = queues.size();
+        info.pQueueFamilyIndices = queues.data();
+    }
 
     VmaAllocationCreateInfo alloc_info{};
     alloc_info.usage = VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;

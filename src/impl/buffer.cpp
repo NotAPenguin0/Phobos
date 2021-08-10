@@ -117,6 +117,10 @@ RawBuffer BufferImpl::create_buffer(BufferType type, VkDeviceSize size) {
     info.size = size;
     info.usage = get_usage_flags(type);
     info.sharingMode = VK_SHARING_MODE_CONCURRENT;
+    
+    auto const& queues = ctx->queue_family_indices();
+    info.queueFamilyIndexCount = queues.size();
+    info.pQueueFamilyIndices = queues.data();
 
     VmaAllocationCreateInfo alloc_info{};
     alloc_info.usage = get_memory_usage(type);

@@ -69,6 +69,8 @@ public:
 	VmaAllocator allocator = nullptr;
 	PhysicalDevice phys_device;
 
+	std::vector<uint32_t> const& queue_family_indices() const;
+
 	// This is std::nullopt for a headless context
 	std::optional<Swapchain> swapchain = std::nullopt;
 
@@ -90,6 +92,7 @@ private:
 	LogInterface* logger = nullptr;
 
 	std::vector<Queue> queues{};
+	std::vector<uint32_t> family_indices{};
 };
 
 } // namespace impl
