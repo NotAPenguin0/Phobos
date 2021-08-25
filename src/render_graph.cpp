@@ -6,7 +6,10 @@
 namespace ph {
 
 static bool is_output_attachment(ResourceUsage const& usage) {
-    return usage.type == ResourceType::Attachment && usage.access == ResourceAccess::ColorAttachmentOutput && usage.stage == PipelineStage::AttachmentOutput;
+    if (usage.type == ResourceType::Attachment && usage.access == ResourceAccess::ColorAttachmentOutput && usage.stage == PipelineStage::AttachmentOutput) return true;
+    if (usage.type == ResourceType::Attachment && usage.access == ResourceAccess::DepthStencilAttachmentOutput && usage.stage == PipelineStage::AttachmentOutput) return true;
+
+    return false;
 }
 
 void RenderGraph::add_pass(Pass pass) {
@@ -30,7 +33,7 @@ void RenderGraph::build(Context& ctx) {
             VkAttachmentReference ref{};
             ref.attachment = attachment_index;
             if (is_depth_format(attachment->view.format)) {
-                ref.layout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+                ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
                 depth_ref = ref;
             }
             else {
@@ -182,7 +185,7 @@ VkImageLayout RenderGraph::get_initial_layout(Context& ctx, Pass* pass, Resource
 
     // Used as depth output attachment previously
     if (previous_usage.access == VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT) {
-        return VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+        return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     }
 
     if (previous_usage.access == VK_ACCESS_SHADER_READ_BIT) {
@@ -225,7 +228,7 @@ VkImageLayout RenderGraph::get_final_layout(Context& ctx, Pass* pass, ResourceUs
     }
 
     if (next_usage.access == VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT) {
-        return VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+        return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     }
 
     if (next_usage.access == VK_ACCESS_SHADER_READ_BIT) {
