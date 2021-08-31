@@ -7,6 +7,8 @@
 #include <phobos/impl/context.hpp>
 #include <phobos/impl/image.hpp>
 
+#include <atomic>
+
 namespace ph {
 namespace impl {
 
