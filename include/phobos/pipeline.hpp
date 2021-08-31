@@ -157,8 +157,8 @@ struct PipelineCreateInfo {
             .depthCompareOp = VK_COMPARE_OP_LESS, 
             .depthBoundsTestEnable = false, 
             .stencilTestEnable = false,
-            .front = VkStencilOp{},
-            .back = VkStencilOp{},
+            .front = VkStencilOpState{},
+            .back = VkStencilOpState{},
             .minDepthBounds = 0.0f,
             .maxDepthBounds = 0.0f
     };
