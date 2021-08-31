@@ -6,6 +6,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <mutex>
+#include <memory>
 
 namespace ph {
 
