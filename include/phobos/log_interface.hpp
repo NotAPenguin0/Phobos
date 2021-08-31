@@ -19,8 +19,8 @@ enum class LogSeverity {
 class LogInterface {
 public:
     template<typename... Args>
-    void write_fmt(LogSeverity severity, std::string_view fmt, Args&&... args) {
-        write(severity, fmt::format(fmt, std::forward<Args>(args)...));
+    void write_fmt(LogSeverity severity, std::string_view format_string, Args&&... args) {
+        write(severity, fmt::format(format_string, std::forward<Args>(args)...));
     }
 
     virtual void write(LogSeverity severity, std::string_view str) = 0;
