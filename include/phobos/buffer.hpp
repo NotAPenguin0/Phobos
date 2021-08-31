@@ -5,6 +5,8 @@
 
 #include <cstddef>
 
+#include <type_traits>
+
 namespace ph {
 
 // Alias for VK_WHOLE_SIZE
