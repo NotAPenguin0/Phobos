@@ -20,7 +20,7 @@ class LogInterface {
 public:
     template<typename... Args>
     void write_fmt(LogSeverity severity, std::string_view format_string, Args&&... args) {
-        write(severity, fmt::format(format_string, std::forward<Args>(args)...));
+        write(severity, fmt::vformat(format_string, std::forward<Args>(args)...));
     }
 
     virtual void write(LogSeverity severity, std::string_view str) = 0;
