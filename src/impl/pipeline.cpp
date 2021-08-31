@@ -13,6 +13,7 @@
 
 #include <spirv_cross.hpp>
 #include <algorithm>
+#include <atomic>
 
 namespace ph {
 	namespace reflect {
@@ -29,8 +30,8 @@ namespace ph {
 		case spv::ExecutionModel::ExecutionModelClosestHitKHR: return ShaderStage::ClosestHit;
 		case spv::ExecutionModel::ExecutionModelMissKHR: return ShaderStage::RayMiss;
 		case spv::ExecutionModel::ExecutionModelAnyHitKHR: return ShaderStage::AnyHit;
-		default: return {};
 #endif
+		default: return {};
 		}
 	}
 
