@@ -134,6 +134,7 @@ ImageView ImageImpl::create_image_view(RawImage const& target, ImageAspect aspec
     info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
     info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
     info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
     info.subresourceRange.aspectMask = static_cast<VkImageAspectFlags>(aspect);
     info.subresourceRange.baseArrayLayer = 0;
     info.subresourceRange.layerCount = target.layers;
