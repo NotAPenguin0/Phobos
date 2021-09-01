@@ -318,7 +318,7 @@ ContextImpl::ContextImpl(AppSettings settings)
 			queue_infos.push_back(info);
 			// We need to make sure family_indices only contains unique indices to support the case where
 			// queue families overlap.
-			if (std::find(family_indices.begin(), family_indices.end(), queue.family_index) != family_indices.end()) {
+			if (std::find(family_indices.begin(), family_indices.end(), queue.family_index) == family_indices.end()) {
 				family_indices.push_back(queue.family_index);
 			}
 		}
