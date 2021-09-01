@@ -316,7 +316,11 @@ ContextImpl::ContextImpl(AppSettings settings)
 			info.queueFamilyIndex = queue.family_index;
 			info.pQueuePriorities = &priority;
 			queue_infos.push_back(info);
-			family_indices.push_back(queue.family_index);
+			// We need to make sure family_indices only contains unique indices to support the case where
+			// queue families overlap.
+			if (std::find(family_indices.begin(), family_indices.end(), queue.family_index) != family_indices.end()) {
+				family_indices.push_back(queue.family_index);
+			}
 		}
 
 		VkDeviceCreateInfo info{};
