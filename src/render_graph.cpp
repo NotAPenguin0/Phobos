@@ -592,6 +592,8 @@ void RenderGraph::create_pass_barriers(Context& ctx, Pass& pass, BuiltPass& resu
 
                 // Only proceed if we actually want a barrier.
                 if (barrier.newLayout != VK_IMAGE_LAYOUT_UNDEFINED) {
+                    // We can assume resource.access is either colorattachmentoutput or depthstencilattachmentoutput here.
+
                     // No access since it wasn't used earlier
                     barrier.srcAccessMask = {};
                     barrier.dstAccessMask = static_cast<VkAccessFlagBits>(resource.access.value());
@@ -600,7 +602,13 @@ void RenderGraph::create_pass_barriers(Context& ctx, Pass& pass, BuiltPass& resu
                     final_barrier.image = barrier;
                     final_barrier.type = BarrierType::Image;
                     final_barrier.src_stage = ph::PipelineStage::TopOfPipe;
-                    final_barrier.dst_stage = resource.stage;
+                    if (resource.access == ResourceAccess::ColorAttachmentOutput) {
+                        final_barrier.dst_stage = ph::PipelineStage::AttachmentOutput;
+                    }
+                    else if (resource.access == ResourceAccess::DepthStencilAttachmentOutput) {
+                        final_barrier.dst_stage = plib::bit_flag<ph::PipelineStage>{ ph::PipelineStage::LateFragmentTests } | ph::PipelineStage::EarlyFragmentTests;
+                    }
+
                     // Note that this is a PRE barrier!
                     result.pre_barriers.push_back(final_barrier);
                 }

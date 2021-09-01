@@ -30,6 +30,10 @@ enum class PipelineStage {
     FragmentShader = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
     ComputeShader = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
     AttachmentOutput = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+
+    // These flags are useful to barrier depth writes.
+    EarlyFragmentTests = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+    LateFragmentTests = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
 #if PHOBOS_ENABLE_RAY_TRACING
     AccelerationStructureBuild = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
     RayTracingShader = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
