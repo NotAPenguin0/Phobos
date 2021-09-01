@@ -198,18 +198,11 @@ struct ImageWriteTask : public Task {
 		ph::RenderGraphExecutor executor{};
 		
 		ph::Queue* compute = ctx.get_queue(ph::QueueType::Compute);
-		ph::Queue* graphics = ctx.get_queue(ph::QueueType::Graphics);
 
 		// Record compute queue commands
 		cmd_buffer = compute->begin_single_time(thread_index);
 		executor.execute(cmd_buffer, graph);
-		cmd_buffer.release_ownership(*compute, *graphics, target_image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		compute->end_single_time(cmd_buffer, nullptr, {}, nullptr, semaphore);
-
-		// Record graphics queue commands to complete ownership transfer
-		ph::CommandBuffer gfx_command = graphics->begin_single_time(thread_index);
-		gfx_command.acquire_ownership(*compute, *graphics, target_image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		graphics->end_single_time(gfx_command, fence, ph::PipelineStage::TopOfPipe, semaphore);
+		compute->end_single_time(cmd_buffer, fence);
 	}
 
 	bool poll() override {
@@ -247,32 +240,14 @@ int main() {
 	config.gpu_requirements.features.samplerAnisotropy = true;
 	config.gpu_requirements.features.fillModeNonSolid = true;
 	config.gpu_requirements.features.independentBlend = true;
+	config.gpu_requirements.features_1_2.bufferDeviceAddress = true;
 	config.present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
-	// Add descriptor indexing feature
-	VkPhysicalDeviceDescriptorIndexingFeatures descriptor_indexing{};
-	descriptor_indexing.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-	descriptor_indexing.shaderSampledImageArrayNonUniformIndexing = true;
-	descriptor_indexing.runtimeDescriptorArray = true;
-	descriptor_indexing.descriptorBindingVariableDescriptorCount = true;
-	descriptor_indexing.descriptorBindingPartiallyBound = true;
-	config.gpu_requirements.pNext = &descriptor_indexing;
+
 	{
 		ph::Context ctx(config);
 		ph::Queue& graphics = *ctx.get_queue(ph::QueueType::Graphics);
 
-		ph::RawImage storage_image = ctx.create_image(ph::ImageType::StorageImage, { 2048, 2048 }, VK_FORMAT_R8G8B8A8_UNORM);
-		ph::ImageView storage_image_view = ctx.create_image_view(storage_image);
-
-		ctx.name_object(storage_image, "storage image");
-		ctx.name_object(storage_image_view, "[view] storage image");
-
-		// Create pipeline for writing to buffer and clearing screen
-		ph::ComputePipelineCreateInfo compute_pci =
-			ph::ComputePipelineBuilder::create(ctx, "compute_write")
-			.set_shader("data/shaders/compute.comp.spv", "main")
-			.reflect()
-		.get();
-		ctx.create_named_pipeline(std::move(compute_pci));
+		ctx.create_attachment("target", { 800, 600 }, VK_FORMAT_R8G8B8A8_SRGB);
 
 		// Create pipeline for reading from the buffer and displaying the result
 		ph::PipelineCreateInfo read_pci =
@@ -293,8 +268,6 @@ int main() {
 		ctx.create_named_pipeline(std::move(read_pci));
 
 		TaskScheduler scheduler(ctx.thread_count());
-		Task* async_task = new ImageWriteTask(ctx, storage_image_view);
-		scheduler.try_run(async_task);
 
 		while (wsi->is_open()) {
 			wsi->poll_events();
@@ -308,29 +281,32 @@ int main() {
 			ph::TypedBufferSlice<vec4> vbo = ifc.allocate_scratch_vbo<vec4>(sizeof(vertices));
 			std::memcpy(vbo.data, vertices, sizeof(vertices));
 
+			ph::Pass image_write = ph::PassBuilder::create("write")
+				.add_attachment("target", ph::LoadOp::Clear, { .color = {0.0f, 1.0f, 0.0f, 1.0f} })
+				.execute([](ph::CommandBuffer& cmd_buf) {
+					
+				})
+			.get();
+
 			ph::Pass read_pass = ph::PassBuilder::create("read")
 				.add_attachment(ctx.get_swapchain_attachment_name(), ph::LoadOp::Clear, { .color = {1.0f, 0.0f, 0.0f, 1.0f} })
-				.sample_image(storage_image_view, ph::PipelineStage::FragmentShader)
-				.execute([&vbo, &ctx, &scheduler, async_task, &storage_image_view](ph::CommandBuffer& cmd_buf) {
+				.sample_attachment("target", ph::PipelineStage::FragmentShader)
+				.execute([&vbo, &ctx, &scheduler](ph::CommandBuffer& cmd_buf) {
 					cmd_buf.bind_pipeline("read");
 					cmd_buf.auto_viewport_scissor();
 					
-					// Only do this part if the image is ready. Otherwise log a message saying it's not ready.
+					ph::ImageView view = ctx.get_attachment("target")->view;
+					VkDescriptorSet set = ph::DescriptorBuilder::create(ctx, cmd_buf.get_bound_pipeline())
+						.add_sampled_image("image", view, ctx.basic_sampler())
+						.get();
+					cmd_buf.bind_descriptor_set(set);
 
-					if (scheduler.task_done(async_task)) {
-						VkDescriptorSet set = ph::DescriptorBuilder::create(ctx, cmd_buf.get_bound_pipeline())
-							.add_sampled_image("image", storage_image_view, ctx.basic_sampler())
-							.get();
-						cmd_buf.bind_descriptor_set(set);
-
-						cmd_buf.bind_vertex_buffer(0, vbo);
-						cmd_buf.draw(6, 1, 0, 0);
-					}
-					else {
-						std::cout << "Image not ready. Skipping draw\n";
-					}
+					cmd_buf.bind_vertex_buffer(0, vbo);
+					cmd_buf.draw(6, 1, 0, 0);
 				})
-				.get();
+			.get();
+
+			graph.add_pass(image_write);
 			graph.add_pass(read_pass);
 
 			graph.build(ctx);
@@ -349,8 +325,6 @@ int main() {
 		}
 
 		ctx.wait_idle();
-		ctx.destroy_image_view(storage_image_view);
-		ctx.destroy_image(storage_image);
 	}
 	delete wsi;
 	delete logger;

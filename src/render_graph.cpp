@@ -64,6 +64,7 @@ void RenderGraph::build(Context& ctx) {
             }
 
             std::vector<VkSubpassDependency> dependencies{};
+            /*
             for (ResourceUsage const& resource : pass->resources) {
                 if (resource.type != ResourceType::Attachment) continue;
                 if (resource.access != ResourceAccess::ColorAttachmentOutput &&
@@ -91,7 +92,7 @@ void RenderGraph::build(Context& ctx) {
                 dependency.srcStageMask = previous_usage.stage;
                 dependencies.push_back(dependency);
             }
-
+            */
             // Now that we have the dependencies sorted we need to create the VkRenderPass
             VkRenderPassCreateInfo rpci{};
             rpci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -232,7 +233,10 @@ VkImageLayout RenderGraph::get_final_layout(Context& ctx, Pass* pass, ResourceUs
     }
 
     if (next_usage.access == VK_ACCESS_SHADER_READ_BIT) {
-        return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+//        return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        // Important note! We do not use the render pass's transition for images that are sampled later, since we will
+        // automatically insert a barrier instead.
+        return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     }
 
     throw std::runtime_error("Invalid resource access");
@@ -562,9 +566,45 @@ void RenderGraph::create_pass_barriers(Context& ctx, Pass& pass, BuiltPass& resu
             }
         }
 
-/*        if (resource.type == ResourceType::Attachment) {
+        if (resource.type == ResourceType::Attachment) {
             Attachment* attachment = ctx.get_attachment(resource.attachment.name);
             ph::ImageView view = attachment->view;
+
+            // If there is no previous usage, we will insert an additional barrier to ensure the proper layout is used at the beginning of the frame
+            auto previous_usage = find_previous_usage(ctx, &pass, &view);
+            if (!previous_usage.second) {
+                VkImageMemoryBarrier barrier{};
+                barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                barrier.image = view.image;
+                barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier.subresourceRange.aspectMask = static_cast<VkImageAspectFlags>(view.aspect);
+                barrier.subresourceRange.baseMipLevel = view.base_level;
+                barrier.subresourceRange.levelCount = view.level_count;
+                barrier.subresourceRange.baseArrayLayer = view.base_layer;
+                barrier.subresourceRange.layerCount = view.layer_count;
+                barrier.pNext = nullptr;
+
+                barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED; // We don't know the last layout.
+                // resource.type == Attachment
+                if (resource.access == ResourceAccess::ColorAttachmentOutput) barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                if (resource.access == ResourceAccess::DepthStencilAttachmentOutput) barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+                // Only proceed if we actually want a barrier.
+                if (barrier.newLayout != VK_IMAGE_LAYOUT_UNDEFINED) {
+                    // No access since it wasn't used earlier
+                    barrier.srcAccessMask = {};
+                    barrier.dstAccessMask = static_cast<VkAccessFlagBits>(resource.access.value());
+
+                    Barrier final_barrier;
+                    final_barrier.image = barrier;
+                    final_barrier.type = BarrierType::Image;
+                    final_barrier.src_stage = ph::PipelineStage::TopOfPipe;
+                    final_barrier.dst_stage = resource.stage;
+                    // Note that this is a PRE barrier!
+                    result.pre_barriers.push_back(final_barrier);
+                }
+            }
 
             auto next_usage = find_next_usage(ctx, &pass, &view);
             if (next_usage.second) {
@@ -627,7 +667,7 @@ void RenderGraph::create_pass_barriers(Context& ctx, Pass& pass, BuiltPass& resu
                     result.post_barriers.push_back(final_barrier);
                 }
             }
-        }*/
+        }
     }
 }
 
