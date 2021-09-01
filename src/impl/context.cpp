@@ -310,15 +310,17 @@ ContextImpl::ContextImpl(AppSettings settings)
 		std::vector<VkDeviceQueueCreateInfo> queue_infos;
 		float const priority = 1.0f;
 		for (QueueInfo queue : phys_device.found_queues) {
-			VkDeviceQueueCreateInfo info{};
-			info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-			info.queueCount = 1;
-			info.queueFamilyIndex = queue.family_index;
-			info.pQueuePriorities = &priority;
-			queue_infos.push_back(info);
-			// We need to make sure family_indices only contains unique indices to support the case where
-			// queue families overlap.
+			// We need to make sure we request one set of queues for each family.
 			if (std::find(family_indices.begin(), family_indices.end(), queue.family_index) == family_indices.end()) {
+				VkDeviceQueueCreateInfo info{};
+				info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+				info.queueCount = std::count_if(phys_device.found_queues.begin(), phys_device.found_queues.end(), [&queue](QueueInfo const& q) {
+					return q.family_index == queue.family_index;
+				});
+				info.queueFamilyIndex = queue.family_index;
+				info.pQueuePriorities = &priority;
+				queue_infos.push_back(info);
+
 				family_indices.push_back(queue.family_index);
 			}
 		}
