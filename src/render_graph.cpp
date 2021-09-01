@@ -236,7 +236,7 @@ VkImageLayout RenderGraph::get_final_layout(Context& ctx, Pass* pass, ResourceUs
 //        return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         // Important note! We do not use the render pass's transition for images that are sampled later, since we will
         // automatically insert a barrier instead.
-        return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        return get_output_layout_for_format(att->view.format);
     }
 
     throw std::runtime_error("Invalid resource access");
@@ -670,7 +670,12 @@ void RenderGraph::create_pass_barriers(Context& ctx, Pass& pass, BuiltPass& resu
                     Barrier final_barrier;
                     final_barrier.image = barrier;
                     final_barrier.type = BarrierType::Image;
-                    final_barrier.src_stage = resource.stage;
+                    if (resource.access == ResourceAccess::ColorAttachmentOutput) {
+                        final_barrier.src_stage = ph::PipelineStage::AttachmentOutput;
+                    }
+                    else if (resource.access == ResourceAccess::DepthStencilAttachmentOutput) {
+                        final_barrier.src_stage = plib::bit_flag<ph::PipelineStage>{ ph::PipelineStage::LateFragmentTests } | ph::PipelineStage::EarlyFragmentTests;
+                    }
                     final_barrier.dst_stage = next.stage;
                     result.post_barriers.push_back(final_barrier);
                 }
