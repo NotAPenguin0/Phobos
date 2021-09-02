@@ -1,3 +1,5 @@
 /*
 !.gitignore
-!data
+!test
+test/*
+!test/data
