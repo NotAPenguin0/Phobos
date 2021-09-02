@@ -6,6 +6,7 @@
 #include <phobos/context.hpp>
 #include <phobos/impl/context.hpp>
 #include <phobos/impl/image.hpp>
+#include <plib/macros.hpp>
 
 #include <atomic>
 
@@ -23,6 +24,8 @@ static VkImageViewType get_view_type(ImageType type) {
     case ImageType::HdrImage:
     case ImageType::StorageImage:
         return VK_IMAGE_VIEW_TYPE_2D;
+    default:
+        PLIB_UNREACHABLE();
     }
 }
 
@@ -44,6 +47,8 @@ static VkImageUsageFlags get_image_usage(ImageType type) {
         return VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
     case ImageType::StorageImage:
         return VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+    default:
+        PLIB_UNREACHABLE();
     }
 }
 

@@ -40,12 +40,12 @@ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/external")
 
 target_include_directories(Phobos PUBLIC "include/")
 
+if (${PHOBOS_ENABLE_RAY_TRACING})
+    target_compile_definitions(Phobos PUBLIC PHOBOS_ENABLE_RAY_TRACING)
+endif()
+
 # Test Application
 
 if (${PHOBOS_ENABLE_TEST_APP})
     add_subdirectory("test")
-endif()
-
-if (${PHOBOS_ENABLE_RAY_TRACING})
-    target_compile_definitions(Phobos PUBLIC PHOBOS_ENABLE_RAY_TRACING)
 endif()
