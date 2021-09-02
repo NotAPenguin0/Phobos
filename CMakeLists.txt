@@ -13,8 +13,14 @@ set(PHOBOS_LINK_LIBRARIES ${PHOBOS_LINK_LIBRARIES}
     ""
 ) 
 
+set(is_root_project OFF)	# indicate if this is the top-level project
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+  set(is_root_project ON)
+  message(STATUS "${PROJECT_NAME} is top level")
+endif()
+
 OPTION(PHOBOS_ENABLE_RAY_TRACING "Enable building the ray tracing functionality")
-OPTION(PHOBOS_ENABLE_TEST_APP "Enable building a test application")
+OPTION(PHOBOS_ENABLE_TEST_APP "Enable building a test application" ${is_root_project})
 OPTION(PHOBOS_NO_FIXED_PIPELINE  "Disable the fixed pipeline functionality")
 
 add_library(Phobos STATIC ${PHOBOS_SOURCES})
