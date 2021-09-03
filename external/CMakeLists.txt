@@ -59,6 +59,7 @@ target_link_libraries(vma INTERFACE phobos-dependency)
 #target_link_libraries(spirv-cross-glsl INTERFACE phobos-dependency)
 #target_link_libraries(plib INTERFACE phobos-dependency)
 target_link_libraries(Phobos PUBLIC Vulkan::Vulkan fmt vma spirv-cross-core)
+target_link_libraries(Phobos PRIVATE plib)
 target_include_directories(Phobos PUBLIC ${plib_SOURCE_DIR}/include Vulkan::Vulkan)
 target_include_directories(Phobos PRIVATE ${spirv_cross_SOURCE_DIR})
 

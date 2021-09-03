@@ -136,6 +136,8 @@ Pass PassBuilder::get() {
 			if (a.type == ResourceType::StorageImage && b.type == ResourceType::StorageImage) {
 				return a.image.view == b.image.view;
 			}
+
+			return false;
 		}
 	};
 

@@ -10,6 +10,7 @@
 #include <phobos/impl/cache.hpp>
 #include <phobos/impl/image.hpp>
 #include <phobos/impl/buffer.hpp>
+#include <plib/macros.hpp>
 
 #if PHOBOS_ENABLE_RAY_TRACING
 #include <phobos/acceleration_structure.hpp>
@@ -268,6 +269,7 @@ ShaderMeta const& Context::get_shader_meta(ph::Pipeline const& pipeline) {
 	else if (pipeline.type == ph::PipelineType::RayTracing) return get_ray_tracing_shader_meta(pipeline.name);
 #endif
 	assert(false && "Invalid pipeline type");
+	PLIB_UNREACHABLE();
 }
 
 ShaderMeta const& Context::get_shader_meta(std::string_view pipeline_name) {

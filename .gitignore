@@ -1,5 +1,5 @@
-build/
 out/
 CMakeSettings.json
 .vs/
 .vscode/
+.cache/
