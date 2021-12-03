@@ -43,6 +43,30 @@ DescriptorBuilder& DescriptorBuilder::add_sampled_image(std::string_view binding
 	return add_sampled_image(ctx->get_shader_meta(pipeline)[binding], view, sampler, layout);
 }
 
+DescriptorBuilder& DescriptorBuilder::add_sampled_image_array(uint32_t binding, std::span<ImageView> views, VkSampler sampler, VkImageLayout layout) {
+    DescriptorBinding descr{};
+    descr.binding = binding;
+    descr.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    for (ImageView view : views) {
+        auto& descriptor = descr.descriptors.emplace_back();
+        descriptor.image = ph::DescriptorImageInfo {
+            .sampler = sampler,
+            .view = view,
+            .layout = layout
+        };
+    }
+    info.bindings.push_back(std::move(descr));
+    return *this;
+}
+
+DescriptorBuilder& DescriptorBuilder::add_sampled_image_array(ShaderMeta::Binding const& binding, std::span<ImageView> views, VkSampler sampler, VkImageLayout layout) {
+    return add_sampled_image_array(binding.binding, views, sampler, layout);
+}
+
+DescriptorBuilder& DescriptorBuilder::add_sampled_image_array(std::string_view binding, std::span<ImageView> views, VkSampler sampler, VkImageLayout layout) {
+    return add_sampled_image_array(ctx->get_shader_meta(pipeline)[binding], views, sampler, layout);
+}
+
 DescriptorBuilder& DescriptorBuilder::add_storage_image(uint32_t binding, ImageView view, VkImageLayout layout) {
 	DescriptorBinding descr{};
 	descr.binding = binding;
