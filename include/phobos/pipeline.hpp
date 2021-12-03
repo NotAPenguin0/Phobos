@@ -280,9 +280,9 @@ public:
     DescriptorBuilder& add_sampled_image(ShaderMeta::Binding const& binding, ImageView view, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     DescriptorBuilder& add_sampled_image(std::string_view binding, ImageView view, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-    DescriptorBuilder& add_sampled_image_array(uint32_t binding, std::span<ImageView> views, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    DescriptorBuilder& add_sampled_image_array(ShaderMeta::Binding const& binding, std::span<ImageView> views, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    DescriptorBuilder& add_sampled_image_array(std::string_view binding, std::span<ImageView> views, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    DescriptorBuilder& add_sampled_image_array(uint32_t binding, std::span<const ImageView> views, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    DescriptorBuilder& add_sampled_image_array(ShaderMeta::Binding const& binding, std::span<const ImageView> views, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    DescriptorBuilder& add_sampled_image_array(std::string_view binding, std::span<const ImageView> views, VkSampler sampler, VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 
     DescriptorBuilder& add_storage_image(uint32_t binding, ImageView view, VkImageLayout layout = VK_IMAGE_LAYOUT_GENERAL);
