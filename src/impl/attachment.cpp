@@ -6,6 +6,8 @@
 #include <phobos/impl/attachment.hpp>
 #include <phobos/impl/image.hpp>
 
+using namespace std::literals::string_literals;
+
 namespace ph {
 namespace impl {
 
@@ -50,12 +52,15 @@ std::string AttachmentImpl::get_attachment_name(ImageView view) {
 	return "";
 }
 
-void AttachmentImpl::create_attachment(std::string_view name, VkExtent2D size, VkFormat format) {
+void AttachmentImpl::create_attachment(std::string_view name, VkExtent2D size, VkFormat format, ImageType type) {
 	InternalAttachment attachment{};
 	// Create image and image view
-	attachment.image = img->create_image(is_depth_format(format) ? ImageType::DepthStencilAttachment : ImageType::ColorAttachment, size, format);
+	attachment.image = img->create_image(type, size, format);
 	attachment.attachment.view = img->create_image_view(*attachment.image, is_depth_format(format) ? ImageAspect::Depth : ImageAspect::Color);
 	attachments[std::string{ name }] = attachment;
+
+    ctx->name_object(attachment.image->handle, name.data() + " - image"s);
+    ctx->name_object(attachment.attachment.view, name.data() + " - view"s);
 }
 
 void AttachmentImpl::resize_attachment(std::string_view name, VkExtent2D new_size) {
@@ -76,8 +81,11 @@ void AttachmentImpl::resize_attachment(std::string_view name, VkExtent2D new_siz
 	deferred_delete.push_back({ .attachment = data, .frames_left = ctx->max_frames_in_flight + 2 }); // Might be too many frames, but the extra safety doesn't hurt.
 	// Create new attachment
 	VkFormat format = att->view.format;
-	data.image = img->create_image(is_depth_format(format) ? ImageType::DepthStencilAttachment : ImageType::ColorAttachment, new_size, format);
+	data.image = img->create_image(data.image->type, new_size, format);
 	data.attachment.view = img->create_image_view(*data.image, is_depth_format(format) ? ImageAspect::Depth : ImageAspect::Color);
+
+    ctx->name_object(data.image->handle, name.data() + " - image"s);
+    ctx->name_object(data.attachment.view, name.data() + " - view"s);
 }
 
 bool AttachmentImpl::is_swapchain_attachment(std::string const& name) {

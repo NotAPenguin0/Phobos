@@ -481,7 +481,7 @@ void RenderGraph::create_pass_barriers(Context& ctx, Pass& pass, BuiltPass& resu
                 Barrier final_barrier;
                 final_barrier.image = barrier;
                 final_barrier.type = BarrierType::Image;
-                final_barrier.src_stage = ph::PipelineStage::TopOfPipe;
+                final_barrier.src_stage = ph::PipelineStage::AllCommands;
                 final_barrier.dst_stage = resource.stage;
                 // Note that this is a PRE barrier!
                 result.pre_barriers.push_back(final_barrier);
@@ -543,7 +543,7 @@ void RenderGraph::create_pass_barriers(Context& ctx, Pass& pass, BuiltPass& resu
                     barrier.srcAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
                     // Write -> Read, add transition to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL if next is not a storage image
                     if (next.access & ResourceAccess::ShaderRead) {
-                        if (next.type == ResourceType::Image) { barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; }
+                        if (next.type == ResourceType::Image || next.type == ResourceType::Attachment) { barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; }
                         else if (next.type == ResourceType::StorageImage) { barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL; }
                         barrier.dstAccessMask |= VK_ACCESS_SHADER_READ_BIT;
                     }
@@ -601,7 +601,7 @@ void RenderGraph::create_pass_barriers(Context& ctx, Pass& pass, BuiltPass& resu
                     Barrier final_barrier;
                     final_barrier.image = barrier;
                     final_barrier.type = BarrierType::Image;
-                    final_barrier.src_stage = ph::PipelineStage::TopOfPipe;
+                    final_barrier.src_stage = ph::PipelineStage::AllCommands;
                     if (resource.access == ResourceAccess::ColorAttachmentOutput) {
                         final_barrier.dst_stage = ph::PipelineStage::AttachmentOutput;
                     }

@@ -13,7 +13,7 @@ public:
 	// PUBLIC API FUNCTIONS
 
 	Attachment* get_attachment(std::string_view name);
-	void create_attachment(std::string_view name, VkExtent2D size, VkFormat format);
+	void create_attachment(std::string_view name, VkExtent2D size, VkFormat format, ImageType type);
 	void resize_attachment(std::string_view name, VkExtent2D new_size);
 	bool is_swapchain_attachment(std::string const& name);
 	bool is_attachment(ImageView view);

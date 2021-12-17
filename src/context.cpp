@@ -215,8 +215,8 @@ Attachment* Context::get_attachment(std::string_view name) {
 	return attachment_impl->get_attachment(name);
 }
 
-void Context::create_attachment(std::string_view name, VkExtent2D size, VkFormat format) {
-	attachment_impl->create_attachment(name, size, format);
+void Context::create_attachment(std::string_view name, VkExtent2D size, VkFormat format, ImageType type) {
+	attachment_impl->create_attachment(name, size, format, type);
 }
 
 void Context::resize_attachment(std::string_view name, VkExtent2D new_size) {
