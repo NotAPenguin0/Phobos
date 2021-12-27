@@ -185,8 +185,8 @@ ImageView ImageImpl::create_image_view(RawImage const& target, uint32_t mip, Ima
     info.subresourceRange.aspectMask = static_cast<VkImageAspectFlags>(aspect);
     info.subresourceRange.baseArrayLayer = 0;
     info.subresourceRange.layerCount = target.layers;
-    info.subresourceRange.baseMipLevel = 0;
-    info.subresourceRange.levelCount = target.mip_levels;
+    info.subresourceRange.baseMipLevel = mip;
+    info.subresourceRange.levelCount = 1;
 
     vkCreateImageView(ctx->device, &info, nullptr, &view.handle);
     view.id = get_unique_image_view_id();
