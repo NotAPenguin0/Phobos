@@ -82,8 +82,15 @@ struct DescriptorAccelerationStructureInfo {
 #endif
 
 struct DescriptorBinding {
+    DescriptorBinding() = default;
+    DescriptorBinding(DescriptorBinding const&) = default;
+    DescriptorBinding(DescriptorBinding&&) = default;
+
+    DescriptorBinding& operator=(DescriptorBinding const&) = default;
+    DescriptorBinding& operator=(DescriptorBinding&&) = default;
+
     uint32_t binding = 0;
-    VkDescriptorType type;
+    VkDescriptorType type{};
 
     struct DescriptorContents {
         DescriptorBufferInfo buffer{};
@@ -103,6 +110,11 @@ struct DescriptorSetLayoutCreateInfo {
 };
 
 struct DescriptorSetBinding {
+    DescriptorSetBinding() = default;
+    DescriptorSetBinding(DescriptorSetBinding const&) = default;
+
+    DescriptorSetBinding& operator=(DescriptorSetBinding const&) = default;
+
     std::vector<DescriptorBinding> bindings;
     VkDescriptorPool pool = nullptr;
 private:

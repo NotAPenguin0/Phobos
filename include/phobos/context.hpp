@@ -389,7 +389,7 @@ private:
 #if PHOBOS_ENABLE_RAY_TRACING
 	Pipeline get_or_create_ray_tracing_pipeline(std::string_view name);
 #endif
-	VkDescriptorSet get_or_create(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext = nullptr);
+	VkDescriptorSet get_or_create(DescriptorSetBinding const& set_binding, Pipeline const& pipeline, void* pNext = nullptr);
 
 	ShaderMeta const& get_shader_meta(std::string_view pipeline_name);
 	ShaderMeta const& get_compute_shader_meta(std::string_view pipeline_name);

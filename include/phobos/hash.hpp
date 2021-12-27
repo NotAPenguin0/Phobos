@@ -205,7 +205,7 @@ struct hash<ph::DescriptorBinding> {
         size_t h = 0;
         ph::hash_combine(h, x.binding, x.type);
         for (auto const& d : x.descriptors) {
-            if (x.type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+            if (x.type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER || x.type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
                 || x.type == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE) {
                 ph::hash_combine(h, d.image);
             }

@@ -412,7 +412,7 @@ Pipeline Context::get_or_create_ray_tracing_pipeline(std::string_view name) {
 
 #endif
 
-VkDescriptorSet Context::get_or_create(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext) {
+VkDescriptorSet Context::get_or_create(DescriptorSetBinding const& set_binding, Pipeline const& pipeline, void* pNext) {
 	return cache_impl->get_or_create_descriptor_set(set_binding, pipeline, pNext);
 }
 
