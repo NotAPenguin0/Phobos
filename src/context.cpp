@@ -323,6 +323,10 @@ ImageView Context::create_image_view(RawImage const& target, ImageAspect aspect)
 	return image_impl->create_image_view(target, aspect);
 }
 
+ImageView Context::create_image_view(RawImage const& target, uint32_t mip, ImageAspect aspect) {
+    return image_impl->create_image_view(target, mip, aspect);
+}
+
 void Context::destroy_image_view(ImageView& view) {
 	return image_impl->destroy_image_view(view);
 }
