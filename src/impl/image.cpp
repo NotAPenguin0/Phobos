@@ -90,6 +90,7 @@ RawImage ImageImpl::create_image(ImageType type, VkExtent2D size, VkFormat forma
     image.format = format;
     image.type = type;
     image.layers = 1;
+    if (type == ImageType::EnvMap || type == ImageType::Cubemap) image.layers = 6;
     image.mip_levels = mips;
     image.samples = VK_SAMPLE_COUNT_1_BIT;
 
