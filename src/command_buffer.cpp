@@ -291,6 +291,12 @@ CommandBuffer& CommandBuffer::copy_buffer_to_image(BufferSlice src, ph::ImageVie
 	return *this;
 }
 
+CommandBuffer &CommandBuffer::blit_image(const RawImage &src, VkImageLayout src_layout, const RawImage &dst,
+                                         VkImageLayout dst_layout, VkImageBlit blit, VkFilter filter) {
+    vkCmdBlitImage(cmd_buf, src.handle, src_layout, dst.handle, dst_layout, 1, &blit, filter);
+    return *this;
+}
+
 #if PHOBOS_ENABLE_RAY_TRACING
 
 CommandBuffer& CommandBuffer::bind_ray_tracing_pipeline(std::string_view name) {
@@ -342,6 +348,7 @@ CommandBuffer& CommandBuffer::reset_query_pool(VkQueryPool pool, uint32_t first,
 VkCommandBuffer CommandBuffer::handle() const {
 	return cmd_buf;
 }
+
 
 }
 

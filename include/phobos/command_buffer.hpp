@@ -73,6 +73,8 @@ public:
 	CommandBuffer& copy_buffer(BufferSlice src, BufferSlice dst);
 	CommandBuffer& copy_buffer_to_image(BufferSlice src, ph::ImageView dst, VkImageLayout layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
+    CommandBuffer& blit_image(ph::RawImage const& src, VkImageLayout src_layout, ph::RawImage const& dst, VkImageLayout dst_layout, VkImageBlit blit, VkFilter filter = VK_FILTER_LINEAR);
+
 #if PHOBOS_ENABLE_RAY_TRACING
 	CommandBuffer& bind_ray_tracing_pipeline(std::string_view name);
 
