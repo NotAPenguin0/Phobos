@@ -102,7 +102,7 @@ RawImage ImageImpl::create_image(ImageType type, VkExtent2D size, VkFormat forma
         .format = format,
         .extent = VkExtent3D{size.width, size.height, 1},
         .mipLevels = mips,
-        .arrayLayers = 1,
+        .arrayLayers = image.layers,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = get_image_tiling(type),
         .usage = get_image_usage(type),
