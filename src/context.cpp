@@ -20,7 +20,7 @@
 
 namespace ph {
 
-Context::Context(AppSettings settings) {
+Context::Context(AppSettings const& settings) {
 	context_impl = std::make_unique<impl::ContextImpl>(settings);
 	image_impl = std::make_unique<impl::ImageImpl>(*context_impl);
 	buffer_impl = std::make_unique<impl::BufferImpl>(*context_impl);
@@ -30,7 +30,9 @@ Context::Context(AppSettings settings) {
 		frame_impl = std::make_unique<impl::FrameImpl>(*context_impl, *attachment_impl, *cache_impl, settings);
 	}
 	context_impl->post_init(*this, *image_impl, settings);
-	frame_impl->post_init(*this, settings);
+    if (!is_headless()) {
+        frame_impl->post_init(*this, settings);
+    }
 	pipeline_impl = std::make_unique<impl::PipelineImpl>(*context_impl, *cache_impl, *buffer_impl);
 
 #if PHOBOS_ENABLE_RAY_TRACING
@@ -194,6 +196,8 @@ void Context::destroy_query_pool(VkQueryPool pool) {
 // FRAME
 
 size_t Context::max_frames_in_flight() const {
+    // If context is headless, there is only one "frame" in flight
+    if (is_headless()) return 1;
 	return frame_impl->max_frames_in_flight();
 }
 

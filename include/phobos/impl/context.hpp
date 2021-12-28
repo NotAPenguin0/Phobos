@@ -11,7 +11,7 @@ class ImageImpl;
 
 class ContextImpl {
 public:
-	ContextImpl(AppSettings settings);
+	ContextImpl(AppSettings const& settings);
 	~ContextImpl();
 
 	bool is_headless() const;

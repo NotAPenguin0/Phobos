@@ -211,11 +211,12 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
 	return VK_FALSE;
 }
 
-ContextImpl::ContextImpl(AppSettings settings)
-	: max_unbounded_array_size(settings.max_unbounded_array_size),
-	max_frames_in_flight(settings.max_frames_in_flight),
-	num_threads(settings.num_threads),
-	has_validation(settings.enable_validation) {
+ContextImpl::ContextImpl(AppSettings const& s)
+	: max_unbounded_array_size(s.max_unbounded_array_size),
+	max_frames_in_flight(s.max_frames_in_flight),
+	num_threads(s.num_threads),
+	has_validation(s.enable_validation) {
+    AppSettings settings = s;
 	if (!settings.create_headless) {
 		wsi = settings.wsi;
 	}

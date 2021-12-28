@@ -237,7 +237,7 @@ namespace impl {
 
 class Context {
 public:
-	Context(AppSettings settings);
+	Context(AppSettings const& settings);
 	~Context();
 
 	bool is_headless() const;
