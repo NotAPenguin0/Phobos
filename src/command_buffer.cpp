@@ -282,13 +282,41 @@ CommandBuffer& CommandBuffer::copy_buffer_to_image(BufferSlice src, ph::ImageVie
 
 		regions[mip] = copy;
 
-		VkDeviceSize level_size = format_size(dst.format) * level_width * level_height;
+		VkDeviceSize level_size = format_size(dst.format) * level_width * level_height * (dst.layer_count - dst.base_layer);
 		offset += level_size;
 	}
 
 	vkCmdCopyBufferToImage(cmd_buf, src.buffer, dst.image, layout, regions.size(), regions.data());
 	
 	return *this;
+}
+
+CommandBuffer& CommandBuffer::copy_image_to_buffer(ph::ImageView src, BufferSlice dst, VkImageLayout layout) {
+    VkDeviceSize offset = dst.offset;
+    std::vector<VkBufferImageCopy> regions{ src.level_count };
+    for (uint32_t mip = src.base_level; mip < src.level_count; ++mip) {
+        uint32_t const level_width = src.size.width / pow(2, mip);
+        uint32_t const level_height = src.size.height / pow(2, mip);
+        VkBufferImageCopy copy{
+            .bufferOffset = offset,
+            .bufferRowLength = 0,
+            .bufferImageHeight = 0,
+            .imageSubresource = {
+                .aspectMask = static_cast<VkImageAspectFlags>(src.aspect),
+                .mipLevel = mip,
+                .baseArrayLayer = src.base_layer,
+                .layerCount = src.layer_count
+            },
+            .imageOffset = {},
+            .imageExtent = { level_width, level_height, 1 }
+        };
+        regions[mip] = copy;
+        VkDeviceSize level_size = format_size(src.format) * level_width * level_height * (src.layer_count - src.base_layer);
+        offset += level_size;
+    }
+
+    vkCmdCopyImageToBuffer(cmd_buf, src.image, layout, dst.buffer, regions.size(), regions.data());
+    return *this;
 }
 
 CommandBuffer &CommandBuffer::blit_image(const RawImage &src, VkImageLayout src_layout, const RawImage &dst,
