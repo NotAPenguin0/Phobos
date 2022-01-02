@@ -53,11 +53,15 @@ std::string AttachmentImpl::get_attachment_name(ImageView view) {
 }
 
 void AttachmentImpl::create_attachment(std::string_view name, VkExtent2D size, VkFormat format, ImageType type) {
-	InternalAttachment attachment{};
-	// Create image and image view
-	attachment.image = img->create_image(type, size, format);
-	attachment.attachment.view = img->create_image_view(*attachment.image, is_depth_format(format) ? ImageAspect::Depth : ImageAspect::Color);
-	attachments[std::string{ name }] = attachment;
+    create_attachment(name, size, format, VK_SAMPLE_COUNT_1_BIT, type);
+}
+
+void AttachmentImpl::create_attachment(std::string_view name, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, ImageType type) {
+    InternalAttachment attachment{};
+    // Create image and image view
+    attachment.image = img->create_image(type, size, format);
+    attachment.attachment.view = img->create_image_view(*attachment.image, is_depth_format(format) ? ImageAspect::Depth : ImageAspect::Color);
+    attachments[std::string{ name }] = attachment;
 
     ctx->name_object(attachment.image->handle, name.data() + " - image"s);
     ctx->name_object(attachment.attachment.view, name.data() + " - view"s);

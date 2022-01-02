@@ -85,6 +85,10 @@ ImageImpl::ImageImpl(ContextImpl& ctx) : ctx(&ctx) {
 }
 
 RawImage ImageImpl::create_image(ImageType type, VkExtent2D size, VkFormat format, uint32_t mips) {
+    return create_image(type, size, format, VK_SAMPLE_COUNT_1_BIT, mips);
+}
+
+RawImage ImageImpl::create_image(ImageType type, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t mips) {
     RawImage image;
     image.size = size;
     image.format = format;
@@ -92,22 +96,22 @@ RawImage ImageImpl::create_image(ImageType type, VkExtent2D size, VkFormat forma
     image.layers = 1;
     if (type == ImageType::EnvMap || type == ImageType::Cubemap) image.layers = 6;
     image.mip_levels = mips;
-    image.samples = VK_SAMPLE_COUNT_1_BIT;
+    image.samples = samples;
 
     VkImageCreateInfo info{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = get_image_flags(type),
-        .imageType = VK_IMAGE_TYPE_2D,
-        .format = format,
-        .extent = VkExtent3D{size.width, size.height, 1},
-        .mipLevels = mips,
-        .arrayLayers = image.layers,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .tiling = get_image_tiling(type),
-        .usage = get_image_usage(type),
-        .sharingMode = get_sharing_mode(type),
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
+            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = get_image_flags(type),
+            .imageType = VK_IMAGE_TYPE_2D,
+            .format = format,
+            .extent = VkExtent3D{size.width, size.height, 1},
+            .mipLevels = mips,
+            .arrayLayers = image.layers,
+            .samples = samples,
+            .tiling = get_image_tiling(type),
+            .usage = get_image_usage(type),
+            .sharingMode = get_sharing_mode(type),
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
     };
 
     if (info.sharingMode == VK_SHARING_MODE_CONCURRENT) {
@@ -120,7 +124,7 @@ RawImage ImageImpl::create_image(ImageType type, VkExtent2D size, VkFormat forma
     alloc_info.usage = VmaMemoryUsage::VMA_MEMORY_USAGE_GPU_ONLY;
     alloc_info.flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT;
     vmaCreateImage(ctx->allocator, reinterpret_cast<VkImageCreateInfo const*>(&info), &alloc_info,
-        reinterpret_cast<VkImage*>(&image.handle), &image.memory, nullptr);
+                   reinterpret_cast<VkImage*>(&image.handle), &image.memory, nullptr);
 
     return image;
 }

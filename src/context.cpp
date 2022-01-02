@@ -223,6 +223,10 @@ void Context::create_attachment(std::string_view name, VkExtent2D size, VkFormat
 	attachment_impl->create_attachment(name, size, format, type);
 }
 
+void Context::create_attachment(std::string_view name, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, ImageType type) {
+    attachment_impl->create_attachment(name, size, format, samples, type);
+}
+
 void Context::resize_attachment(std::string_view name, VkExtent2D new_size) {
 	attachment_impl->resize_attachment(name, new_size);
 }
@@ -317,6 +321,10 @@ void Context::destroy_shader_binding_table(ShaderBindingTable& sbt) {
 
 RawImage Context::create_image(ImageType type, VkExtent2D size, VkFormat format, uint32_t mips) {
 	return image_impl->create_image(type, size, format, mips);
+}
+
+RawImage Context::create_image(ImageType type, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t mips = 1) {
+    return image_impl->create_image(type, size, format, samples, mips);
 }
 
 void Context::destroy_image(RawImage& image) {
