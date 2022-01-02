@@ -323,7 +323,7 @@ RawImage Context::create_image(ImageType type, VkExtent2D size, VkFormat format,
 	return image_impl->create_image(type, size, format, mips);
 }
 
-RawImage Context::create_image(ImageType type, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t mips = 1) {
+RawImage Context::create_image(ImageType type, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t mips) {
     return image_impl->create_image(type, size, format, samples, mips);
 }
 
