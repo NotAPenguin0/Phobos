@@ -343,6 +343,8 @@ public:
     PipelineBuilder& set_cull_mode(VkCullModeFlags mode);
     PipelineBuilder& set_front_face(VkFrontFace face);
     PipelineBuilder& set_samples(VkSampleCountFlagBits samples);
+    // enables sample shading and sets the min ratio
+    PipelineBuilder& set_sample_shading(float value);
     PipelineBuilder& add_blend_attachment(bool enable = false,
         VkBlendFactor src_color_factor = VK_BLEND_FACTOR_ONE, VkBlendFactor dst_color_factor = VK_BLEND_FACTOR_ONE, VkBlendOp color_op = VK_BLEND_OP_ADD,
         VkBlendFactor src_alpha_factor = VK_BLEND_FACTOR_ONE, VkBlendFactor dst_alpha_factor = VK_BLEND_FACTOR_ONE, VkBlendOp alpha_op = VK_BLEND_OP_ADD,

@@ -258,6 +258,12 @@ PipelineBuilder& PipelineBuilder::set_samples(VkSampleCountFlagBits samples) {
 	return *this;
 }
 
+PipelineBuilder& PipelineBuilder::set_sample_shading(float value) {
+    pci.multisample.sampleShadingEnable = true;
+    pci.multisample.minSampleShading = value;
+    return *this;
+}
+
 PipelineBuilder& PipelineBuilder::add_blend_attachment(bool enable, 
 	VkBlendFactor src_color_factor, VkBlendFactor dst_color_factor, VkBlendOp color_op,
 	VkBlendFactor src_alpha_factor, VkBlendFactor dst_alpha_factor, VkBlendOp alpha_op, 
