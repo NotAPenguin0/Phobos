@@ -85,7 +85,8 @@ void AttachmentImpl::resize_attachment(std::string_view name, VkExtent2D new_siz
 	deferred_delete.push_back({ .attachment = data, .frames_left = ctx->max_frames_in_flight + 2 }); // Might be too many frames, but the extra safety doesn't hurt.
 	// Create new attachment
 	VkFormat format = att->view.format;
-	data.image = img->create_image(data.image->type, new_size, format);
+    VkSampleCountFlagBits samples = att->view.samples;
+	data.image = img->create_image(data.image->type, new_size, format, samples);
 	data.attachment.view = img->create_image_view(*data.image, is_depth_format(format) ? ImageAspect::Depth : ImageAspect::Color);
 
     ctx->name_object(data.image->handle, name.data() + " - image"s);
