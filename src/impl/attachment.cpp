@@ -59,7 +59,7 @@ void AttachmentImpl::create_attachment(std::string_view name, VkExtent2D size, V
 void AttachmentImpl::create_attachment(std::string_view name, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, ImageType type) {
     InternalAttachment attachment{};
     // Create image and image view
-    attachment.image = img->create_image(type, size, format);
+    attachment.image = img->create_image(type, size, format, samples);
     attachment.attachment.view = img->create_image_view(*attachment.image, is_depth_format(format) ? ImageAspect::Depth : ImageAspect::Color);
     attachments[std::string{ name }] = attachment;
 
