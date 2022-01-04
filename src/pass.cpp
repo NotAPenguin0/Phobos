@@ -59,13 +59,18 @@ PassBuilder& PassBuilder::add_depth_attachment(std::string_view name, ImageView 
 }
 
 PassBuilder& PassBuilder::sample_attachment(std::string_view name, plib::bit_flag<PipelineStage> stage) {
-	ResourceUsage usage{};
-	usage.type = ResourceType::Attachment;
-	usage.access = ResourceAccess::ShaderRead;
-	usage.stage = stage;
-	usage.attachment.name = name;
-	pass.resources.push_back(std::move(usage));
-	return *this;
+    return sample_attachment(name, {}, stage);
+}
+
+PassBuilder& PassBuilder::sample_attachment(std::string_view name, ImageView view, plib::bit_flag<PipelineStage> stage) {
+    ResourceUsage usage{};
+    usage.type = ResourceType::Attachment;
+    usage.access = ResourceAccess::ShaderRead;
+    usage.stage = stage;
+    usage.attachment.name = name;
+    usage.attachment.view = view;
+    pass.resources.push_back(std::move(usage));
+    return *this;
 }
 
 PassBuilder& PassBuilder::shader_read_buffer(BufferSlice slice, plib::bit_flag<PipelineStage> stage) {

@@ -112,6 +112,9 @@ public:
     PassBuilder& add_depth_attachment(std::string_view name, ImageView view, LoadOp load_op, ClearValue clear = {.color {}});
 	// If you sample from an attachment that was rendered to in a previous pass, you must call this function to properly synchronize access and transition the image layout.
 	PassBuilder& sample_attachment(std::string_view name, plib::bit_flag<PipelineStage> stage);
+    // If you sample from an attachment that was rendered to in a previous pass, you must call this function to properly synchronize access and transition the image layout.
+    // This overload allows you to select a layer in the image
+    PassBuilder& sample_attachment(std::string_view name, ImageView view, plib::bit_flag<PipelineStage> stage);
 	// If you read from a buffer that was written to in an earlier pass, you must call this function to synchronize access automatically.
 	PassBuilder& shader_read_buffer(BufferSlice slice, plib::bit_flag<PipelineStage> stage);
 	// If you write to a buffer that will be read from in a later pass, you must call this function to synchronize access automatically.
