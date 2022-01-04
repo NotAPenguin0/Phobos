@@ -16,6 +16,7 @@ public:
 
 	RawImage create_image(ImageType type, VkExtent2D size, VkFormat format, uint32_t mips = 1);
     RawImage create_image(ImageType type, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t mips = 1);
+    RawImage create_image(ImageType type, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t mips, uint32_t layers);
 	void destroy_image(RawImage& image);
 
 	ImageView create_image_view(RawImage const& target, ImageAspect aspect = ImageAspect::Color);

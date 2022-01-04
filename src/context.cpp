@@ -227,6 +227,10 @@ void Context::create_attachment(std::string_view name, VkExtent2D size, VkFormat
     attachment_impl->create_attachment(name, size, format, samples, type);
 }
 
+void Context::create_attachment(std::string_view name, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t layers, ImageType type) {
+    attachment_impl->create_attachment(name, size,format, samples, layers, type);
+}
+
 void Context::resize_attachment(std::string_view name, VkExtent2D new_size) {
 	attachment_impl->resize_attachment(name, new_size);
 }
@@ -325,6 +329,10 @@ RawImage Context::create_image(ImageType type, VkExtent2D size, VkFormat format,
 
 RawImage Context::create_image(ImageType type, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t mips) {
     return image_impl->create_image(type, size, format, samples, mips);
+}
+
+RawImage Context::create_image(ImageType type, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t mips, uint32_t layers) {
+    return image_impl->create_image(type, size, format, samples, mips, layers);
 }
 
 void Context::destroy_image(RawImage& image) {

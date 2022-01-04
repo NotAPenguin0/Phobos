@@ -57,9 +57,13 @@ void AttachmentImpl::create_attachment(std::string_view name, VkExtent2D size, V
 }
 
 void AttachmentImpl::create_attachment(std::string_view name, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, ImageType type) {
+    create_attachment(name, size, format, samples, 1, type);
+}
+
+void AttachmentImpl::create_attachment(std::string_view name, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t layers, ImageType type) {
     InternalAttachment attachment{};
     // Create image and image view
-    attachment.image = img->create_image(type, size, format, samples);
+    attachment.image = img->create_image(type, size, format, samples, layers);
     attachment.view = img->create_image_view(*attachment.image, is_depth_format(format) ? ImageAspect::Depth : ImageAspect::Color);
     attachments[std::string{ name }] = attachment;
 
@@ -86,7 +90,8 @@ void AttachmentImpl::resize_attachment(std::string_view name, VkExtent2D new_siz
 	// Create new attachment
 	VkFormat format = att.view.format;
     VkSampleCountFlagBits samples = att.view.samples;
-	data.image = img->create_image(data.image->type, new_size, format, samples);
+    uint32_t layers = att.view.layer_count;
+	data.image = img->create_image(data.image->type, new_size, format, samples, layers);
 	data.view = img->create_image_view(*data.image, is_depth_format(format) ? ImageAspect::Depth : ImageAspect::Color);
 
     ctx->name_object(data.image->handle, name.data() + " - image"s);

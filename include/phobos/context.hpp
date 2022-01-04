@@ -297,6 +297,7 @@ public:
 	Attachment get_attachment(std::string_view name);
 	void create_attachment(std::string_view name, VkExtent2D size, VkFormat format, ImageType type);
     void create_attachment(std::string_view name, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, ImageType type);
+    void create_attachment(std::string_view name, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t layers, ImageType type);
 	// Does not actually resize if the new size is identical to the old size.
 	void resize_attachment(std::string_view name, VkExtent2D new_size);
 	bool is_swapchain_attachment(std::string const& name);
@@ -325,6 +326,7 @@ public:
 
 	RawImage create_image(ImageType type, VkExtent2D size, VkFormat format, uint32_t mips = 1);
     RawImage create_image(ImageType type, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t mips = 1);
+    RawImage create_image(ImageType type, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t mips, uint32_t layers);
 	void destroy_image(RawImage& image);
 	ImageView create_image_view(RawImage const& target, ImageAspect aspect = ImageAspect::Color);
     ImageView create_image_view(RawImage const& target, uint32_t mip, ImageAspect aspect = ImageAspect::Color);

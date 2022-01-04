@@ -10,7 +10,7 @@ struct Attachment {
     std::optional<ph::RawImage> image = std::nullopt;
 
     explicit inline operator bool() const {
-        return view && image;
+        return view && true; // cast view to bool
     }
 };
 

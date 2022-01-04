@@ -89,12 +89,16 @@ RawImage ImageImpl::create_image(ImageType type, VkExtent2D size, VkFormat forma
 }
 
 RawImage ImageImpl::create_image(ImageType type, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t mips) {
+    if (type == ImageType::Cubemap || type == ImageType::EnvMap) return create_image(type, size, format, samples, mips, 6);
+    else return create_image(type, size, format, samples, mips, 1);
+}
+
+RawImage ImageImpl::create_image(ImageType type, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t mips, uint32_t layers) {
     RawImage image;
     image.size = size;
     image.format = format;
     image.type = type;
-    image.layers = 1;
-    if (type == ImageType::EnvMap || type == ImageType::Cubemap) image.layers = 6;
+    image.layers = layers;
     image.mip_levels = mips;
     image.samples = samples;
 

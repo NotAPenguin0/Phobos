@@ -15,6 +15,7 @@ public:
 	Attachment get_attachment(std::string_view name);
 	void create_attachment(std::string_view name, VkExtent2D size, VkFormat format, ImageType type);
     void create_attachment(std::string_view name, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, ImageType type);
+    void create_attachment(std::string_view name, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t layers, ImageType type);
 	void resize_attachment(std::string_view name, VkExtent2D new_size);
 	bool is_swapchain_attachment(std::string const& name);
 	bool is_attachment(ImageView view);
