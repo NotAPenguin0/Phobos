@@ -29,9 +29,9 @@ void RenderGraph::build(Context& ctx) {
             // Skip non-attachment resources
             if (!is_output_attachment(resource)) continue;
 
-            Attachment* attachment = ctx.get_attachment(resource.attachment.name);
+            Attachment attachment = ctx.get_attachment(resource.attachment.name);
             // If a view is set, use that instead of the default ImageView.
-            ImageView view = resource.attachment.view ? resource.attachment.view : attachment->view;
+            ImageView view = resource.attachment.view ? resource.attachment.view : attachment.view;
             VkAttachmentReference ref{};
             ref.attachment = attachment_index;
             if (is_depth_format(view.format)) {
@@ -115,7 +115,7 @@ void RenderGraph::build(Context& ctx) {
             for (ResourceUsage const& resource : pass->resources) {
                 if (!is_output_attachment(resource)) { continue; }
                 // If custom view was set, use that instead.
-                VkImageView view = resource.attachment.view ? resource.attachment.view.handle : ctx.get_attachment(resource.attachment.name)->view.handle;
+                VkImageView view = resource.attachment.view ? resource.attachment.view.handle : ctx.get_attachment(resource.attachment.name).view.handle;
                 attachment_views.push_back(view);
             }
             fbci.attachmentCount = attachments.size();
@@ -127,11 +127,11 @@ void RenderGraph::build(Context& ctx) {
             // Figure out width and height of the framebuffer. For this we need to find the largest size of all attachments.
             for (ResourceUsage const& resource : pass->resources) {
                 if (!is_output_attachment(resource)) { continue; }
-                Attachment* attachment = ctx.get_attachment(resource.attachment.name);
+                Attachment attachment = ctx.get_attachment(resource.attachment.name);
                 // Note that we can safely use the main ImageView here since all sizes for array layers of an image
                 // must be the same
-                fbci.width = std::max(attachment->view.size.width, fbci.width);
-                fbci.height = std::max(attachment->view.size.height, fbci.height);
+                fbci.width = std::max(attachment.view.size.width, fbci.width);
+                fbci.height = std::max(attachment.view.size.height, fbci.height);
             }
             build.render_area = VkExtent2D{ .width = fbci.width, .height = fbci.height };
             build.framebuf = ctx.get_or_create(fbci, "[Framebuffer] " + pass->name);
@@ -144,11 +144,11 @@ std::vector<VkAttachmentDescription> RenderGraph::get_attachment_descriptions(Co
 	for (ResourceUsage const& resource : pass->resources) {
         if (!is_output_attachment(resource)) { continue; }
 		VkAttachmentDescription description{};
-		Attachment* attachment = ctx.get_attachment(resource.attachment.name);
+		Attachment attachment = ctx.get_attachment(resource.attachment.name);
 		assert(attachment && "Invalid attachment name");
 
-		description.format = attachment->view.format;
-		description.samples = attachment->view.samples;
+		description.format = attachment.view.format;
+		description.samples = attachment.view.samples;
 		description.loadOp = static_cast<VkAttachmentLoadOp>(resource.attachment.load_op);
 		description.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		// Stencil operations are currently not supported
@@ -214,7 +214,7 @@ VkImageLayout RenderGraph::get_final_layout(Context& ctx, Pass* pass, ResourceUs
     // Note that 'later used' in this case only means the NEXT usage of this attachment. Any further usage can be taken care of by
     // further renderpasses
 
-    Attachment* att = ctx.get_attachment(resource.attachment.name);
+    Attachment att = ctx.get_attachment(resource.attachment.name);
     auto next_usage_info = find_next_usage(ctx, pass, resource.attachment.name);
 
     if (!was_used(next_usage_info)) {
@@ -225,7 +225,7 @@ VkImageLayout RenderGraph::get_final_layout(Context& ctx, Pass* pass, ResourceUs
         }
 
         // Case 3
-        return get_output_layout_for_format(att->view.format);
+        return get_output_layout_for_format(att.view.format);
     }
 
     AttachmentUsage next_usage = get_attachment_usage(next_usage_info);
@@ -242,7 +242,7 @@ VkImageLayout RenderGraph::get_final_layout(Context& ctx, Pass* pass, ResourceUs
 //        return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         // Important note! We do not use the render pass's transition for images that are sampled later, since we will
         // automatically insert a barrier instead.
-        return get_output_layout_for_format(att->view.format);
+        return get_output_layout_for_format(att.view.format);
     }
 
     throw std::runtime_error("Invalid resource access");
@@ -352,7 +352,7 @@ std::pair<ResourceUsage, Pass*> RenderGraph::find_previous_usage(Context& ctx, P
         // Look in this pass's resources
         auto find_resource = [image, &ctx](ph::ResourceUsage const& resource) {
             if (resource.type == ResourceType::Attachment) {
-                return *image == ctx.get_attachment(resource.attachment.name)->view;
+                return *image == ctx.get_attachment(resource.attachment.name).view;
             }
             if (resource.type != ResourceType::Image && resource.type != ResourceType::StorageImage) return false;
             return *image == resource.image.view;
@@ -378,7 +378,7 @@ std::pair<ResourceUsage, Pass*> RenderGraph::find_next_usage(Context& ctx, Pass*
         // Look in this pass's resources
         auto find_resource = [image, &ctx](ph::ResourceUsage const& resource) {
             if (resource.type == ResourceType::Attachment) {
-                return *image == ctx.get_attachment(resource.attachment.name)->view;
+                return *image == ctx.get_attachment(resource.attachment.name).view;
             }
             if (resource.type != ResourceType::Image && resource.type != ResourceType::StorageImage) return false;
             return *image == resource.image.view;
@@ -514,8 +514,8 @@ void RenderGraph::create_pass_barriers(Context& ctx, Pass& pass, BuiltPass& resu
                 if (resource.type == ResourceType::StorageImage) { barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL; }
                 else if (resource.type == ResourceType::Image) { barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; }
                 else if (resource.type == ResourceType::Attachment) { 
-                    Attachment* att = ctx.get_attachment(resource.attachment.name);
-                    if (is_depth_format(att->view.format)) {
+                    Attachment att = ctx.get_attachment(resource.attachment.name);
+                    if (is_depth_format(att.view.format)) {
                         barrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
                     }
                     else {
@@ -574,8 +574,8 @@ void RenderGraph::create_pass_barriers(Context& ctx, Pass& pass, BuiltPass& resu
         }
 
         if (resource.type == ResourceType::Attachment) {
-            Attachment* attachment = ctx.get_attachment(resource.attachment.name);
-            ph::ImageView view = resource.attachment.view ? resource.attachment.view : attachment->view;
+            Attachment attachment = ctx.get_attachment(resource.attachment.name);
+            ph::ImageView view = resource.attachment.view ? resource.attachment.view : attachment.view;
 
             // If there is no previous usage, we will insert an additional barrier to ensure the proper layout is used at the beginning of the frame
             auto previous_usage = find_previous_usage(ctx, &pass, &view);

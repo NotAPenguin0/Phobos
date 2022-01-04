@@ -215,7 +215,7 @@ void Context::present(Queue& queue) {
 
 // ATTACHMENT
 
-Attachment* Context::get_attachment(std::string_view name) {
+Attachment Context::get_attachment(std::string_view name) {
 	return attachment_impl->get_attachment(name);
 }
 

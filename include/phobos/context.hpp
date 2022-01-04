@@ -294,7 +294,7 @@ public:
 	VkQueryPool create_query_pool(VkQueryType type, uint32_t count);
 	void destroy_query_pool(VkQueryPool pool);
 
-	Attachment* get_attachment(std::string_view name);
+	Attachment get_attachment(std::string_view name);
 	void create_attachment(std::string_view name, VkExtent2D size, VkFormat format, ImageType type);
     void create_attachment(std::string_view name, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, ImageType type);
 	// Does not actually resize if the new size is identical to the old size.
