@@ -53,12 +53,14 @@ private:
 	};
 
 
-	std::pair<ResourceUsage, Pass*> find_previous_usage(Context& ctx, Pass* current_pass, Attachment* attachment);
-	std::pair<ResourceUsage, Pass*> find_next_usage(Context& ctx, Pass* current_pass, Attachment* attachment);
+    // Compares by name, since this is used for layout transitions.
+	std::pair<ResourceUsage, Pass*> find_previous_usage(Context& ctx, Pass* current_pass, std::string_view attachment);
+	std::pair<ResourceUsage, Pass*> find_next_usage(Context& ctx, Pass* current_pass, std::string_view attachment);
 
 	std::pair<ResourceUsage, Pass*> find_previous_usage(Pass* current_pass, BufferSlice const* buffer);
 	std::pair<ResourceUsage, Pass*> find_next_usage(Pass* current_pass, BufferSlice const* buffer);
 
+    // Compares by ImageView, since this is used for barriers.
 	std::pair<ResourceUsage, Pass*> find_previous_usage(Context& ctx, Pass* current_pass, ImageView const* image);
 	std::pair<ResourceUsage, Pass*> find_next_usage(Context& ctx, Pass* current_pass, ImageView const* image);
 
