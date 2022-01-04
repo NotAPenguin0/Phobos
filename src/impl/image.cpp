@@ -212,6 +212,45 @@ ImageView ImageImpl::create_image_view(RawImage const& target, uint32_t mip, Ima
     return view;
 }
 
+ImageView ImageImpl::create_image_view(RawImage const& target, uint32_t mip, uint32_t layer, ImageAspect aspect) {
+    ImageView view;
+
+    VkImageViewCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    info.image = target.handle;
+    info.viewType = get_view_type(target.type);
+    info.format = target.format;
+    info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+    info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+    info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+    info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+    info.subresourceRange.aspectMask = static_cast<VkImageAspectFlags>(aspect);
+    info.subresourceRange.baseArrayLayer = layer;
+    info.subresourceRange.layerCount = 1;
+    info.subresourceRange.baseMipLevel = mip;
+    info.subresourceRange.levelCount = 1;
+
+    vkCreateImageView(ctx->device, &info, nullptr, &view.handle);
+    view.id = get_unique_image_view_id();
+    view.format = info.format;
+    view.samples = target.samples;
+    view.size = target.size;
+    view.image = target.handle;
+    view.aspect = aspect;
+    view.base_layer = layer;
+    view.layer_count = 1;
+    view.base_level = mip;
+    view.level_count = 1;
+
+    {
+        std::lock_guard lock{ mutex };
+        all_image_views.emplace(view.id, view);
+    }
+
+    return view;
+}
+
 void ImageImpl::destroy_image_view(ImageView& view) {
     vkDestroyImageView(ctx->device, view.handle, nullptr);
     {

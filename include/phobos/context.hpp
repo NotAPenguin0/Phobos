@@ -328,6 +328,7 @@ public:
 	void destroy_image(RawImage& image);
 	ImageView create_image_view(RawImage const& target, ImageAspect aspect = ImageAspect::Color);
     ImageView create_image_view(RawImage const& target, uint32_t mip, ImageAspect aspect = ImageAspect::Color);
+    ImageView create_image_view(RawImage const& target, uint32_t mip, uint32_t layer, ImageAspect aspect = ImageAspect::Color);
 	void destroy_image_view(ImageView& view);
 	ImageView get_image_view(uint64_t id);
 
