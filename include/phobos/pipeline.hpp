@@ -338,6 +338,7 @@ public:
     PipelineBuilder& set_depth_test(bool test);
     PipelineBuilder& set_depth_write(bool write);
     PipelineBuilder& set_depth_op(VkCompareOp op);
+    PipelineBuilder& set_depth_clamp(bool clamp);
     PipelineBuilder& add_dynamic_state(VkDynamicState state);
     PipelineBuilder& set_polygon_mode(VkPolygonMode mode);
     PipelineBuilder& set_cull_mode(VkCullModeFlags mode);

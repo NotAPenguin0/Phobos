@@ -231,6 +231,11 @@ PipelineBuilder& PipelineBuilder::set_depth_op(VkCompareOp op) {
 	return *this;
 }
 
+PipelineBuilder& PipelineBuilder::set_depth_clamp(bool clamp) {
+    pci.rasterizer.depthClampEnable = clamp;
+    return *this;
+}
+
 PipelineBuilder& PipelineBuilder::add_dynamic_state(VkDynamicState state) {
 	pci.dynamic_states.push_back(state);
 	if (state == VK_DYNAMIC_STATE_VIEWPORT) return add_viewport(VkViewport{});
