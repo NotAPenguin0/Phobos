@@ -588,11 +588,8 @@ void RenderGraph::create_pass_barriers(Context& ctx, Pass& pass, BuiltPass& resu
                 barrier.subresourceRange.aspectMask = static_cast<VkImageAspectFlags>(view.aspect);
                 barrier.subresourceRange.baseMipLevel = view.base_level;
                 barrier.subresourceRange.levelCount = view.level_count;
-                // Always do transitions on entire image.
-                // This means that if you are using all layers of an image individually and then want to synchronize access
-                // to the entire image, it is enough to only specify one layer view as a dependency.
-                barrier.subresourceRange.baseArrayLayer = attachment.view.base_layer;
-                barrier.subresourceRange.layerCount = attachment.view.layer_count;
+                barrier.subresourceRange.baseArrayLayer = view.base_layer;
+                barrier.subresourceRange.layerCount = view.layer_count;
                 barrier.pNext = nullptr;
 
                 barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED; // We don't know the last layout.
@@ -637,8 +634,11 @@ void RenderGraph::create_pass_barriers(Context& ctx, Pass& pass, BuiltPass& resu
                 barrier.subresourceRange.aspectMask = static_cast<VkImageAspectFlags>(view.aspect);
                 barrier.subresourceRange.baseMipLevel = view.base_level;
                 barrier.subresourceRange.levelCount = view.level_count;
-                barrier.subresourceRange.baseArrayLayer = view.base_layer;
-                barrier.subresourceRange.layerCount = view.layer_count;
+                // Always transition entire image.
+                // This means that if you are using all layers of an image individually and then want to synchronize access
+                // to the entire image, it is enough to only specify one layer view as a dependency.
+                barrier.subresourceRange.baseArrayLayer = attachment.view.base_layer;
+                barrier.subresourceRange.layerCount = attachment.view.layer_count;
                 barrier.pNext = nullptr;
 
                 if (resource.access & ResourceAccess::ColorAttachmentOutput ||
