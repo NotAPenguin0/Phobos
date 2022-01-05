@@ -349,13 +349,21 @@ std::pair<ResourceUsage, Pass*> RenderGraph::find_previous_usage(Context& ctx, P
 
     // Go over each earlier pass
     for (Pass* pass = current_pass - 1; pass >= &passes.front(); --pass) {
-        // Look in this pass's resources
         auto find_resource = [image, &ctx](ph::ResourceUsage const& resource) {
             if (resource.type == ResourceType::Attachment) {
-                return *image == ctx.get_attachment(resource.attachment.name).view;
+                // If views are equal, we classify this as found
+                // Else, if there is an image and image handles are equal, we found one.
+                // Otherwise, we didn't find anything.
+                Attachment attachment = ctx.get_attachment(resource.attachment.name);
+                if (image->handle == attachment.view.handle) return true;
+                else if (attachment.image && image->image == attachment.image->handle) return true;
+                else return false;
             }
             if (resource.type != ResourceType::Image && resource.type != ResourceType::StorageImage) return false;
-            return *image == resource.image.view;
+            // Same explanation as above inside the Attachment case
+            if (image->handle == resource.image.view.handle) return true;
+            else if (image->image == resource.image.view.image) return true;
+            else return false;
         };
 
         auto usage = std::find_if(pass->resources.begin(), pass->resources.end(), find_resource);
@@ -375,13 +383,21 @@ std::pair<ResourceUsage, Pass*> RenderGraph::find_next_usage(Context& ctx, Pass*
 
     // Go over each later pass
     for (Pass* pass = current_pass + 1; pass <= &passes.back(); ++pass) {
-        // Look in this pass's resources
         auto find_resource = [image, &ctx](ph::ResourceUsage const& resource) {
             if (resource.type == ResourceType::Attachment) {
-                return *image == ctx.get_attachment(resource.attachment.name).view;
+                // If views are equal, we classify this as found
+                // Else, if there is an image and image handles are equal, we found one.
+                // Otherwise, we didn't find anything.
+                Attachment attachment = ctx.get_attachment(resource.attachment.name);
+                if (image->handle == attachment.view.handle) return true;
+                else if (attachment.image && image->image == attachment.image->handle) return true;
+                else return false;
             }
             if (resource.type != ResourceType::Image && resource.type != ResourceType::StorageImage) return false;
-            return *image == resource.image.view;
+            // Same explanation as above inside the Attachment case
+            if (image->handle == resource.image.view.handle) return true;
+            else if (image->image == resource.image.view.image) return true;
+            else return false;
         };
 
         auto usage = std::find_if(pass->resources.begin(), pass->resources.end(), find_resource);
@@ -588,8 +604,8 @@ void RenderGraph::create_pass_barriers(Context& ctx, Pass& pass, BuiltPass& resu
                 barrier.subresourceRange.aspectMask = static_cast<VkImageAspectFlags>(view.aspect);
                 barrier.subresourceRange.baseMipLevel = view.base_level;
                 barrier.subresourceRange.levelCount = view.level_count;
-                barrier.subresourceRange.baseArrayLayer = view.base_layer;
-                barrier.subresourceRange.layerCount = view.layer_count;
+                barrier.subresourceRange.baseArrayLayer = attachment.view.base_layer;
+                barrier.subresourceRange.layerCount = attachment.view.layer_count;
                 barrier.pNext = nullptr;
 
                 barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED; // We don't know the last layout.
