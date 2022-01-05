@@ -148,6 +148,9 @@ namespace ph {
 				}
 				else {
 					binding.descriptorCount = type.array[0];
+                    // Always add PartiallyBound flag for arrays.
+                    dslci.flags.resize(dslci.bindings.size() + 1);
+                    dslci.flags.back() = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
 				}
 			}
 			else {
