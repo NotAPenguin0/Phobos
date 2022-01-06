@@ -226,6 +226,7 @@ ContextImpl::ContextImpl(AppSettings const& s)
 	// If ray tracing is enabled, add the required extensions for it
 	settings.gpu_requirements.device_extensions.push_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
 	settings.gpu_requirements.device_extensions.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+    settings.gpu_requirements.device_extensions.push_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
 	settings.gpu_requirements.device_extensions.push_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
 	settings.gpu_requirements.features_1_2.bufferDeviceAddress = true;
 
@@ -239,7 +240,13 @@ ContextImpl::ContextImpl(AppSettings const& s)
 		.pNext = nullptr,
 		.accelerationStructure = true
 	};
+    VkPhysicalDeviceRayQueryFeaturesKHR ray_query_features{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
+        .pNext = nullptr,
+        .rayQuery = true
+    };
 	rtx_features.pNext = &accel_structure_features;
+    accel_structure_features.pNext = &ray_query_features;
 #endif
 
 	{
