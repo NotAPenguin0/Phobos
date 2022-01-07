@@ -259,7 +259,7 @@ struct RayTracingPipelineCreateInfo {
 
 struct ShaderBindingTable {
     ph::RawBuffer buffer;
-    // Offset of the ray generation groups in elemetns
+    // Offset of the ray generation groups in elements
     uint32_t raygen_offset = 0;
     // Amount of ray generation groups.
     uint32_t raygen_count = 0;
@@ -311,9 +311,10 @@ public:
     DescriptorBuilder& add_storage_buffer(std::string_view binding, BufferSlice buffer);
 
 #if PHOBOS_ENABLE_RAY_TRACING
-    DescriptorBuilder& add_acceleration_structure(uint32_t binding, AccelerationStructure const& as);
-    DescriptorBuilder& add_acceleration_structure(ShaderMeta::Binding const& binding, AccelerationStructure const& as);
     DescriptorBuilder& add_acceleration_structure(std::string_view binding, AccelerationStructure const& as);
+    DescriptorBuilder& add_acceleration_structure(uint32_t binding, VkAccelerationStructureKHR const& as);
+    DescriptorBuilder& add_acceleration_structure(ShaderMeta::Binding const& binding, VkAccelerationStructureKHR const& as);
+    DescriptorBuilder& add_acceleration_structure(std::string_view binding, VkAccelerationStructureKHR as);
 #endif
 
     DescriptorBuilder& add_pNext(void* p);

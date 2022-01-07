@@ -95,6 +95,8 @@ public:
     // Gets resulting AS.
     AccelerationStructure get();
 
+    ~AccelerationStructureBuilder();
+
 private:
 	ph::Context& ctx;
 	std::vector<AccelerationStructureMesh> meshes;

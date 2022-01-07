@@ -242,6 +242,7 @@ namespace ph {
 			find_acceleration_structures(info, *refl, dslci);
 #endif
 		}
+        dslci.flags.resize(dslci.bindings.size()); // Make sure size matches so we don't index out of bounds.
 		collapse_bindings(dslci);
 		return dslci;
 	}

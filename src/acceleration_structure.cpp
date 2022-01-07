@@ -76,6 +76,10 @@ AccelerationStructure AccelerationStructureBuilder::get() {
     return build_result;
 }
 
+AccelerationStructureBuilder::~AccelerationStructureBuilder() {
+
+}
+
 DedicatedAccelerationStructure AccelerationStructureBuilder::create_acceleration_structure(VkAccelerationStructureCreateInfoKHR create_info) {
 	DedicatedAccelerationStructure result{};
 
