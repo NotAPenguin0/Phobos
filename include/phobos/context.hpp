@@ -131,6 +131,11 @@ struct Swapchain {
 	uint32_t image_index = 0;
 };
 
+struct WaitSemaphore {
+    VkSemaphore handle = nullptr;
+    plib::bit_flag<ph::PipelineStage> stage_flags = {};
+};
+
 struct PerThreadContext {
 	ph::ScratchAllocator vbo_allocator;
 	ph::ScratchAllocator ibo_allocator;
@@ -271,6 +276,7 @@ public:
 	size_t max_frames_in_flight() const;
 	[[nodiscard]] InFlightContext wait_for_frame();
 	void submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf);
+    void submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf, std::vector<WaitSemaphore> const& wait_semaphores);
 	void present(Queue& queue);
 
 	// These must be called at the start and end of a thread context. Note that end_thread must be called when all work on the thread is complete, so be sure to add

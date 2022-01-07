@@ -206,7 +206,11 @@ size_t Context::max_frames_in_flight() const {
 }
 
 void Context::submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf) {
-	frame_impl->submit_frame_commands(queue, cmd_buf);
+	submit_frame_commands(queue, cmd_buf, {});
+}
+
+void Context::submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf, std::vector<WaitSemaphore> const& wait_semaphores) {
+    frame_impl->submit_frame_commands(queue, cmd_buf, wait_semaphores);
 }
 
 void Context::present(Queue& queue) {
