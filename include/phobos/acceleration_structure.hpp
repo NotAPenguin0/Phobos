@@ -67,9 +67,6 @@ struct AccelerationStructureInstance {
 class AccelerationStructureBuilder {
 public:
 	static AccelerationStructureBuilder create(ph::Context& ctx);
-	// Update an acceleration structure. This will keep the BLAS, but clear the TLAS so new 
-	// or different instances can be added.
-	// static AccelerationStructureBuilder from(ph::Context& ctx, AccelerationStructure to_update)
 
 	// Add a mesh to the acceleration structure. This mesh will be added to the list of meshes in the bottom-level acceleration structure.
 	// Returns the index of the mesh (used to create instances of it).
@@ -77,9 +74,27 @@ public:
 
 	void add_instance(AccelerationStructureInstance const& instance);
 
+    // Remove all instances in the TLAS builder (but keeps the buffer around, so it can be reused).
+    // Doesn't actually change the acceleration structure.
+    void clear_instances();
+
+    // Remove all meshes in the BLAS builder.
+    // Doesn't actually change the underlying acceleration structure object.
+    void clear_meshes();
+
+    // Builds only the BLAS
+    void build_blas_only(uint32_t thread_index = 0);
+
+    // Builds only the TLAS using the same BLAS structures.
+    void build_tlas_only(uint32_t thread_index = 0);
+
 	// Builds the acceleration structure. If done on a different thread, you must supply the thread index to ensure
 	// queue access is properly synchronized.
 	AccelerationStructure build(uint32_t thread_index = 0);
+
+    // Gets resulting AS.
+    AccelerationStructure get();
+
 private:
 	ph::Context& ctx;
 	std::vector<AccelerationStructureMesh> meshes;
@@ -93,9 +108,9 @@ private:
 	// Query pool containing the compacted BLAS size.
 	VkQueryPool compacted_blas_size_qp{};
 
-	AccelerationStructureBuilder(ph::Context& ctx);
+	explicit AccelerationStructureBuilder(ph::Context& ctx);
 
-	// Creates a single DedicatedAccelerationStructure from a create info. This means a buffer is created and 
+	// Creates a single DedicatedAccelerationStructure from a CreateInfo. This means a buffer is created and
 	// bound to the acceleration structure
 	DedicatedAccelerationStructure create_acceleration_structure(VkAccelerationStructureCreateInfoKHR create_info);
 
