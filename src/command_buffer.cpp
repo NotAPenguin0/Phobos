@@ -344,6 +344,11 @@ CommandBuffer& CommandBuffer::write_acceleration_structure_properties(VkAccelera
 	return *this;
 }
 
+CommandBuffer& CommandBuffer::write_acceleration_structure_properties(std::span<VkAccelerationStructureKHR> handles, VkQueryType query_type, VkQueryPool query_pool, uint32_t first) {
+    PH_RTX_CALL(vkCmdWriteAccelerationStructuresPropertiesKHR, cmd_buf, handles.size(), handles.data(), query_type, query_pool, first);
+    return *this;
+}
+
 CommandBuffer& CommandBuffer::copy_acceleration_structure(VkAccelerationStructureKHR src, VkAccelerationStructureKHR dst, VkCopyAccelerationStructureModeKHR mode) {
 	VkCopyAccelerationStructureInfoKHR info{
 		.sType = VK_STRUCTURE_TYPE_COPY_ACCELERATION_STRUCTURE_INFO_KHR,

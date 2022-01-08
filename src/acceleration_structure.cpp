@@ -399,7 +399,6 @@ void AccelerationStructureBuilder::create_top_level(uint32_t thread_index) {
 		instances_vk.arrayOfPointers = false;
 		instances_vk.data.deviceAddress = ctx.get_device_address(build_result.instance_buffer);
 
-		VkAccelerationStructureGeometryKHR geometry_data{};
 		tlas_instances.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
 		tlas_instances.instances.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
 		tlas_instances.instances.geometry.instances = instances_vk;

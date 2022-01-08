@@ -1,5 +1,4 @@
 #pragma once
-
 #include <phobos/version.hpp>
 #include <phobos/window_interface.hpp>
 #include <phobos/log_interface.hpp>
@@ -112,6 +111,7 @@ struct PhysicalDevice {
 	std::optional<SurfaceInfo> surface = std::nullopt;
 #if PHOBOS_ENABLE_RAY_TRACING
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_properties{};
+    VkPhysicalDeviceAccelerationStructurePropertiesKHR accel_structure_properties{};
 #endif
 };
 
@@ -249,6 +249,7 @@ public:
 	bool validation_enabled() const;
 	uint32_t thread_count() const;
 
+    VkDevice device();
 	PhysicalDevice const& get_physical_device() const;
 
 	Queue* get_queue(QueueType type);
@@ -272,6 +273,9 @@ public:
 	void name_object(VkQueue queue, std::string const& name);
 	void name_object(VkCommandPool pool, std::string const& name);
 	void name_object(ph::CommandBuffer const& cmd_buf, std::string const& name);
+#if PHOBOS_ENABLE_RAY_TRACING
+    void name_object(VkAccelerationStructureKHR as, std::string const& name);
+#endif
 
 	size_t max_frames_in_flight() const;
 	[[nodiscard]] InFlightContext wait_for_frame();
@@ -359,7 +363,20 @@ public:
 	VkDeviceAddress get_device_address(BufferSlice slice);
 
 #if PHOBOS_ENABLE_RAY_TRACING
+    void destroy_acceleration_structure(VkAccelerationStructureKHR handle);
 	void destroy_acceleration_structure(AccelerationStructure& as);
+
+    struct RTXExtensionFunctions {
+        PFN_vkCreateAccelerationStructureKHR _vkCreateAccelerationStructureKHR = nullptr;
+        PFN_vkDestroyAccelerationStructureKHR _vkDestroyAccelerationStructureKHR = nullptr;
+        PFN_vkGetAccelerationStructureBuildSizesKHR _vkGetAccelerationStructureBuildSizesKHR = nullptr;
+        PFN_vkCmdBuildAccelerationStructuresKHR _vkCmdBuildAccelerationStructuresKHR = nullptr;
+        PFN_vkCmdWriteAccelerationStructuresPropertiesKHR _vkCmdWriteAccelerationStructuresPropertiesKHR = nullptr;
+        PFN_vkCmdCopyAccelerationStructureKHR _vkCmdCopyAccelerationStructureKHR = nullptr;
+        PFN_vkGetAccelerationStructureDeviceAddressKHR _vkGetAccelerationStructureDeviceAddressKHR = nullptr;
+        PFN_vkCreateRayTracingPipelinesKHR _vkCreateRayTracingPipelinesKHR = nullptr;
+        PFN_vkCmdTraceRaysKHR _vkCmdTraceRaysKHR = nullptr;
+    } rtx_fun;
 #endif
 
 private:
@@ -389,8 +406,6 @@ private:
 #endif
 	friend class impl::CacheImpl;
 
-	VkDevice device();
-
 	VkFramebuffer get_or_create(VkFramebufferCreateInfo const& info, std::string const& name = "");
 	VkRenderPass get_or_create(VkRenderPassCreateInfo const& info, std::string const& name = "");
 	VkDescriptorSetLayout get_or_create(DescriptorSetLayoutCreateInfo const& dslci);
@@ -406,20 +421,6 @@ private:
 	ShaderMeta const& get_compute_shader_meta(std::string_view pipeline_name);
 #if PHOBOS_ENABLE_RAY_TRACING
 	ShaderMeta const& get_ray_tracing_shader_meta(std::string_view pipeline_name);
-#endif
-
-#if PHOBOS_ENABLE_RAY_TRACING
-	struct RTXExtensionFunctions {
-		PFN_vkCreateAccelerationStructureKHR _vkCreateAccelerationStructureKHR = nullptr;
-		PFN_vkDestroyAccelerationStructureKHR _vkDestroyAccelerationStructureKHR = nullptr;
-		PFN_vkGetAccelerationStructureBuildSizesKHR _vkGetAccelerationStructureBuildSizesKHR = nullptr;
-		PFN_vkCmdBuildAccelerationStructuresKHR _vkCmdBuildAccelerationStructuresKHR = nullptr;
-		PFN_vkCmdWriteAccelerationStructuresPropertiesKHR _vkCmdWriteAccelerationStructuresPropertiesKHR = nullptr;
-		PFN_vkCmdCopyAccelerationStructureKHR _vkCmdCopyAccelerationStructureKHR = nullptr;
-		PFN_vkGetAccelerationStructureDeviceAddressKHR _vkGetAccelerationStructureDeviceAddressKHR = nullptr;
-		PFN_vkCreateRayTracingPipelinesKHR _vkCreateRayTracingPipelinesKHR = nullptr;
-		PFN_vkCmdTraceRaysKHR _vkCmdTraceRaysKHR = nullptr;
-	} rtx_fun;
 #endif
 };
 

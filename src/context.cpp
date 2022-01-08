@@ -140,6 +140,12 @@ void Context::name_object(VkQueue queue, std::string const& name) {
 	context_impl->name_object(queue, name);
 }
 
+#if PHOBOS_ENABLE_RAY_TRACING
+void Context::name_object(VkAccelerationStructureKHR as, std::string const& name) {
+    context_impl->name_object(as, name);
+}
+#endif
+
 [[nodiscard]] InThreadContext Context::begin_thread(uint32_t thread_index) {
 	return context_impl->begin_thread(thread_index);
 }
@@ -447,6 +453,10 @@ VkDescriptorSet Context::get_or_create(DescriptorSetBinding const& set_binding, 
 #if PHOBOS_ENABLE_RAY_TRACING
 
 // RTX
+
+void Context::destroy_acceleration_structure(VkAccelerationStructureKHR handle) {
+    rtx_fun._vkDestroyAccelerationStructureKHR(device(), handle, nullptr);
+}
 
 void Context::destroy_acceleration_structure(AccelerationStructure& as) {
 	for (auto& blas : as.bottom_level) {

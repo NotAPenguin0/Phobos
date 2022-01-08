@@ -64,9 +64,13 @@ static PhysicalDevice select_physical_device(VkInstance instance, std::optional<
 		VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtx_properties{
 			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR
 		};
+        VkPhysicalDeviceAccelerationStructurePropertiesKHR accel_structure_properties{
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR,
+            .pNext = &rtx_properties
+        };
 		VkPhysicalDeviceProperties2 properties_2{
 			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
-			.pNext = &rtx_properties
+			.pNext = &accel_structure_properties
 		};
 		vkGetPhysicalDeviceProperties2(device, &properties_2);
 #endif
@@ -132,7 +136,8 @@ static PhysicalDevice select_physical_device(VkInstance instance, std::optional<
 			.found_queues = std::move(found_queues),
 			.surface = surface,
 #if PHOBOS_ENABLE_RAY_TRACING
-			.ray_tracing_properties = rtx_properties
+			.ray_tracing_properties = rtx_properties,
+            .accel_structure_properties = accel_structure_properties
 #endif
 		};
 	}
@@ -649,6 +654,14 @@ void ContextImpl::name_object(ph::CommandBuffer const& cmd_buf, std::string cons
 		name_object_impl(cmd_buf.handle(), VK_OBJECT_TYPE_COMMAND_BUFFER, name, device, set_debug_utils_name_fun);
 	}
 }
+
+#if PHOBOS_ENABLE_RAY_TRACING
+void ContextImpl::name_object(VkAccelerationStructureKHR as, std::string const& name) {
+    if (validation_enabled() && !name.empty()) {
+        name_object_impl(as, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR, name, device, set_debug_utils_name_fun);
+    }
+}
+#endif
 
 VkFence ContextImpl::create_fence() {
 	VkFenceCreateInfo info{};

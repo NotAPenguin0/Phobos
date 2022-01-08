@@ -81,6 +81,7 @@ public:
 
 	CommandBuffer& build_acceleration_structure(VkAccelerationStructureBuildGeometryInfoKHR const& info, VkAccelerationStructureBuildRangeInfoKHR const* ranges);
 	CommandBuffer& write_acceleration_structure_properties(VkAccelerationStructureKHR as, VkQueryType query_type, VkQueryPool query_pool, uint32_t index);
+    CommandBuffer& write_acceleration_structure_properties(std::span<VkAccelerationStructureKHR> handles, VkQueryType query_type, VkQueryPool query_pool, uint32_t first);
 	CommandBuffer& copy_acceleration_structure(VkAccelerationStructureKHR src, VkAccelerationStructureKHR dst, VkCopyAccelerationStructureModeKHR mode);
 	CommandBuffer& compact_acceleration_structure(VkAccelerationStructureKHR src, VkAccelerationStructureKHR dst);
 
