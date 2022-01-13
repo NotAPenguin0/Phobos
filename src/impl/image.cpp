@@ -157,6 +157,10 @@ ImageView ImageImpl::create_image_view(RawImage const& target, ImageAspect aspec
     info.subresourceRange.baseMipLevel = 0;
     info.subresourceRange.levelCount = target.mip_levels;
 
+    if (target.layers > 1 && info.viewType == VK_IMAGE_VIEW_TYPE_2D) {
+        info.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    }
+
     vkCreateImageView(ctx->device, &info, nullptr, &view.handle);
     view.id = get_unique_image_view_id();
     view.format = info.format;

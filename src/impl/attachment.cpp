@@ -91,7 +91,7 @@ void AttachmentImpl::resize_attachment(std::string_view name, VkExtent2D new_siz
 	VkFormat format = att.view.format;
     VkSampleCountFlagBits samples = att.view.samples;
     uint32_t layers = att.view.layer_count;
-	data.image = img->create_image(data.image->type, new_size, format, samples, layers);
+	data.image = img->create_image(data.image->type, new_size, format, samples, 1, layers);
 	data.view = img->create_image_view(*data.image, is_depth_format(format) ? ImageAspect::Depth : ImageAspect::Color);
 
     ctx->name_object(data.image->handle, name.data() + " - image"s);
