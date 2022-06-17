@@ -18,7 +18,7 @@ set(GLSLC_DIR "" CACHE STRING "glslc binary directory, or empty if in path")
 
 file(GLOB SHADER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.comp")
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data/shaders/)
-
+message(STATUS ${CMAKE_CURRENT_BINARY_DIR}/data/shaders/)
 set(SHADER_OUTPUT_FILES "")
 foreach(SHADER ${SHADER_SOURCES})
 	get_filename_component(SHADER_FNAME ${SHADER} NAME)
