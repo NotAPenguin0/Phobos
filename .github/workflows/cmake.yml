@@ -30,7 +30,7 @@ jobs:
       uses: ashutoshvarma/setup-ninja@v1.1
       with:
         # Folder where ninja binary will be downloaded
-        dest: ninia-bin
+        dest: ninja-bin
 
     - name: Extract glslc archive
       run: Expand-Archive glslc-dir/install.zip glslc-dir/install/bin
@@ -52,5 +52,5 @@ jobs:
 #      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
       run: |
         cd ${{github.workspace}}/build
-        ninja-bin/ninja
+        ninja-1.10.0
       
