@@ -26,6 +26,9 @@ jobs:
         target: glslc-dir
         auto-match: false
         
+    - name: Extract glslc archive
+      run: Extract-Archive glslc-dir/install.zip glslc-dir/install/bin
+        
     - name: Setup Vulkan SDK
       uses: sjcobb2022/setup-vulkan-sdk@c2612401009bbce8002630e838bf91cc67f8b3c3
       with:
@@ -36,9 +39,9 @@ jobs:
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DGLSLC_DIR=glslc-dir
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DGLSLC_DIR=glslc-dir/install/bin
 
     - name: Build
       # Build your program with the given configuration
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} -DGLSLC_DIR=glslc-dir
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} -DGLSLC_DIR=glslc-dir/install/bin
       
