@@ -22,7 +22,7 @@ jobs:
       id: glslc-download
       name: Download glslc
       with:
-        url: https://storage.googleapis.com/shaderc/badges/build_link_windows_vs2017_release.html
+        url: https://storage.googleapis.com/shaderc/artifacts/prod/graphics_shader_compiler/shaderc/windows/continuous_release_2017/386/20220602-094729/install.zip
         target: glslc-dir
         auto-match: false
         
