@@ -23,7 +23,7 @@ message(STATUS "Shader output directory: ${SHADER_OUTPUT_DIR}")
 set(SHADER_OUTPUT_FILES "")
 foreach(SHADER ${SHADER_SOURCES})
 	get_filename_component(SHADER_FNAME ${SHADER} NAME)
-    set(SHADER_OUTPUT ${SHADER_OUTPUT_DIR]/${SHADER_FNAME}.spv)
+    set(SHADER_OUTPUT ${SHADER_OUTPUT_DIR}/${SHADER_FNAME}.spv)
     list(APPEND SHADER_OUTPUT_FILES ${SHADER_OUTPUT})
 	add_custom_command(OUTPUT ${SHADER_OUTPUT}
         COMMAND ${GLSLC_DIR}/glslc ${SHADER} "-o${SHADER_OUTPUT}"
