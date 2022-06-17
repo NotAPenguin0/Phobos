@@ -17,7 +17,7 @@ target_sources(TestApp PRIVATE "main.cpp")
 set(GLSLC_DIR "" CACHE STRING "glslc binary directory, or empty if in path")
 
 file(GLOB SHADER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.comp")
-get_filename_component(SHADER_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/data/shaders/ REALPATH BASE_DIR ${CMAKE_CURRENT_BINARY_DIR}
+get_filename_component(SHADER_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/data/shaders/ REALPATH BASE_DIR ${CMAKE_CURRENT_BINARY_DIR})
 file(MAKE_DIRECTORY ${SHADER_OUTPUT_DIR})
 message(STATUS "Shader output directory: ${SHADER_OUTPUT_DIR}")
 set(SHADER_OUTPUT_FILES "")
