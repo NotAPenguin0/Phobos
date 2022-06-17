@@ -14,7 +14,7 @@ add_executable(TestApp)
 target_link_libraries(TestApp PRIVATE Phobos glfw)
 target_sources(TestApp PRIVATE "main.cpp")
 
-option(GLSLC_DIR "" CACHE STRING "glsl binary directory, or empty if in path")
+set(GLSLC_DIR "" CACHE STRING "glslc binary directory, or empty if in path")
 
 file(GLOB SHADER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.comp")
 set(SHADER_OUTPUT_FILES "")
