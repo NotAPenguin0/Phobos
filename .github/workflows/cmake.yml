@@ -24,7 +24,7 @@ jobs:
       with:
         url: https://storage.googleapis.com/shaderc/badges/build_link_windows_vs2017_release.html
         target: glslc-dir
-        auto-match: true
+        auto-match: false
         
     - name: Setup Vulkan SDK
       uses: sjcobb2022/setup-vulkan-sdk@c2612401009bbce8002630e838bf91cc67f8b3c3
