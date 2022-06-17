@@ -27,7 +27,7 @@ jobs:
         auto-match: false
         
     - name: Extract glslc archive
-      run: Extract-Archive glslc-dir/install.zip glslc-dir/install/bin
+      run: Expand-Archive glslc-dir/install.zip glslc-dir/install/bin
         
     - name: Setup Vulkan SDK
       uses: sjcobb2022/setup-vulkan-sdk@c2612401009bbce8002630e838bf91cc67f8b3c3
