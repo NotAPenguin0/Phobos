@@ -17,12 +17,13 @@ target_sources(TestApp PRIVATE "main.cpp")
 set(GLSLC_DIR "" CACHE STRING "glslc binary directory, or empty if in path")
 
 file(GLOB SHADER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.comp")
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data/shaders/)
-message(STATUS ${CMAKE_CURRENT_BINARY_DIR}/data/shaders/)
+get_filename_component(SHADER_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/data/shaders/ REALPATH BASE_DIR ${CMAKE_CURRENT_BINARY_DIR}
+file(MAKE_DIRECTORY ${SHADER_OUTPUT_DIR})
+message(STATUS "Shader output directory: ${SHADER_OUTPUT_DIR}")
 set(SHADER_OUTPUT_FILES "")
 foreach(SHADER ${SHADER_SOURCES})
 	get_filename_component(SHADER_FNAME ${SHADER} NAME)
-    set(SHADER_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/data/shaders/${SHADER_FNAME}.spv)
+    set(SHADER_OUTPUT ${SHADER_OUTPUT_DIR]/${SHADER_FNAME}.spv)
     list(APPEND SHADER_OUTPUT_FILES ${SHADER_OUTPUT})
 	add_custom_command(OUTPUT ${SHADER_OUTPUT}
         COMMAND ${GLSLC_DIR}/glslc ${SHADER} "-o${SHADER_OUTPUT}"
