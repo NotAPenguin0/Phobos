@@ -1,10 +1,6 @@
 name: CMake
 
-on:
-  push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+on: [push, pull_request]
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -26,7 +22,7 @@ jobs:
       uses: sjcobb2022/setup-vulkan-sdk@c2612401009bbce8002630e838bf91cc67f8b3c3
       with:
            vulkan-query-version: 1.2.198.1
-           vulkan-components: Vulkan-Headers, Vulkan-Loader, Glslang, glslc
+           vulkan-components: Vulkan-Headers, Vulkan-Loader, shaderc
            vulkan-use-cache: true
 
     - name: Configure CMake
