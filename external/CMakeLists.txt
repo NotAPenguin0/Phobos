@@ -41,6 +41,7 @@ FetchContent_Declare(
 FetchContent_Declare(
     spirv_cross
     GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Cross
+    GIT_TAG main
 )
 
 FetchContent_MakeAvailable(fmt)
