@@ -54,6 +54,10 @@ struct ImageView {
     inline bool operator==(ImageView const& rhs) const {
         return id == rhs.id;
     }
+
+    inline explicit operator bool() const {
+        return id != static_cast<uint64_t>(-1) && image != nullptr && handle != nullptr;
+    }
 };
 
 // Common utilities

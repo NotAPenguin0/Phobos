@@ -11,7 +11,7 @@ class ImageImpl;
 
 class ContextImpl {
 public:
-	ContextImpl(AppSettings settings);
+	ContextImpl(AppSettings const& settings);
 	~ContextImpl();
 
 	bool is_headless() const;
@@ -39,6 +39,9 @@ public:
 	void name_object(VkQueue queue, std::string const& name);
 	void name_object(VkCommandPool pool, std::string const& name);
 	void name_object(ph::CommandBuffer const& cmd_buf, std::string const& name);
+#if PHOBOS_ENABLE_RAY_TRACING
+    void name_object(VkAccelerationStructureKHR as, std::string const& name);
+#endif
 
 	VkFence create_fence();
 	VkResult wait_for_fence(VkFence fence, uint64_t timeout);

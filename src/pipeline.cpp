@@ -134,24 +134,28 @@ DescriptorBuilder& DescriptorBuilder::add_storage_buffer(std::string_view bindin
 
 #if PHOBOS_ENABLE_RAY_TRACING
 
-DescriptorBuilder& DescriptorBuilder::add_acceleration_structure(uint32_t binding, AccelerationStructure const& as) {
-	DescriptorBinding descr{};
-	descr.binding = binding;
-	descr.type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-	auto& descriptor = descr.descriptors.emplace_back();
-	descriptor.accel_structure = ph::DescriptorAccelerationStructureInfo{
-		.structure = as.top_level.handle
-	};
-	info.bindings.push_back(descr);
-	return *this;
+DescriptorBuilder& DescriptorBuilder::add_acceleration_structure(uint32_t binding, VkAccelerationStructureKHR const& as) {
+    DescriptorBinding descr{};
+    descr.binding = binding;
+    descr.type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+    auto& descriptor = descr.descriptors.emplace_back();
+    descriptor.accel_structure = ph::DescriptorAccelerationStructureInfo{
+            .structure = as
+    };
+    info.bindings.push_back(descr);
+    return *this;
 }
 
-DescriptorBuilder& DescriptorBuilder::add_acceleration_structure(ShaderMeta::Binding const& binding, AccelerationStructure const& as) {
-	return add_acceleration_structure(binding.binding, as);
+DescriptorBuilder& DescriptorBuilder::add_acceleration_structure(ShaderMeta::Binding const& binding, VkAccelerationStructureKHR const& as) {
+    return add_acceleration_structure(binding.binding, as);
+}
+
+DescriptorBuilder& DescriptorBuilder::add_acceleration_structure(std::string_view binding, VkAccelerationStructureKHR as) {
+    return add_acceleration_structure(ctx->get_shader_meta(pipeline)[binding], as);
 }
 
 DescriptorBuilder& DescriptorBuilder::add_acceleration_structure(std::string_view binding, AccelerationStructure const& as) {
-	return add_acceleration_structure(ctx->get_shader_meta(pipeline)[binding], as);
+	return add_acceleration_structure(ctx->get_shader_meta(pipeline)[binding], as.top_level.handle);
 }
 
 #endif
@@ -231,6 +235,11 @@ PipelineBuilder& PipelineBuilder::set_depth_op(VkCompareOp op) {
 	return *this;
 }
 
+PipelineBuilder& PipelineBuilder::set_depth_clamp(bool clamp) {
+    pci.rasterizer.depthClampEnable = clamp;
+    return *this;
+}
+
 PipelineBuilder& PipelineBuilder::add_dynamic_state(VkDynamicState state) {
 	pci.dynamic_states.push_back(state);
 	if (state == VK_DYNAMIC_STATE_VIEWPORT) return add_viewport(VkViewport{});
@@ -256,6 +265,12 @@ PipelineBuilder& PipelineBuilder::set_front_face(VkFrontFace face) {
 PipelineBuilder& PipelineBuilder::set_samples(VkSampleCountFlagBits samples) {
 	pci.multisample.rasterizationSamples = samples;
 	return *this;
+}
+
+PipelineBuilder& PipelineBuilder::set_sample_shading(float value) {
+    pci.multisample.sampleShadingEnable = true;
+    pci.multisample.minSampleShading = value;
+    return *this;
 }
 
 PipelineBuilder& PipelineBuilder::add_blend_attachment(bool enable, 

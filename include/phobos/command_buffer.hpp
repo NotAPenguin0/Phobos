@@ -72,12 +72,16 @@ public:
 
 	CommandBuffer& copy_buffer(BufferSlice src, BufferSlice dst);
 	CommandBuffer& copy_buffer_to_image(BufferSlice src, ph::ImageView dst, VkImageLayout layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    CommandBuffer& copy_image_to_buffer(ph::ImageView src, BufferSlice dst, VkImageLayout layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+    CommandBuffer& blit_image(ph::RawImage const& src, VkImageLayout src_layout, ph::RawImage const& dst, VkImageLayout dst_layout, VkImageBlit blit, VkFilter filter = VK_FILTER_LINEAR);
 
 #if PHOBOS_ENABLE_RAY_TRACING
 	CommandBuffer& bind_ray_tracing_pipeline(std::string_view name);
 
 	CommandBuffer& build_acceleration_structure(VkAccelerationStructureBuildGeometryInfoKHR const& info, VkAccelerationStructureBuildRangeInfoKHR const* ranges);
 	CommandBuffer& write_acceleration_structure_properties(VkAccelerationStructureKHR as, VkQueryType query_type, VkQueryPool query_pool, uint32_t index);
+    CommandBuffer& write_acceleration_structure_properties(std::span<VkAccelerationStructureKHR> handles, VkQueryType query_type, VkQueryPool query_pool, uint32_t first);
 	CommandBuffer& copy_acceleration_structure(VkAccelerationStructureKHR src, VkAccelerationStructureKHR dst, VkCopyAccelerationStructureModeKHR mode);
 	CommandBuffer& compact_acceleration_structure(VkAccelerationStructureKHR src, VkAccelerationStructureKHR dst);
 

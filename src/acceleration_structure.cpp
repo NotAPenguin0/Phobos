@@ -25,6 +25,41 @@ void AccelerationStructureBuilder::add_instance(AccelerationStructureInstance co
 	instances.push_back(instance);
 }
 
+void AccelerationStructureBuilder::clear_instances() {
+    instances.clear();
+}
+
+void AccelerationStructureBuilder::clear_meshes() {
+    meshes.clear();
+}
+
+void AccelerationStructureBuilder::build_blas_only(uint32_t thread_index) {
+    fence = ctx.create_fence();
+
+    // Delete old BLAS. TODO: Check if this doesn't cause free-during-use errors.
+    for (auto& blas : build_result.bottom_level) {
+        PH_RTX_CALL(vkDestroyAccelerationStructureKHR, ctx.device(), blas.handle, nullptr);
+        ctx.destroy_buffer(blas.buffer);
+    }
+    build_result.bottom_level.clear();
+
+    create_bottom_level(thread_index);
+    ctx.destroy_fence(fence);
+}
+
+void AccelerationStructureBuilder::build_tlas_only(uint32_t thread_index) {
+    fence = ctx.create_fence();
+
+    // Delete old TLAS. // TODO: Make sure this doesn't cause free-during-use.
+
+    PH_RTX_CALL(vkDestroyAccelerationStructureKHR, ctx.device(), build_result.top_level.handle, nullptr);
+    ctx.destroy_buffer(build_result.top_level.buffer);
+    // We don't destroy the instance buffer because we might be able to re-use it.
+
+    create_top_level(thread_index);
+    ctx.destroy_fence(fence);
+}
+
 AccelerationStructure AccelerationStructureBuilder::build(uint32_t thread_index) {
 	// Initialize reusable objects.
 	fence = ctx.create_fence();
@@ -35,6 +70,14 @@ AccelerationStructure AccelerationStructureBuilder::build(uint32_t thread_index)
 	ctx.destroy_fence(fence);
 	// Return acceleration structure to user.
 	return build_result;
+}
+
+AccelerationStructure AccelerationStructureBuilder::get() {
+    return build_result;
+}
+
+AccelerationStructureBuilder::~AccelerationStructureBuilder() {
+
 }
 
 DedicatedAccelerationStructure AccelerationStructureBuilder::create_acceleration_structure(VkAccelerationStructureCreateInfoKHR create_info) {
@@ -167,7 +210,7 @@ void AccelerationStructureBuilder::build_blas(uint32_t thread_index, VkDeviceSiz
 
 	// Build acceleration structures
 	std::vector<ph::CommandBuffer> cmd_bufs;
-	ph::Queue& queue = *ctx.get_queue(ph::QueueType::Graphics);
+	ph::Queue& queue = *ctx.get_queue(ph::QueueType::Compute);
 	for (uint32_t i = 0; i < num_blas; ++i) {
 		// Create command buffer and store it.
 		cmd_bufs.push_back(queue.begin_single_time(thread_index));
@@ -179,7 +222,6 @@ void AccelerationStructureBuilder::build_blas(uint32_t thread_index, VkDeviceSiz
 	}
 
 	submit_blas_build(thread_index, queue, cmd_bufs);
-
 
 	// Free resources
 	ctx.destroy_buffer(scratch_buffer);
@@ -200,7 +242,7 @@ void AccelerationStructureBuilder::compact_blas(uint32_t thread_index, std::vect
 	// Old acceleration structures to destroy when done
 	std::vector<DedicatedAccelerationStructure> old_as{ num_blas };
 
-	ph::Queue& queue = *ctx.get_queue(ph::QueueType::Graphics);
+	ph::Queue& queue = *ctx.get_queue(ph::QueueType::Compute);
 	// We can do compaction with a single command buffer;
 	ph::CommandBuffer cmd_buf = queue.begin_single_time(thread_index);
 	for (uint32_t i = 0; i < num_blas; ++i) {
@@ -266,13 +308,13 @@ void AccelerationStructureBuilder::create_bottom_level(uint32_t thread_index) {
 		// Calculate size info and create BLAS.
 		max_scratch_needed = std::max(max_scratch_needed, calculate_size_info(build_info, entry));
 		DedicatedAccelerationStructure blas = create_blas(build_info);
-		// Now we know the dstAccelerationStructure field for VkAccelerationStructureBUildGeometryInfoKHR.
+		// Now we know the dstAccelerationStructure field for VkAccelerationStructureBuildGeometryInfoKHR.
 		build_infos[i].geometry.dstAccelerationStructure = blas.handle;
 		// Save created BLAS.
 		build_result.bottom_level[i] = blas;
 	}
 
-	// We created the acceleration structures, now we'll build them by lauching a command buffer for every
+	// We created the acceleration structures, now we'll build them by launching a command buffer for every
 	// BLAS we create.
 	build_blas(thread_index, max_scratch_needed, build_infos, entries);
 	// Compact the final BLAS
@@ -304,7 +346,14 @@ ph::RawBuffer AccelerationStructureBuilder::create_instance_buffer(uint32_t thre
 	uint32_t const num_instances = instance_data.size();
 	VkDeviceSize const size = sizeof(VkAccelerationStructureInstanceKHR) * num_instances;
 
-	ph::RawBuffer instance_buffer = ctx.create_buffer(ph::BufferType::AccelerationStructureInstance, size);
+	ph::RawBuffer instance_buffer;
+    // Only recreate if it's too small
+    if (size > build_result.instance_buffer.size) {
+        ctx.destroy_buffer(build_result.instance_buffer);
+        instance_buffer = ctx.create_buffer(ph::BufferType::AccelerationStructureInstance, size);
+    } else {
+        instance_buffer = build_result.instance_buffer;
+    }
 	ph::RawBuffer scratch = ctx.create_buffer(ph::BufferType::TransferBuffer, size);
 
 	std::byte* memory = ctx.map_memory(scratch);
@@ -313,7 +362,7 @@ ph::RawBuffer AccelerationStructureBuilder::create_instance_buffer(uint32_t thre
 	ph::Queue& queue = *ctx.get_queue(ph::QueueType::Transfer);
 	ph::CommandBuffer cmd = queue.begin_single_time(thread_index);
 
-	cmd.copy_buffer(scratch, instance_buffer);
+	cmd.copy_buffer(scratch, instance_buffer.slice(0, size));
 
 	queue.end_single_time(cmd, fence);
 	ctx.wait_for_fence(fence);
@@ -350,7 +399,6 @@ void AccelerationStructureBuilder::create_top_level(uint32_t thread_index) {
 		instances_vk.arrayOfPointers = false;
 		instances_vk.data.deviceAddress = ctx.get_device_address(build_result.instance_buffer);
 
-		VkAccelerationStructureGeometryKHR geometry_data{};
 		tlas_instances.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
 		tlas_instances.instances.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
 		tlas_instances.instances.geometry.instances = instances_vk;
@@ -381,7 +429,7 @@ void AccelerationStructureBuilder::create_top_level(uint32_t thread_index) {
 	ph::RawBuffer scratch = ctx.create_buffer(ph::BufferType::AccelerationStructureScratch, scratch_space);
 	VkDeviceAddress scratch_address = ctx.get_device_address(scratch);
 
-	ph::Queue& queue = *ctx.get_queue(ph::QueueType::Graphics);
+	ph::Queue& queue = *ctx.get_queue(ph::QueueType::Compute);
 	ph::CommandBuffer cmd = queue.begin_single_time(thread_index);
 
 	build_info.geometry.dstAccelerationStructure = build_result.top_level.handle;

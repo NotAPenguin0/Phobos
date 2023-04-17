@@ -199,17 +199,36 @@ struct hash<ph::DescriptorBufferInfo> {
     }
 };
 
+#if PHOBOS_ENABLE_RAY_TRACING
+template<>
+struct hash<ph::DescriptorAccelerationStructureInfo> {
+    size_t operator()(ph::DescriptorAccelerationStructureInfo const& x) const noexcept {
+        size_t h = 0;
+        ph::hash_combine(h, x.structure);
+        return h;
+    }
+};
+#endif
+
 template<>
 struct hash<ph::DescriptorBinding> {
     size_t operator()(ph::DescriptorBinding const& x) const noexcept {
         size_t h = 0;
         ph::hash_combine(h, x.binding, x.type);
         for (auto const& d : x.descriptors) {
-            if (x.type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+            if (x.type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER || x.type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
                 || x.type == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE) {
                 ph::hash_combine(h, d.image);
             }
-            else { ph::hash_combine(h, d.buffer); }
+            else if (x.type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER || x.type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+                || x.type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC || x.type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC) {
+                ph::hash_combine(h, d.buffer);
+            }
+#if PHOBOS_ENABLE_RAY_TRACING
+            else if (x.type == VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR) {
+                ph::hash_combine(h, d.accel_structure);
+            }
+#endif
         }
         return h;
     }

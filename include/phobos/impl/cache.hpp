@@ -19,7 +19,7 @@ public:
 #if PHOBOS_ENABLE_RAY_TRACING
 	Pipeline get_or_create_ray_tracing_pipeline(ph::RayTracingPipelineCreateInfo& pci);
 #endif
-	VkDescriptorSet get_or_create_descriptor_set(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext = nullptr);
+	VkDescriptorSet get_or_create_descriptor_set(DescriptorSetBinding const& set_binding, Pipeline const& pipeline, void* pNext = nullptr);
 
 	void next_frame();
 

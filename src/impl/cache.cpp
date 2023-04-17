@@ -389,7 +389,8 @@ Pipeline CacheImpl::get_or_create_ray_tracing_pipeline(ph::RayTracingPipelineCre
 
 #endif
 
-VkDescriptorSet CacheImpl::get_or_create_descriptor_set(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext) {
+VkDescriptorSet CacheImpl::get_or_create_descriptor_set(DescriptorSetBinding const& sb, Pipeline const& pipeline, void* pNext) {
+    auto set_binding = sb;
 	set_binding.set_layout = pipeline.layout.set_layout;
 	auto set_opt = this->descriptor_set.current().get(set_binding);
 	if (set_opt) {

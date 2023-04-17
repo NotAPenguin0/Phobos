@@ -142,13 +142,32 @@ uint32_t FrameImpl::max_frames_in_flight() const {
 	return InFlightContext(frame_data.cmd_buf, frame_data.vbo_allocator, frame_data.ibo_allocator, frame_data.ubo_allocator, frame_data.ssbo_allocator);
 }
 
-void FrameImpl::submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf) {
+void FrameImpl::submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf, std::vector<WaitSemaphore> const& wait_semaphores) {
 	PerFrame& frame_data = per_frame.current();
 
-	// Reset our fence from last time so we can use it again now
+	// Reset our fence from last time, so we can use it again now
 	vkResetFences(ctx->device, 1, &frame_data.fence);
 
-	queue.submit(cmd_buf, frame_data.fence, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, frame_data.image_ready, frame_data.gpu_finished);
+    std::vector<VkSemaphore> semaphores { frame_data.image_ready };
+    std::vector<VkPipelineStageFlags> wait_stages { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+    // Fill user-supplied semaphores
+    for (auto const& sem : wait_semaphores) {
+        semaphores.push_back(sem.handle);
+        wait_stages.push_back(sem.stage_flags.value());
+    }
+
+    VkSubmitInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    info.commandBufferCount = 1;
+    VkCommandBuffer cbuf = cmd_buf.handle();
+    info.pCommandBuffers = &cbuf;
+    info.signalSemaphoreCount = 1;
+    info.pSignalSemaphores = &frame_data.gpu_finished;
+    info.waitSemaphoreCount = semaphores.size();
+    info.pWaitSemaphores = semaphores.data();
+    info.pWaitDstStageMask = wait_stages.data();
+    queue.submit(info, frame_data.fence);
 }
 
 void FrameImpl::present(Queue& queue) {

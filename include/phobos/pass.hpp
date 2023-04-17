@@ -56,9 +56,12 @@ struct ResourceUsage {
 	plib::bit_flag<ResourceAccess> access{};
 
 	struct Attachment {
-		std::string name = "";
+		std::string name;
 		LoadOp load_op = LoadOp::DontCare;
 		ClearValue clear{ .color{} };
+        // If no view is set when declaring resources, this will be assumed to be get_attachment(name)->view instead.
+        // Otherwise, this may be set to a view to the attachment with for example a specific array layer.
+        ImageView view {};
 	};
 
 	struct Image {
@@ -79,7 +82,7 @@ struct Pass {
 	// Resource usage data
 	std::vector<ResourceUsage> resources{};
 	// Name of this pass
-	std::string name = "";
+	std::string name;
 	// Execution callback
 	std::function<void(ph::CommandBuffer&)> execute{};
 	bool no_renderpass = false;
@@ -101,10 +104,17 @@ public:
 
 	// Adds an attachment to render to in this render pass.
 	PassBuilder& add_attachment(std::string_view name, LoadOp load_op, ClearValue clear = { .color {} });
+    // Add an attachment to render to, but specify your own ImageView.
+    PassBuilder& add_attachment(std::string_view name, ImageView view, LoadOp load_op, ClearValue clear = {.color {}});
 	// Adds a depth attachment to render to in this render pass.
 	PassBuilder& add_depth_attachment(std::string_view name, LoadOp load_op, ClearValue clear = { .color {} });
+    // Add a depth attachment to render to, but specify your own ImageView
+    PassBuilder& add_depth_attachment(std::string_view name, ImageView view, LoadOp load_op, ClearValue clear = {.color {}});
 	// If you sample from an attachment that was rendered to in a previous pass, you must call this function to properly synchronize access and transition the image layout.
 	PassBuilder& sample_attachment(std::string_view name, plib::bit_flag<PipelineStage> stage);
+    // If you sample from an attachment that was rendered to in a previous pass, you must call this function to properly synchronize access and transition the image layout.
+    // This overload allows you to select a layer in the image
+    PassBuilder& sample_attachment(std::string_view name, ImageView view, plib::bit_flag<PipelineStage> stage);
 	// If you read from a buffer that was written to in an earlier pass, you must call this function to synchronize access automatically.
 	PassBuilder& shader_read_buffer(BufferSlice slice, plib::bit_flag<PipelineStage> stage);
 	// If you write to a buffer that will be read from in a later pass, you must call this function to synchronize access automatically.

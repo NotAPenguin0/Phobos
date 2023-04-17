@@ -1,5 +1,7 @@
 #include <phobos/image.hpp>
 
+#include <cassert>
+
 namespace ph {
 
 bool is_depth_format(VkFormat format) {
@@ -20,12 +22,19 @@ VkDeviceSize format_size(VkFormat format) {
 		case VK_FORMAT_R8G8B8_UNORM:
 		case VK_FORMAT_R8G8B8_SRGB:
 			return 3;
+        case VK_FORMAT_R8G8_UNORM:
+        case VK_FORMAT_R8G8_SRGB:
+            return 2;
+        case VK_FORMAT_R8_UNORM:
+        case VK_FORMAT_R8_SRGB:
+            return 1;
 		case VK_FORMAT_R32G32B32A32_SFLOAT:
 			return 4 * sizeof(float);
 		case VK_FORMAT_R32G32B32_SFLOAT:
 			return 3 * sizeof(float);
+
 		default:
-			return 0;
+			assert(false && "Invalid format!");
 	}
 }
 

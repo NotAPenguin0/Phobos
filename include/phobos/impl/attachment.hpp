@@ -12,8 +12,10 @@ public:
 
 	// PUBLIC API FUNCTIONS
 
-	Attachment* get_attachment(std::string_view name);
-	void create_attachment(std::string_view name, VkExtent2D size, VkFormat format);
+	Attachment get_attachment(std::string_view name);
+	void create_attachment(std::string_view name, VkExtent2D size, VkFormat format, ImageType type);
+    void create_attachment(std::string_view name, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, ImageType type);
+    void create_attachment(std::string_view name, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t layers, ImageType type);
 	void resize_attachment(std::string_view name, VkExtent2D new_size);
 	bool is_swapchain_attachment(std::string const& name);
 	bool is_attachment(ImageView view);
@@ -31,8 +33,9 @@ private:
 
 	static inline std::string swapchain_attachment_name = "swapchain";
 
+    // Note that the only difference between this and Attachment is the const-ness of the image handle.
 	struct InternalAttachment {
-		Attachment attachment;
+		ph::ImageView view;
 		std::optional<RawImage> image;
 	};
 	std::unordered_map<std::string, InternalAttachment> attachments{};

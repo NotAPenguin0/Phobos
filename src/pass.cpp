@@ -25,37 +25,52 @@ PassBuilder PassBuilder::create_ray_tracing(std::string_view name) {
 #endif
 
 PassBuilder& PassBuilder::add_attachment(std::string_view name, LoadOp load_op, ClearValue clear) {
-	ResourceUsage usage;
-	usage.type = ResourceType::Attachment;
-	usage.access = ResourceAccess::ColorAttachmentOutput;
-	usage.stage = PipelineStage::AttachmentOutput;
-	usage.attachment.name = name;
-	usage.attachment.load_op = load_op;
-	usage.attachment.clear = clear;
-	pass.resources.push_back(std::move(usage));
-	return *this;
+    return add_attachment(name, {}, load_op, clear);
+}
+
+PassBuilder& PassBuilder::add_attachment(std::string_view name, ImageView view, LoadOp load_op, ClearValue clear) {
+    ResourceUsage usage;
+    usage.type = ResourceType::Attachment;
+    usage.access = ResourceAccess::ColorAttachmentOutput;
+    usage.stage = PipelineStage::AttachmentOutput;
+    usage.attachment.name = name;
+    usage.attachment.load_op = load_op;
+    usage.attachment.clear = clear;
+    usage.attachment.view = view;
+    pass.resources.push_back(std::move(usage));
+    return *this;
 }
 
 PassBuilder& PassBuilder::add_depth_attachment(std::string_view name, LoadOp load_op, ClearValue clear) {
-	ResourceUsage usage;
-	usage.type = ResourceType::Attachment;
-	usage.access = ResourceAccess::DepthStencilAttachmentOutput;
-	usage.stage = PipelineStage::AttachmentOutput;
-	usage.attachment.name = name;
-	usage.attachment.load_op = load_op;
-	usage.attachment.clear = clear;
-	pass.resources.push_back(std::move(usage));
-	return *this;
+    return add_depth_attachment(name, {}, load_op, clear);
+}
+
+PassBuilder& PassBuilder::add_depth_attachment(std::string_view name, ImageView view, LoadOp load_op, ClearValue clear) {
+    ResourceUsage usage;
+    usage.type = ResourceType::Attachment;
+    usage.access = ResourceAccess::DepthStencilAttachmentOutput;
+    usage.stage = PipelineStage::AttachmentOutput;
+    usage.attachment.name = name;
+    usage.attachment.load_op = load_op;
+    usage.attachment.clear = clear;
+    usage.attachment.view = view;
+    pass.resources.push_back(std::move(usage));
+    return *this;
 }
 
 PassBuilder& PassBuilder::sample_attachment(std::string_view name, plib::bit_flag<PipelineStage> stage) {
-	ResourceUsage usage{};
-	usage.type = ResourceType::Attachment;
-	usage.access = ResourceAccess::ShaderRead;
-	usage.stage = stage;
-	usage.attachment.name = name;
-	pass.resources.push_back(std::move(usage));
-	return *this;
+    return sample_attachment(name, {}, stage);
+}
+
+PassBuilder& PassBuilder::sample_attachment(std::string_view name, ImageView view, plib::bit_flag<PipelineStage> stage) {
+    ResourceUsage usage{};
+    usage.type = ResourceType::Attachment;
+    usage.access = ResourceAccess::ShaderRead;
+    usage.stage = stage;
+    usage.attachment.name = name;
+    usage.attachment.view = view;
+    pass.resources.push_back(std::move(usage));
+    return *this;
 }
 
 PassBuilder& PassBuilder::shader_read_buffer(BufferSlice slice, plib::bit_flag<PipelineStage> stage) {

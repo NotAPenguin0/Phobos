@@ -1,0 +1,47 @@
+name: CMake
+
+on: [push, pull_request]
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Release
+
+jobs:
+  windows-build:
+    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
+    # You can convert this to a matrix build if you need cross-platform coverage.
+    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+        
+    - uses: suisei-cn/actions-download-file@v1
+      id: glslc-download
+      name: Download glslc
+      with:
+        url: https://storage.googleapis.com/shaderc/artifacts/prod/graphics_shader_compiler/shaderc/windows/continuous_release_2017/386/20220602-094729/install.zip
+        target: glslc-dir
+        auto-match: false
+
+    - name: Extract glslc archive
+      run: Expand-Archive glslc-dir/install.zip glslc-dir/install/bin
+        
+    - name: Setup Vulkan SDK
+      uses: sjcobb2022/setup-vulkan-sdk@c2612401009bbce8002630e838bf91cc67f8b3c3
+      with:
+           vulkan-query-version: 1.2.198.1
+           vulkan-components: Vulkan-Headers, Vulkan-Loader
+           vulkan-use-cache: true
+
+    - name: Configure CMake
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: cmake -B ${{github.workspace}}/build -GNinja -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DGLSLC_DIR=glslc-dir/install/bin -DPHOBOS_ENABLE_TEST_APP=OFF
+
+    - name: Build
+      # Build your program with the given configuration
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+      

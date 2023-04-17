@@ -15,7 +15,7 @@ public:
 
 	uint32_t max_frames_in_flight() const;
 	[[nodiscard]] InFlightContext wait_for_frame();
-	void submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf);
+    void submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf, std::vector<WaitSemaphore> const& wait_semaphores);
 	void present(Queue& queue);
 
 	void next_frame();

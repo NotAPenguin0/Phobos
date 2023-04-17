@@ -148,6 +148,9 @@ namespace ph {
 				}
 				else {
 					binding.descriptorCount = type.array[0];
+                    // Always add PartiallyBound flag for arrays.
+                    dslci.flags.resize(dslci.bindings.size() + 1);
+                    dslci.flags.back() = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
 				}
 			}
 			else {
@@ -239,6 +242,7 @@ namespace ph {
 			find_acceleration_structures(info, *refl, dslci);
 #endif
 		}
+        dslci.flags.resize(dslci.bindings.size()); // Make sure size matches so we don't index out of bounds.
 		collapse_bindings(dslci);
 		return dslci;
 	}

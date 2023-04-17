@@ -20,7 +20,7 @@
 
 namespace ph {
 
-Context::Context(AppSettings settings) {
+Context::Context(AppSettings const& settings) {
 	context_impl = std::make_unique<impl::ContextImpl>(settings);
 	image_impl = std::make_unique<impl::ImageImpl>(*context_impl);
 	buffer_impl = std::make_unique<impl::BufferImpl>(*context_impl);
@@ -30,7 +30,9 @@ Context::Context(AppSettings settings) {
 		frame_impl = std::make_unique<impl::FrameImpl>(*context_impl, *attachment_impl, *cache_impl, settings);
 	}
 	context_impl->post_init(*this, *image_impl, settings);
-	frame_impl->post_init(*this, settings);
+    if (!is_headless()) {
+        frame_impl->post_init(*this, settings);
+    }
 	pipeline_impl = std::make_unique<impl::PipelineImpl>(*context_impl, *cache_impl, *buffer_impl);
 
 #if PHOBOS_ENABLE_RAY_TRACING
@@ -138,6 +140,12 @@ void Context::name_object(VkQueue queue, std::string const& name) {
 	context_impl->name_object(queue, name);
 }
 
+#if PHOBOS_ENABLE_RAY_TRACING
+void Context::name_object(VkAccelerationStructureKHR as, std::string const& name) {
+    context_impl->name_object(as, name);
+}
+#endif
+
 [[nodiscard]] InThreadContext Context::begin_thread(uint32_t thread_index) {
 	return context_impl->begin_thread(thread_index);
 }
@@ -194,6 +202,8 @@ void Context::destroy_query_pool(VkQueryPool pool) {
 // FRAME
 
 size_t Context::max_frames_in_flight() const {
+    // If context is headless, there is only one "frame" in flight
+    if (is_headless()) return 1;
 	return frame_impl->max_frames_in_flight();
 }
 
@@ -202,7 +212,11 @@ size_t Context::max_frames_in_flight() const {
 }
 
 void Context::submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf) {
-	frame_impl->submit_frame_commands(queue, cmd_buf);
+	submit_frame_commands(queue, cmd_buf, {});
+}
+
+void Context::submit_frame_commands(Queue& queue, CommandBuffer& cmd_buf, std::vector<WaitSemaphore> const& wait_semaphores) {
+    frame_impl->submit_frame_commands(queue, cmd_buf, wait_semaphores);
 }
 
 void Context::present(Queue& queue) {
@@ -211,12 +225,20 @@ void Context::present(Queue& queue) {
 
 // ATTACHMENT
 
-Attachment* Context::get_attachment(std::string_view name) {
+Attachment Context::get_attachment(std::string_view name) {
 	return attachment_impl->get_attachment(name);
 }
 
-void Context::create_attachment(std::string_view name, VkExtent2D size, VkFormat format) {
-	attachment_impl->create_attachment(name, size, format);
+void Context::create_attachment(std::string_view name, VkExtent2D size, VkFormat format, ImageType type) {
+	attachment_impl->create_attachment(name, size, format, type);
+}
+
+void Context::create_attachment(std::string_view name, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, ImageType type) {
+    attachment_impl->create_attachment(name, size, format, samples, type);
+}
+
+void Context::create_attachment(std::string_view name, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t layers, ImageType type) {
+    attachment_impl->create_attachment(name, size,format, samples, layers, type);
 }
 
 void Context::resize_attachment(std::string_view name, VkExtent2D new_size) {
@@ -315,12 +337,28 @@ RawImage Context::create_image(ImageType type, VkExtent2D size, VkFormat format,
 	return image_impl->create_image(type, size, format, mips);
 }
 
+RawImage Context::create_image(ImageType type, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t mips) {
+    return image_impl->create_image(type, size, format, samples, mips);
+}
+
+RawImage Context::create_image(ImageType type, VkExtent2D size, VkFormat format, VkSampleCountFlagBits samples, uint32_t mips, uint32_t layers) {
+    return image_impl->create_image(type, size, format, samples, mips, layers);
+}
+
 void Context::destroy_image(RawImage& image) {
 	return image_impl->destroy_image(image);
 }
 
 ImageView Context::create_image_view(RawImage const& target, ImageAspect aspect) {
 	return image_impl->create_image_view(target, aspect);
+}
+
+ImageView Context::create_image_view(RawImage const& target, uint32_t mip, ImageAspect aspect) {
+    return image_impl->create_image_view(target, mip, aspect);
+}
+
+ImageView Context::create_image_view(RawImage const& target, uint32_t mip, uint32_t layer, ImageAspect aspect) {
+    return image_impl->create_image_view(target, mip, layer, aspect);
 }
 
 void Context::destroy_image_view(ImageView& view) {
@@ -408,13 +446,17 @@ Pipeline Context::get_or_create_ray_tracing_pipeline(std::string_view name) {
 
 #endif
 
-VkDescriptorSet Context::get_or_create(DescriptorSetBinding set_binding, Pipeline const& pipeline, void* pNext) {
+VkDescriptorSet Context::get_or_create(DescriptorSetBinding const& set_binding, Pipeline const& pipeline, void* pNext) {
 	return cache_impl->get_or_create_descriptor_set(set_binding, pipeline, pNext);
 }
 
 #if PHOBOS_ENABLE_RAY_TRACING
 
 // RTX
+
+void Context::destroy_acceleration_structure(VkAccelerationStructureKHR handle) {
+    rtx_fun._vkDestroyAccelerationStructureKHR(device(), handle, nullptr);
+}
 
 void Context::destroy_acceleration_structure(AccelerationStructure& as) {
 	for (auto& blas : as.bottom_level) {
