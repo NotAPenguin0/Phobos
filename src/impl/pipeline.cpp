@@ -134,7 +134,7 @@ namespace ph {
 			auto type = refl.get_type(si.type_id);
 			// type.array has the dimensions of the array. If this is zero, we don't have an array.
 			// If it's larger than zero, we have an array.
-			if (type.array.size() > 0) {
+			if (!type.array.empty()) {
 				// Now the dimensions of the array are in the first value of the array field.
 				// 0 means unbounded
 				if (type.array[0] == 0) {
